@@ -1,108 +1,99 @@
-# Pure‑Python mirror of the Mojo API (no leading underscores)
-
-from collections import defaultdict
-from math import fabs
-import yaml, importlib.resources as pkg
-
-# ------------------------------------------------------------------
-# Load YAML defaults so Python & Mojo share a single source of truth
-CFG = yaml.safe_load(open("experiments/E00_omniglot.yaml"))
-
-EPS         = CFG["eps"]
-BETA        = CFG["beta"]
-ETA         = CFG["eta"]
-R_STAR      = CFG["r_star"]
-HIT_SAT     = CFG["hit_saturation"]
-SLOT_LIMIT  = CFG["max_slots_per_neuron"]
-
-# ------------------------------------------------------------------
-# Helper functions (from math_utils.mojo)
-
-def smoothstep(edge0, edge1, x):
-    t = max(0.0, min(1.0, (x - edge0) / (edge1 - edge0)))
-    return t * t * (3 - 2 * t)
-
-def smooth_clamp(x, lo, hi):
-    return smoothstep(0.0, 1.0, (x - lo) / (hi - lo)) * (hi - lo) + lo
-
-def round_two(x):
-    return 0.0 if x == 0 else round(x * 10) / 10.0
-
-
-# ------------------------------------------------------------------
-class Weight:
-    def __init__(self, parent, child, step_val=0.001):
-        self.parent, self.child = parent, child
-        self.step_val   = step_val
-        self.strength   = 0.0
-        self.hits       = 0
-
-    def reinforce(self):
-        if self.hits < HIT_SAT:
-            self.strength = smooth_clamp(self.strength + self.step_val, -1.0, 1.0)
-            self.hits += 1
-
-
-class MemoryCell:
-    def __init__(self):
-        self.last_raw = 0.0
-        self.slots    = {}
-
-    def pct_delta(self, new_val):
-        return 0.0 if self.last_raw == 0 else (new_val - self.last_raw) / self.last_raw
-
+import math
+from typing import Dict, List, Optional
+from weight import Weight
+from synapse import Synapse
+from bus import LateralBus
 
 class Neuron:
-    def __init__(self, nid="root"):
-        self.id          = nid
-        self.cell        = MemoryCell()
-        self.outbound    = {}
-        # adaptive‑threshold state
-        self.theta       = 0.0
-        self.ema_rate    = 0.0
-        self.seen_one    = False
+    """
+    Base neuron with slot logic. Subclasses override fire() behaviour.
+    Compartments are keyed by percent-delta bins:
+      bin 0: 0%
+      bin 1: (0,10%], bin 2: (10,20%], ...
+    """
+    SLOT_LIMIT: Optional[int] = None  # None = unlimited
 
-    # --------------- public API -----------------
-    def onInput(self, x: float):
-        """Main entry point—mirrors Mojo signature."""
+    def __init__(self, neuron_id: str, bus: LateralBus):
+        self.neuron_id = neuron_id
+        self.bus = bus
+        self.slots: Dict[int, Weight] = {}
+        self.outgoing: List[Synapse] = []
+        self.last_input_value: Optional[float] = None
 
-        # ---- T0 imprint
-        if not self.seen_one:
-            self.theta    = fabs(x) * (1.0 + EPS)
-            self.seen_one = True
+    # ----------------- public API -----------------
+    def on_input(self, input_value: float):
+        slot = self.select_slot(input_value)
+        # Local learning in the active slot
+        slot.reinforce(
+            modulation_factor=self.bus.modulation_factor,
+            inhibition_factor=self.bus.inhibition_factor,
+        )
+        if slot.update_threshold(input_value):
+            self.fire(input_value)
 
-        # ---- slot key & creation
-        delta   = round_two(self.cell.pct_delta(x))
-        bin_id  = int(delta * 10)        # e.g. 0.23 → 2
-        weight  = self.cell.slots.get(bin_id)
-        if weight is None:
-            weight = self.spawnSlot(bin_id)
+        # remember last input for next binning step
+        self.last_input_value = input_value
 
-        # ---- reinforce & fire
-        weight.reinforce()
-        fired = False
-        if weight.strength > self.theta:
-            fired = True
-            weight.child.onInput(x)
+    def connect(self, target: "Neuron", is_feedback: bool = False) -> Synapse:
+        syn = Synapse(target, is_feedback)
+        self.outgoing.append(syn)
+        return syn
 
-        # ---- T2 homeostasis
-        self.ema_rate = (1 - BETA) * self.ema_rate + BETA * (1.0 if fired else 0.0)
-        self.theta   += ETA * (self.ema_rate - R_STAR)
+    def prune_synapses(self, current_step: int, stale_window: int = 10_000, min_strength: float = 0.05):
+        """Drop synapses that have not been used for a long time and stayed weak."""
+        self.outgoing = [
+            s for s in self.outgoing
+            if (current_step - s.last_step) <= stale_window or s.weight.strength_value >= min_strength
+        ]
 
-        self.cell.last_raw = x
+    # ----------------- default firing -----------------
+    def fire(self, input_value: float):
+        """Excitatory default: propagate along all outgoing synapses."""
+        for syn in self.outgoing:
+            # Reinforce the synapse’s weight when source fires
+            syn.weight.reinforce(
+                modulation_factor=self.bus.modulation_factor,
+                inhibition_factor=self.bus.inhibition_factor,
+            )
+            syn.last_step = self.bus.current_step
+            if syn.weight.update_threshold(input_value):
+                syn.target.on_input(input_value)
 
-    # --------------- helpers --------------------
-    def spawnSlot(self, bin_id: int) -> Weight:
-        if SLOT_LIMIT is not None and len(self.cell.slots) >= SLOT_LIMIT:
-            return self.reuseSlot(bin_id)
+    # ----------------- helpers -----------------
+    def select_slot(self, input_value: float) -> Weight:
+        """Route to a slot based on percent delta from last input."""
+        if self.last_input_value is None or self.last_input_value == 0.0:
+            bin_id = 0
+        else:
+            delta = abs(input_value - self.last_input_value) / abs(self.last_input_value)
+            delta_percent = delta * 100.0
+            bin_id = 0 if delta_percent == 0.0 else int(math.ceil(delta_percent / 10.0))
 
-        child  = Neuron(f"{self.id}-{bin_id}")
-        weight = Weight(parent=self, child=child)
-        self.cell.slots[bin_id] = weight
-        self.outbound[child.id] = weight
-        return weight
+        comp = self.slots.get(bin_id)
+        if comp is None:
+            if Neuron.SLOT_LIMIT is not None and len(self.slots) >= Neuron.SLOT_LIMIT:
+                # trivial reuse: return the earliest created slot
+                comp = next(iter(self.slots.values()))
+            else:
+                comp = Weight()
+                self.slots[bin_id] = comp
+        return comp
 
-    def reuseSlot(self, bin_id: int) -> Weight:
-        # trivial policy: reuse the first slot
-        k = next(iter(self.cell.slots))
-        return self.cell.slots[k]
+
+# ----------------- subclasses -----------------
+class ExcitatoryNeuron(Neuron):
+    """Inherits default excitatory behaviour."""
+    pass
+
+
+class InhibitoryNeuron(Neuron):
+    """Emits an inhibitory pulse (scales down learning/strength this tick)."""
+    def fire(self, input_value: float):
+        # gamma < 1 attenuates; reset occurs in bus.decay()
+        self.bus.inhibition_factor = 0.7
+
+
+class ModulatoryNeuron(Neuron):
+    """Emits a modulatory pulse (scales learning rate this tick)."""
+    def fire(self, input_value: float):
+        self.bus.modulation_factor = 1.5

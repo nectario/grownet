@@ -22,7 +22,7 @@
           +---------------------  back‑prop‑free  ------------------------+
 ```
 
-* **Neuron = container** of *independent threshold sub‑units* (“compartments”, aka slots).
+* **Neuron = container** of *independent threshold sub‑units* (“slots”, aka slots).
 * **No global error signal**: learning is local, achieved via non‑linear reinforcement of slot weights.
 * **Three neuron phenotypes** control network dynamics:
 
@@ -32,7 +32,7 @@
 | **InhibitoryNeuron** | Multiply downstream slot‑strengths by γ < 1 for Δ T timesteps (“lateral inhibition”). | GABA interneurons              | `onSpike()` emits an **inhibition event** into a shared bus.                                    |
 | **ModulatoryNeuron** | Adjust learning‑rate α of downstream weights (e.g., scale `stepVal`).                 | Dopaminergic / neuromodulators | Emits a **modulation event** into the bus: downstream weights read the factor when reinforcing. |
 
-All three extend the common **Neuron** base and therefore share compartment logic.
+All three extend the common **Neuron** base and therefore share slot logic.
 
 ---
 
@@ -53,8 +53,8 @@ All three extend the common **Neuron** base and therefore share compartment logi
 
 | Field          | Type                       | Purpose                                                              |
 | -------------- | -------------------------- | -------------------------------------------------------------------- |
-| `compartments` | `Dict[int, Weight]`        | Key = `compartmentId` (rounded %‑delta or later, learned direction). |
-| `downstream`   | `Dict[str, Weight]`        | Outgoing synapses; same object as in `compartments`.                 |
+| `slots` | `Dict[int, Weight]`        | Key = `slotId` (rounded %‑delta or later, learned direction). |
+| `downstream`   | `Dict[str, Weight]`        | Outgoing synapses; same object as in `slots`.                 |
 | `typeTag`      | `enum {Excit, Inhib, Mod}` | Runtime behaviour switch.                                            |
 
 ### 3.3 `Inhibition / Modulation Bus`
@@ -74,7 +74,7 @@ class LateralBus:
 
 ## 4 · Algorithms
 
-### 4.1 Local Learning (per compartment)
+### 4.1 Local Learning (per slot)
 
 ```python
 def reinforce(weight: Weight):
@@ -105,11 +105,11 @@ weight.theta  += ETA * (weight.emaRate - R_STAR)
 
 ```python
 def onInput(neuron, x):
-    for weight in neuron.compartmentsFor(x):
+    for weight in neuron.slotsFor(x):
         weight.reinforce()
         if weight.strength > weight.theta:
             neuron.fire(x)
-            break    # OR‑gate: first compartment wins
+            break    # OR‑gate: first slot wins
 
 def fire(neuron, x):
     if neuron.typeTag == EXCIT:

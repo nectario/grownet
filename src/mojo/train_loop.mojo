@@ -1,14 +1,13 @@
-import sys
-from neuron import Neuron
+from layer import Layer
 from std.random import rand
 
-# -- minimal synthetic stream sanity test ---------------------------
-fn synthetic_test(steps: Int = 1000):
-    let root = @owned Neuron(id="root")
-    for i in range(steps):
-        let x = rand()          # uniform 0..1
-        root.on_input(x)
-    print("θ=", root.theta, "  r̂=", root.ema_rate)
+fn main():
+    var layer = Layer()
+    layer.init(ex=20, inh=5, mod=3)
 
-if __name__ == "__main__":
-    synthetic_test()
+    for _ in range(1000):
+        layer.forward(rand())
+
+    print("Mojo GrowNet synthetic pass finished.")
+
+
