@@ -7,11 +7,16 @@
 #include "Weight.h"
 #include "Synapse.h"
 #include "LateralBus.h"
+#include "FireHook.h"
 
 namespace grownet {
 
     // Base neuron with slot logic. Subclasses can override fire() behaviour.
     class Neuron {
+
+    private:
+        std::vector<FireHook> fireHooks;
+
     public:
         // slotLimit < 0 means "unlimited"
         static int slotLimit;
@@ -43,6 +48,8 @@ namespace grownet {
         const std::vector<Synapse>& getOutgoing() const { return outgoing; }
         std::vector<Synapse>&       getOutgoing()       { return outgoing; }
 
+        void registerFireHook(const FireHook& hook) { fireHooks.push_back(hook); }
+
     protected:
         // Route to a slot based on percent delta from last input.
         Weight& selectSlot(double inputValue);
@@ -56,5 +63,7 @@ namespace grownet {
         bool   hasLastInput {false};
         double lastInputValue {0.0};
     };
+
+
 
 } // namespace grownet

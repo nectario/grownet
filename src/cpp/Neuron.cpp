@@ -47,6 +47,10 @@ void Neuron::fire(double inputValue) {
             }
         }
     }
+    // After you finish intra-layer propagation over outgoing synapses:
+    for (const auto& hook : fireHooks) {
+        hook(inputValue, *this);
+    }
 }
 
 double Neuron::neuronValue(const std::string& mode) const {
