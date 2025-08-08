@@ -3,7 +3,7 @@ from weight import Weight
 from bus import LateralBus
 
 # constant slot limit (None == unlimited)
-let SLOT_LIMIT: Int64 = None
+alias SLOT_LIMIT: Int64 = None
 
 # --------------------------- base ---------------------------------
 struct Neuron:

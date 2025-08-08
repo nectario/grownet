@@ -1,12 +1,5 @@
 import math_utils
 
-# --- constants ----------------------------------------------------
-let HIT_SATURATION: Int64 = 10_000
-let EPS:        Float64 = 0.02
-let BETA:       Float64 = 0.01
-let ETA:        Float64 = 0.02
-let TARGET_RATE:Float64 = 0.05
-
 # ------------------------------------------------------------------
 
 struct Weight:
@@ -20,8 +13,14 @@ struct Weight:
     var ema_rate:        Float64 = 0.0
     var first_seen:      Bool    = false
 
-    fn reinforce(self, modulation: Float64):
-        if self.reinforcement_cnt >= HIT_SATURATION:
+    alias HIT_SATURATION = 10_000
+    alias EPS = 0.02
+    alias BETA = 0.01
+    alias ETA = 0.02
+    alias TARGET_RATE = 0.05
+
+    fn reinforce(self, modulation: F64):
+        if self.reinforcement_cnt >= Weight.HIT_SATURATION:
             return
         var effective = self.step_value * modulation
         self.strength_value = math_utils.smooth_clamp(
