@@ -23,10 +23,24 @@ def run_few_shot(
     layer.wire_random_feedback(probability=p_feedback)
 
     start_time = time.time()
-    for _ in tqdm(range(num_batches), desc="Omniglot episodes"):
-        images, _ = next(batch_stream)             # shape: (N, 28, 28)
-        for pixel_value in images.ravel():         # stream pixels
+
+    for batch_index in tqdm(range(num_batches), desc="Omniglot episodes"):
+        images, _ = next(batch_stream)
+        for pixel_value in images.ravel():
             layer.forward(float(pixel_value))
+
+        if args.log_every and (batch_index + 1) % args.log_every == 0:
+            readiness = [n.neuron_value("readiness") for n in layer.neurons]
+            firing    = [n.neuron_value("firing_rate") for n in layer.neurons]
+            memory    = [n.neuron_value("memory") for n in layer.neurons]
+            avg_r = sum(readiness) / max(len(readiness), 1)
+            max_r = max(readiness) if readiness else 0.0
+            avg_f = sum(firing) / max(len(firing), 1)
+            sum_m = sum(memory)
+            print(f"[batch {batch_index+1}] readiness avg={avg_r:.3f} max={max_r:.3f} | "
+                  f"firing avg={avg_f:.3f} | memory sum={sum_m:.3f}")
+
+
     duration = time.time() - start_time
 
     total_slots = sum(len(n.slots) for n in layer.neurons)
@@ -51,6 +65,8 @@ if __name__ == "__main__":
     parser.add_argument("--mod", type=int, default=0)
     parser.add_argument("--p_feedforward", type=float, default=0.10)
     parser.add_argument("--p_feedback", type=float, default=0.01)
+    parser.add_argument("--log_every", type=int, default=0, help="Log neuron values every N batches (0 = off)")
+
     args = parser.parse_args()
 
     run_few_shot(

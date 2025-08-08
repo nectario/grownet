@@ -1,4 +1,5 @@
 import math
+import typing
 from typing import Dict, List, Optional
 from weight import Weight
 from synapse import Synapse
@@ -19,6 +20,29 @@ class Neuron:
         self.slots: Dict[int, Weight] = {}
         self.outgoing: List[Synapse] = []
         self.last_input_value: Optional[float] = None
+        self.fire_hooks: list[typing.Callable[[float, "Neuron"], None]] = []
+
+    # put inside class Neuron
+
+    def neuron_value(self, mode: str = "readiness") -> float:
+        """Return a single scalar summary derived from this neuron's slots.
+
+        modes:
+          - 'readiness'   : max(strength - threshold) across slots
+          - 'firing_rate' : mean of ema_rate across slots
+          - 'memory'      : sum of abs(strength) across slots
+        """
+        if not self.slots:
+            return 0.0
+        mode_lower = mode.lower()
+        if mode_lower == "readiness":
+            return max(w.strength_value - w.threshold_value for w in self.slots.values())
+        if mode_lower == "firing_rate":
+            return sum(w.ema_rate for w in self.slots.values()) / len(self.slots)
+        if mode_lower == "memory":
+            return sum(abs(w.strength_value) for w in self.slots.values())
+        raise ValueError(f"Unknown mode: {mode}")
+
 
     # ----------------- public API -----------------
     def on_input(self, input_value: float):
@@ -59,6 +83,10 @@ class Neuron:
             if syn.weight.update_threshold(input_value):
                 syn.target.on_input(input_value)
 
+         # NEW: notify any inter-layer tracts to queue deliveries for Phase B
+        for hook in self.fire_hooks:
+            hook(input_value, self)
+
     # ----------------- helpers -----------------
     def select_slot(self, input_value: float) -> Weight:
         """Route to a slot based on percent delta from last input."""
@@ -78,6 +106,12 @@ class Neuron:
                 comp = Weight()
                 self.slots[bin_id] = comp
         return comp
+
+
+    def register_fire_hook(self, hook: typing.Callable[[float, "Neuron"], None]) -> None:
+        """Register a callback invoked when this neuron fires. Signature: (input_value, self)."""
+        self.fire_hooks.append(hook)
+
 
 
 # ----------------- subclasses -----------------

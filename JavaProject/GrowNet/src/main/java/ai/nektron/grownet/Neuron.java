@@ -79,4 +79,36 @@ public abstract class Neuron {
         }
         return slot;
     }
+
+    // inside class Neuron
+    public double neuronValue(String mode) {
+        if (slots.isEmpty()) return 0.0;
+        String m = mode.toLowerCase();
+        switch (m) {
+            case "readiness": {
+                double best = Double.NEGATIVE_INFINITY;
+                for (Weight w : slots.values()) {
+                    double margin = w.strengthValue() - w.thresholdValue();
+                    if (margin > best) best = margin;
+                }
+                return best;
+            }
+            case "firing_rate": {
+                double sum = 0.0;
+                for (Weight w : slots.values()) sum += /* emaRate not exposed; add a getter if you want exact parity */
+                        // quick proxy if you don't want to expose emaRate:
+                        (w.strengthValue() > w.thresholdValue() ? 1.0 : 0.0);
+                return sum / slots.size();
+            }
+            case "memory": {
+                double sum = 0.0;
+                for (Weight w : slots.values()) sum += Math.abs(w.strengthValue());
+                return sum;
+            }
+            default:
+                throw new IllegalArgumentException("Unknown mode: " + mode);
+        }
+    }
+
+
 }

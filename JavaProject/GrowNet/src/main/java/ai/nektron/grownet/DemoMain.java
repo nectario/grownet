@@ -9,8 +9,16 @@ public final class DemoMain {
         layer.wireRandomFeedback(0.01);
 
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
         for (int i = 0; i < 5_000; i++) {
-            layer.forward(rnd.nextDouble());  // synthetic stream
+            layer.forward(rnd.nextDouble());
+            if ((i + 1) % 500 == 0) {
+                double avg = layer.neurons().stream()
+                        .mapToDouble(n -> n.neuronValue("readiness")).average().orElse(0.0);
+                double max = layer.neurons().stream()
+                        .mapToDouble(n -> n.neuronValue("readiness")).max().orElse(0.0);
+                System.out.printf("[tick %d] readiness avg=%.3f max=%.3f%n", i + 1, avg, max);
+            }
         }
 
         int totalSlots = layer.neurons().stream().mapToInt(n -> n.slots().size()).sum();

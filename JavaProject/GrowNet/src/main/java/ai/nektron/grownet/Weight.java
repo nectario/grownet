@@ -45,4 +45,9 @@ public final class Weight {
         thresholdValue += ETA * (emaRate - R_TARGET);
         return fired;
     }
+
+    public double emaRate() {
+        return emaRate;
+    }
+
 }
