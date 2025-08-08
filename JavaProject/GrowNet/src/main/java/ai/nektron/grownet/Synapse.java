@@ -11,4 +11,12 @@ public final class Synapse {
         this.target = target;
         this.feedback = feedback;
     }
+
+    public Weight getWeight() {
+        return weight;
+    }
+
+    public Neuron getTarget() {
+        return target;
+    }
 }

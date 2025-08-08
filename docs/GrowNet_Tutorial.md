@@ -6,6 +6,8 @@
 **Goal:** understand and run GrowNet without needing a neuroscience background.
 You’ll build a tiny network, watch it learn online, wire layers into a region, and see growth/pruning signals.
 
+![GrowNet Overview](C:\Development\Projects\GrowNet\docs\images\grownet_overview.png)
+
 ---
 
 ## Contents
@@ -86,6 +88,8 @@ python src/python/region_demo.py
 
 ## How a neuron works
 
+![Neuron Close‑Up](images/neuron_closeup.png)
+
 **Flow:**
 
 1. Choose a **slot** based on percent change vs. the last input (0–10%, 10–20%, …).
@@ -146,6 +150,8 @@ print("slot ids:", sorted(neuron.slots.keys()))
 ---
 
 ## Regions, tracts, and the two‑phase tick
+
+![Tick Timeline](images/tick_timeline.png)
 
 A **Region** holds layers and **Tracts** (bundles of connections between layers).
 We use a **two‑phase tick** for stability:
@@ -237,8 +243,6 @@ Prefer adjusting **layer sizes** and **wiring probabilities** first.
 4. **Two regions** – “vision” feeding “motor”; log delivered events across the tract.
 
 ---
-
-![GrowNet Overview](C:\Development\Projects\GrowNet\docs\images\grownet_overview.png)
 
 ## FAQ
 

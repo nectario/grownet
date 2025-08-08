@@ -45,11 +45,12 @@ public abstract class Neuron {
 
     /** Drop stale + weak synapses. */
     public void pruneSynapses(long currentStep, long staleWindow, double minStrength) {
-        outgoing.removeIf(s ->
-                (currentStep - s.lastStep) > staleWindow && s.weight.getStrengthValue() < minStrength
-        );
+        outgoing.removeIf(s -> {
+            boolean stale = (currentStep - s.lastStep) > staleWindow;
+            boolean weak  = s.getWeight().getStrengthValue() < minStrength;
+            return stale && weak;
+        });
     }
-
 
     /** Default excitatory behaviour: propagate along outgoing synapses. */
     public void fire(double inputValue) {
