@@ -1,0 +1,82 @@
+package ai.nektron.grownet;
+
+import java.util.*;
+
+/** Base neuron with slot logic. Subclasses can override fire() behaviour. */
+public abstract class Neuron {
+    /** Optional cap on slot count (null means unlimited). */
+    public static Integer SLOT_LIMIT = null;
+
+    protected final String neuronId;
+    protected final LateralBus bus;
+
+    protected final Map<Integer, Weight> slots = new LinkedHashMap<>();
+    protected final List<Synapse> outgoing = new ArrayList<>();
+    protected Double lastInputValue = null;
+
+    protected Neuron(String neuronId, LateralBus bus) {
+        this.neuronId = neuronId;
+        this.bus = bus;
+    }
+
+    public String neuronId() { return neuronId; }
+    public Map<Integer, Weight> slots() { return slots; }
+    public List<Synapse> outgoing() { return outgoing; }
+
+    /** Route input into a slot, learn locally, maybe fire. */
+    public void onInput(double inputValue) {
+        Weight slot = selectSlot(inputValue);
+        slot.reinforce(bus.modulationFactor(), bus.inhibitionFactor());
+        if (slot.updateThreshold(inputValue)) fire(inputValue);
+        lastInputValue = inputValue;
+    }
+
+    /** Create a new synapse to target and return it (fluent style). */
+    public Synapse connect(Neuron target, boolean feedback) {
+        Synapse s = new Synapse(target, feedback);
+        outgoing.add(s);
+        return s;
+    }
+
+    /** Drop stale + weak synapses. */
+    public void pruneSynapses(long currentStep, long staleWindow, double minStrength) {
+        outgoing.removeIf(s ->
+                (currentStep - s.lastStep) > staleWindow && s.weight.strengthValue() < minStrength
+        );
+    }
+
+    /** Default excitatory behaviour: propagate along outgoing synapses. */
+    public void fire(double inputValue) {
+        for (Synapse s : outgoing) {
+            s.weight.reinforce(bus.modulationFactor(), bus.inhibitionFactor());
+            s.lastStep = bus.currentStep();
+            if (s.weight.updateThreshold(inputValue)) {
+                s.target.onInput(inputValue);
+            }
+        }
+    }
+
+    /** Route to a slot based on percent delta from last input. */
+    protected Weight selectSlot(double inputValue) {
+        int binId;
+        if (lastInputValue == null || lastInputValue == 0.0) {
+            binId = 0;
+        } else {
+            double delta = Math.abs(inputValue - lastInputValue) / Math.abs(lastInputValue);
+            double deltaPercent = delta * 100.0;
+            binId = (deltaPercent == 0.0) ? 0 : (int) Math.ceil(deltaPercent / 10.0);
+        }
+
+        Weight slot = slots.get(binId);
+        if (slot == null) {
+            if (SLOT_LIMIT != null && slots.size() >= SLOT_LIMIT) {
+                // trivial reuse policy: earliest created slot
+                slot = slots.values().iterator().next();
+            } else {
+                slot = new Weight();
+                slots.put(binId, slot);
+            }
+        }
+        return slot;
+    }
+}
