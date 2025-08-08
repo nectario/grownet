@@ -19,8 +19,8 @@ public final class Weight {
     private double emaRate = 0.0;
     private boolean seenFirst = false;
 
-    public double strengthValue() { return strengthValue; }
-    public double thresholdValue() { return thresholdValue; }
+    public double getStrengthValue() { return strengthValue; }
+    public double getThresholdValue() { return thresholdValue; }
     public int hitCount() { return hitCount; }
 
     public void setStepValue(double v) { this.stepValue = v; }

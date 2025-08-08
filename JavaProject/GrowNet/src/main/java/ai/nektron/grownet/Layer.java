@@ -14,8 +14,8 @@ public final class Layer {
         for (int i = 0; i < modCount; i++) neurons.add(new ModulatoryNeuron("M" + i, bus));
     }
 
-    public List<Neuron> neurons() { return neurons; }
-    public LateralBus bus() { return bus; }
+    public List<Neuron> getNeurons() { return neurons; }
+    public LateralBus getBus() { return bus; }
 
     /** Randomly create excitatory connections between distinct neurons (no duplicates). */
     public void wireRandomFeedforward(double probability) {

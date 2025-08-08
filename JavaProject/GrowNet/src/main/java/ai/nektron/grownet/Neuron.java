@@ -9,10 +9,12 @@ public abstract class Neuron {
 
     protected final String neuronId;
     protected final LateralBus bus;
+    private final List<FireHook> fireHooks = new ArrayList<>();
 
     protected final Map<Integer, Weight> slots = new LinkedHashMap<>();
     protected final List<Synapse> outgoing = new ArrayList<>();
     protected Double lastInputValue = null;
+
 
     protected Neuron(String neuronId, LateralBus bus) {
         this.neuronId = neuronId;
@@ -22,6 +24,9 @@ public abstract class Neuron {
     public String neuronId() { return neuronId; }
     public Map<Integer, Weight> slots() { return slots; }
     public List<Synapse> outgoing() { return outgoing; }
+
+    public java.util.Map<Integer, Weight> getSlots() { return slots; }
+    public java.util.List<Synapse> getOutgoing()     { return outgoing; }
 
     /** Route input into a slot, learn locally, maybe fire. */
     public void onInput(double inputValue) {
@@ -41,9 +46,10 @@ public abstract class Neuron {
     /** Drop stale + weak synapses. */
     public void pruneSynapses(long currentStep, long staleWindow, double minStrength) {
         outgoing.removeIf(s ->
-                (currentStep - s.lastStep) > staleWindow && s.weight.strengthValue() < minStrength
+                (currentStep - s.lastStep) > staleWindow && s.weight.getStrengthValue() < minStrength
         );
     }
+
 
     /** Default excitatory behaviour: propagate along outgoing synapses. */
     public void fire(double inputValue) {
@@ -54,6 +60,11 @@ public abstract class Neuron {
                 s.target.onInput(inputValue);
             }
         }
+
+        for (FireHook hook : fireHooks) {
+            hook.onFire(inputValue, this);
+        }
+
     }
 
     /** Route to a slot based on percent delta from last input. */
@@ -88,7 +99,7 @@ public abstract class Neuron {
             case "readiness": {
                 double best = Double.NEGATIVE_INFINITY;
                 for (Weight w : slots.values()) {
-                    double margin = w.strengthValue() - w.thresholdValue();
+                    double margin = w.getStrengthValue() - w.getThresholdValue();
                     if (margin > best) best = margin;
                 }
                 return best;
@@ -97,12 +108,12 @@ public abstract class Neuron {
                 double sum = 0.0;
                 for (Weight w : slots.values()) sum += /* emaRate not exposed; add a getter if you want exact parity */
                         // quick proxy if you don't want to expose emaRate:
-                        (w.strengthValue() > w.thresholdValue() ? 1.0 : 0.0);
+                        (w.getStrengthValue() > w.getThresholdValue() ? 1.0 : 0.0);
                 return sum / slots.size();
             }
             case "memory": {
                 double sum = 0.0;
-                for (Weight w : slots.values()) sum += Math.abs(w.strengthValue());
+                for (Weight w : slots.values()) sum += Math.abs(w.getStrengthValue());
                 return sum;
             }
             default:
@@ -110,5 +121,8 @@ public abstract class Neuron {
         }
     }
 
+    public void registerFireHook(FireHook hook) {
+        fireHooks.add(hook);
+    }
 
 }
