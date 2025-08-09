@@ -3,7 +3,7 @@
 ## 1. Guiding Intuition
 Biological neurons do not converge all synapses into a single scalar; instead they integrate signals at multiple dendritic micro‑sites.  
 GrowNet abstracts each neuron as an **elastic array of sub‑slots (“vector slots”)** whose count expands whenever novel input statistics appear.  
-Learning is continuous, local, and memory is encoded **inside** the neuron (threshold surfaces + reinforced weights), not in an external optimiser state.
+Learning is continuous, local, and memory is encoded **inside** the neuron (threshold surfaces + reinforced weights), not in an external optimizer state.
 
 ## 2. Core Mechanisms
 | Aspect | Classic ANN | GrowNet Mechanism | Expected Advantage |
