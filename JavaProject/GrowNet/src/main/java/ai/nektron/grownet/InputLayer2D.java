@@ -2,7 +2,7 @@ package ai.nektron.grownet;
 
 import java.util.List;
 
-/** Shape-aware sensory layer (e.g., grayscale image). */
+/** Shape-aware sensory layer (e.g., grayscale image) using unified onInput/onOutput. */
 public class InputLayer2D extends Layer {
     private final int height;
     private final int width;
@@ -26,7 +26,8 @@ public class InputLayer2D extends Layer {
             for (int x = 0; x < width; x++) {
                 int idx = index(y, x);
                 InputNeuron n = (InputNeuron) getNeurons().get(idx);
-                n.onSensorValue(image[y][x], getBus().getModulationFactor(), getBus().getInhibitionFactor());
+                boolean fired = n.onInput(image[y][x], getBus().getModulationFactor(), getBus().getInhibitionFactor());
+                if (fired) n.onOutput(image[y][x]); // no-op; keeps the contract
             }
         }
     }

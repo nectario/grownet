@@ -2,7 +2,7 @@ package ai.nektron.grownet;
 
 import java.util.List;
 
-/** Shape-aware output layer (e.g., image writer). */
+/** Shape-aware output layer (e.g., image writer) using unified onInput/onOutput. */
 public class OutputLayer2D extends Layer {
     private final int height;
     private final int width;
@@ -27,7 +27,8 @@ public class OutputLayer2D extends Layer {
     public void propagateFrom(int sourceIndex, double value) {
         if (sourceIndex < 0 || sourceIndex >= getNeurons().size()) return;
         OutputNeuron n = (OutputNeuron) getNeurons().get(sourceIndex);
-        n.onRoutedEvent(value, getBus().getModulationFactor(), getBus().getInhibitionFactor());
+        boolean fired = n.onInput(value, getBus().getModulationFactor(), getBus().getInhibitionFactor());
+        if (fired) n.onOutput(value);
     }
 
     public void endTick() {

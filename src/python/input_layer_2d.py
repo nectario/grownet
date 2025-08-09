@@ -1,12 +1,10 @@
-from __future__ import annotations
 from typing import List
 import numpy as np
-
 from input_neuron import InputNeuron
 from layer import LateralBus
 
 class InputLayer2D:
-    """Shape-aware sensory layer (e.g., grayscale image)."""
+    """Shape-aware sensory layer (e.g., grayscale image) using unified onInput/onOutput."""
     def __init__(self, height: int, width: int, gain: float = 1.0, epsilon_fire: float = 0.01):
         self.height = height
         self.width = width
@@ -27,7 +25,7 @@ class InputLayer2D:
         for y in range(self.height):
             for x in range(self.width):
                 idx = self.index(y, x)
-                self.neurons[idx].on_sensor_value(float(image[y, x]))
-
-    def propagate_from(self, source_index: int, value: float) -> None:
-        pass
+                value = float(image[y, x])
+                fired = self.neurons[idx].onInput(value)
+                if fired:
+                    self.neurons[idx].onOutput(value)  # no-op but keeps the contract

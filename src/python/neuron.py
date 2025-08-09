@@ -22,7 +22,10 @@ class Neuron:
         self.last_input_value: Optional[float] = None
         self.fire_hooks: list[typing.Callable[[float, "Neuron"], None]] = []
 
-    # put inside class Neuron
+    # put inside
+    def onOutput(self, amplitude: float) -> None:
+        return
+class Neuron
 
     def neuron_value(self, mode: str = "readiness") -> float:
         """Return a single scalar summary derived from this neuron's slots.

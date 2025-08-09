@@ -13,7 +13,8 @@ public class InputNeuron extends Neuron {
 
     private static double clamp01(double x) { return x < 0 ? 0 : (x > 1 ? 1 : x); }
 
-    public boolean onSensorValue(double value, double modulation, double inhibition) {
+    /** Unified onInput: single-slot gate; still calls fire(...) so routing works as before. */
+    public boolean onInput(double value, double modulation, double inhibition) {
         double stimulus  = clamp01(value * gain);
         double effective = clamp01(stimulus * modulation * inhibition);
 
@@ -27,7 +28,12 @@ public class InputNeuron extends Neuron {
         boolean fired = slot.updateThreshold(effective);
         setFiredLast(fired);
         setLastInputValue(effective);
-        if (fired) fire(effective);
+        if (fired) { fire(effective); } // keep routing semantics
         return fired;
+    }
+
+    @Override
+    public void onOutput(double amplitude) {
+        // input neurons do not write; hook reserved for metrics/logging
     }
 }

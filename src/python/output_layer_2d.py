@@ -1,12 +1,10 @@
-from __future__ import annotations
 from typing import List
 import numpy as np
-
 from output_neuron import OutputNeuron
 from layer import LateralBus
 
 class OutputLayer2D:
-    """Shape-aware output layer (e.g., image writer)."""
+    """Shape-aware output layer (e.g., image writer) using unified onInput/onOutput."""
     def __init__(self, height: int, width: int, smoothing: float = 0.2):
         self.height = height
         self.width = width
@@ -24,7 +22,10 @@ class OutputLayer2D:
 
     def propagate_from(self, source_index: int, value: float) -> None:
         if 0 <= source_index < len(self.neurons):
-            self.neurons[source_index].on_routed_event(value)
+            n = self.neurons[source_index]
+            fired = n.onInput(value)
+            if fired:
+                n.onOutput(value)
 
     def end_tick(self) -> None:
         for idx, neuron in enumerate(self.neurons):

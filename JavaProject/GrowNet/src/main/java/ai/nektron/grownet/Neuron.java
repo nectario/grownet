@@ -126,4 +126,6 @@ public abstract class Neuron {
         fireHooks.add(hook);
     }
 
+
+    public void onOutput(double amplitude) { /* no-op by default */ }
 }

@@ -9,8 +9,7 @@ namespace grownet {
 class OutputLayer2D : public Layer {
 public:
     OutputLayer2D(int height, int width, double smoothing = 0.2)
-        : Layer(0,0,0), height(height), width(width),
-          frame(height, std::vector<double>(width, 0.0)) {
+        : Layer(0,0,0), height(height), width(width), frame(height, std::vector<double>(width, 0.0)) {
         auto& list = getNeurons();
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
@@ -26,7 +25,8 @@ public:
     void propagateFrom(int sourceIndex, double value) override {
         if (sourceIndex < 0 || sourceIndex >= (int)getNeurons().size()) return;
         auto n = std::static_pointer_cast<OutputNeuron>(getNeurons()[sourceIndex]);
-        n->onRoutedEvent(value, getBus());
+        bool fired = n->onInput(value, getBus());
+        if (fired) n->onOutput(value);
     }
 
     void endTick() {

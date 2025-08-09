@@ -8,21 +8,20 @@ namespace grownet {
 class OutputNeuron : public Neuron {
 public:
     explicit OutputNeuron(const std::string& name, double smoothing = 0.2)
-        : Neuron(name), smoothing(smoothing) {
-        slots()[0];
-    }
+        : Neuron(name), smoothing(smoothing) { slots()[0]; }
 
-    bool onRoutedEvent(double value, const LateralBus& bus) {
+    bool onInput(double value, const LateralBus& bus) {
         Weight& slot = slots()[0];
         slot.reinforce(bus.getModulationFactor(), bus.getInhibitionFactor());
         bool fired = slot.updateThreshold(value);
         setFiredLast(fired);
         setLastInputValue(value);
-        if (fired) {
-            accumulatedSum  += value;
-            accumulatedCount += 1;
-        }
         return fired;
+    }
+
+    void onOutput(double amplitude) override {
+        accumulatedSum  += amplitude;
+        accumulatedCount += 1;
     }
 
     void endTick() {

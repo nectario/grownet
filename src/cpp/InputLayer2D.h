@@ -27,13 +27,14 @@ public:
             for (int x = 0; x < width; ++x) {
                 int idx = index(y, x);
                 auto n = std::static_pointer_cast<InputNeuron>(getNeurons()[idx]);
-                n->onSensorValue(image[y][x], getBus());
+                bool fired = n->onInput(image[y][x], getBus());
+                if (fired) n->onOutput(image[y][x]);
             }
         }
     }
 
-    void propagateFrom(int sourceIndex, double value) override {
-        // Entry layer: no intra-layer routing
+    void propagateFrom(int sourceIndex, double /*value*/) override {
+        // entry layer: no intra-layer routing
     }
 
 private:

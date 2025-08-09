@@ -13,6 +13,10 @@ namespace grownet {
 
     // Base neuron with slot logic. Subclasses can override fire() behaviour.
     class Neuron {
+public:
+    virtual bool onInput(double value, const LateralBus& bus) { return false; }
+    virtual void onOutput(double amplitude) {}
+
 
     private:
         std::vector<FireHook> fireHooks;

@@ -8,12 +8,10 @@ namespace grownet {
 class InputNeuron : public Neuron {
 public:
     InputNeuron(const std::string& name, double gain = 1.0, double epsilonFire = 0.01)
-        : Neuron(name), gain(gain), epsilonFire(epsilonFire) {
-        slots()[0];
-    }
+        : Neuron(name), gain(gain), epsilonFire(epsilonFire) { slots()[0]; }
 
-    bool onSensorValue(double value, const LateralBus& bus) {
-        auto clamp01 = [](double x){ return x < 0 ? 0 : (x > 1 ? 1 : x); };
+    bool onInput(double value, const LateralBus& bus) {
+        auto clamp01 = [](double x) { return x < 0 ? 0 : (x > 1 ? 1 : x); };
         double stimulus  = clamp01(value * gain);
         double effective = clamp01(stimulus * bus.getModulationFactor() * bus.getInhibitionFactor());
 
@@ -30,6 +28,8 @@ public:
         if (fired) fire(effective);
         return fired;
     }
+
+    void onOutput(double /*amplitude*/) override { /* sensors do not write */ }
 
 private:
     double gain;

@@ -75,3 +75,7 @@ struct Neuron:
 
         # default
         return 0.0
+
+# unified hook
+fn onOutput(self, amplitude: Float64):
+    return

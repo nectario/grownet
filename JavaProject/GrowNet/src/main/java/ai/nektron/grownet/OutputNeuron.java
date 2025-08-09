@@ -12,17 +12,21 @@ public class OutputNeuron extends Neuron {
         getSlots().computeIfAbsent(0, k -> new Weight());
     }
 
-    public boolean onRoutedEvent(double value, double modulation, double inhibition) {
+    /** Unified onInput: gate + reinforcement; does NOT fire/propagate. */
+    public boolean onInput(double value, double modulation, double inhibition) {
         Weight slot = getSlots().get(0);
         slot.reinforce(modulation, inhibition);
         boolean fired = slot.updateThreshold(value);
         setFiredLast(fired);
         setLastInputValue(value);
-        if (fired) {
-            accumulatedSum  += value;
-            accumulatedCount += 1;
-        }
         return fired;
+    }
+
+    /** Unified onOutput: accumulate contribution this tick. */
+    @Override
+    public void onOutput(double amplitude) {
+        accumulatedSum  += amplitude;
+        accumulatedCount += 1;
     }
 
     public void endTick() {
