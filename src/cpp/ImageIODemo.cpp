@@ -19,26 +19,23 @@ int main() {
     region.connectLayers(lIn, lHidden, 0.05, false);
     region.connectLayers(lHidden, lOut, 0.12, false);
 
-    std::mt19937 gen(42);
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-
+    // Deterministic moving dot pattern (no RNG needed)
     for (int step = 0; step < 20; ++step) {
         std::vector<std::vector<double>> frame(h, std::vector<double>(w, 0.0));
-        for (int y = 0; y < h; ++y) {
-            for (int x = 0; x < w; ++x) {
-                frame[y][x] = (dist(gen) > 0.95) ? 1.0 : 0.0;
-            }
-        }
+        int y = (step * 2) % h;
+        int x = step % w;
+        frame[y][x] = 1.0;
 
         auto m = region.tickImage("pixels", frame); // Metrics struct per your Region
+
         if ((step + 1) % 5 == 0) {
             auto out = std::dynamic_pointer_cast<grownet::OutputLayer2D>(region.getLayers()[lOut]);
             const auto& img = out->getFrame();
             double sum = 0.0; int nz = 0;
-            for (int y = 0; y < h; ++y) {
-                for (int x = 0; x < w; ++x) {
-                    sum += img[y][x];
-                    if (img[y][x] > 0.05) nz++;
+            for (int yy = 0; yy < h; ++yy) {
+                for (int xx = 0; xx < w; ++xx) {
+                    sum += img[yy][xx];
+                    if (img[yy][xx] > 0.05) nz++;
                 }
             }
             std::cout << "[" << (step + 1) << "] delivered=" << m.delivered_events
