@@ -8,6 +8,7 @@
 #include "Tract.h"
 #include "Layer.h"
 #include "Neuron.h"
+#include "SlotPolicyConfig.h"
 
 namespace grownet {
 
@@ -25,6 +26,7 @@ namespace grownet {
     class Region {
     public:
         explicit Region(std::string name);
+        void setSlotPolicy(const SlotPolicyConfig& p);
 
         // Construction
         int addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount);

@@ -176,3 +176,7 @@ struct Region:
         for t in self.tracts:
             pruned_edges = pruned_edges + t.prune_edges(tract_stale_window, tract_min_strength)
         return PruneSummary(pruned_synapses=pruned_syn, pruned_edges=pruned_edges)
+
+fn set_slot_policy(inout self, policy: SlotPolicyConfig):
+    for l in self.layers:
+        l.set_slot_policy(policy)

@@ -222,3 +222,10 @@ class Region:
         # tract edges
         pruned_edges = sum(t.prune_edges(tract_stale_window, tract_min_strength) for t in self.tracts)
         return {"pruned_synapses": pruned_syn, "pruned_edges": pruned_edges}
+
+
+def set_slot_policy(self, policy):
+    # Set on all layers (simple broadcast)
+    for layer in self.layers:
+        if hasattr(layer, "slot_policy"):
+            layer.slot_policy = policy

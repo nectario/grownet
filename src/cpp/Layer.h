@@ -7,6 +7,7 @@
 #include "ExcitatoryNeuron.h"
 #include "InhibitoryNeuron.h"
 #include "ModulatoryNeuron.h"
+#include "SlotPolicyConfig.h"
 
 namespace grownet {
 
@@ -21,10 +22,15 @@ namespace grownet {
         void wireRandomFeedforward(double probability);
         void wireRandomFeedback(double probability);
 
+        void setSlotPolicy(const SlotPolicyConfig& p) { slotPolicy = p; }
+        SlotPolicyConfig& getSlotPolicy() { return slotPolicy; }
+
         void forward(double value);
+        void applyPolicyToNeurons();
 
     private:
         LateralBus bus {};
+        SlotPolicyConfig slotPolicy {};
         std::vector<std::unique_ptr<Neuron>> neurons;
 
         std::mt19937_64 randomGenerator;
@@ -32,3 +38,9 @@ namespace grownet {
     };
 
 } // namespace grownet
+
+namespace grownet {
+inline void Layer::applyPolicyToNeurons() {
+    for (auto & n : neurons) { if (n) n->setSlotPolicy(&slotPolicy); }
+}
+}

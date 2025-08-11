@@ -8,6 +8,7 @@
 #include "Synapse.h"
 #include "LateralBus.h"
 #include "FireHook.h"
+#include "SlotPolicyConfig.h"
 
 namespace grownet {
 
@@ -22,6 +23,7 @@ public:
         std::vector<FireHook> fireHooks;
 
     public:
+        void setSlotPolicy(const SlotPolicyConfig* p){ slotPolicy = p; }
         // slotLimit < 0 means "unlimited"
         static int slotLimit;
 
@@ -55,6 +57,8 @@ public:
         void registerFireHook(const FireHook& hook) { fireHooks.push_back(hook); }
 
     protected:
+        const SlotPolicyConfig* slotPolicy {nullptr};
+        long long lastAdjustTick { -1000000000LL };
         // Route to a slot based on percent delta from last input.
         Weight& selectSlot(double inputValue);
 

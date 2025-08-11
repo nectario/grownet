@@ -2,6 +2,73 @@
 
 namespace grownet {
 
+double Neuron::computePercentDelta(double previous, double current) const {
+    if (previous == 0.0) return 1.0;
+    return std::abs(current - previous) / std::max(1e-9, std::abs(previous));
+}
+
+int Neuron::selectOrCreateSlotId(double value) {
+    // Policy-driven slot selection / creation
+    double percent = computePercentDelta(hasLastInput ? lastInputValue : 0.0, value);
+    double width = (slotPolicy ? slotPolicy->slotWidthPercent : 0.10);
+
+    // Active slots count (hitCount > 0)
+    int active = 0;
+    for (auto & kv : slots) {
+        if (kv.second.getHitCount() > 0) active++;
+    }
+
+    // Adaptive: adjust width based on active slots, with cooldown by bus current step if available
+    long long tick = bus ? bus->getCurrentStep() : 0;
+    if (slotPolicy && slotPolicy->mode == SlotPolicyConfig::ADAPTIVE) {
+        if (tick - lastAdjustTick >= slotPolicy->adjustCooldownTicks) {
+            if (active > slotPolicy->targetActiveHigh) {
+                width = std::min(slotPolicy->maxSlotWidth, width * slotPolicy->adjustFactorUp);
+                lastAdjustTick = tick;
+            } else if (active < slotPolicy->targetActiveLow && percent > width) {
+                width = std::max(slotPolicy->minSlotWidth, width * slotPolicy->adjustFactorDown);
+                lastAdjustTick = tick;
+            }
+        }
+    }
+
+    // Determine width tiers
+    std::vector<double> widths;
+    if (slotPolicy && slotPolicy->mode == SlotPolicyConfig::MULTI_RESOLUTION) {
+        widths = slotPolicy->multiresWidths;
+    } else {
+        widths = { width };
+    }
+
+    // Try existing buckets
+    for (double w : widths) {
+        int bucket = (int) std::floor(percent / std::max(1e-9, w));
+        if (slots.find(bucket) != slots.end()) return bucket;
+    }
+    // Try finer widths as fallback
+    if (widths.size() > 1) {
+        for (size_t i = 1; i < widths.size(); ++i) {
+            int bucket = (int) std::floor(percent / std::max(1e-9, widths[i]));
+            if (slots.find(bucket) != slots.end()) return bucket;
+        }
+    }
+
+    // Creation: non-uniform schedule if provided
+    double useW = widths.back();
+    if (slotPolicy && !slotPolicy->nonuniformSchedule.empty()) {
+        size_t idx = slots.size();
+        if (idx < slotPolicy->nonuniformSchedule.size()) useW = slotPolicy->nonuniformSchedule[idx];
+    }
+    int newId = (int) std::floor(percent / std::max(1e-9, useW));
+    // Enforce optional global slot limit
+    if (slotLimit >= 0 && (int)slots.size() >= slotLimit) {
+        return slots.begin()->first; // reuse first slot
+    }
+    slots.emplace(newId, Weight{});
+    return newId;
+}
+
+
 int Neuron::slotLimit = -1; // unlimited by default
 
 void Neuron::onInput(double inputValue) {
@@ -88,12 +155,9 @@ double Neuron::neuronValue(const std::string& mode) const {
 }
 
 Weight& Neuron::selectSlot(double inputValue) {
-    int binId = 0;
-    if (hasLastInput && lastInputValue != 0.0) {
-        const double delta = std::abs(inputValue - lastInputValue) / std::abs(lastInputValue);
-        const double deltaPercent = delta * 100.0;
-        binId = (deltaPercent == 0.0) ? 0 : static_cast<int>(std::ceil(deltaPercent / 10.0));
-    }
+    int slotId = selectOrCreateSlotId(inputValue);
+    return slots.find(slotId)->second;
+}
 
     auto found = slots.find(binId);
     if (found == slots.end()) {

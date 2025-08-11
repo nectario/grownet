@@ -1,3 +1,4 @@
+from slot_policy import SlotPolicyConfig
 import math
 import typing
 from typing import Dict, List, Optional
@@ -134,3 +135,72 @@ class ModulatoryNeuron(Neuron):
     """Emits a modulatory pulse (scales learning rate this tick)."""
     def fire(self, input_value: float):
         self.bus.modulation_factor = 1.5
+
+
+def compute_percent_delta(previous: float | None, current: float) -> float:
+    if previous is None or previous == 0.0:
+        return 1.0  # treat first as full novelty
+    return abs(current - previous) / max(1e-9, abs(previous))
+
+
+def select_or_create_slot(neuron, value: float, policy: SlotPolicyConfig):
+    """
+    Determine which slot id should handle this value, possibly creating a new slot.
+    Non-uniform schedule: if provided, uses schedule[len(slots)] as width for the new slot.
+    Multi-resolution: tries coarse->fine, refines near boundary.
+    Adaptive: adjusts policy.slot_width_percent periodically based on active slot count.
+    """
+    # Get last input seen by neuron
+    previous = getattr(neuron, "last_input_value", None)
+    percent = compute_percent_delta(previous, value)
+
+    # Determine width to use for deciding creation
+    width = policy.slot_width_percent
+
+    # Adaptive width adjustment (cooldown-based)
+    tick_count = getattr(neuron, "tick_count_for_policy", 0)
+    last_adjust = getattr(neuron, "last_adjust_tick", -10**9)
+    active_slots = sum(1 for s in neuron.slots.values() if getattr(s, "hit_count", 0) > 0)
+
+    if policy.mode == "adaptive":
+        if tick_count - last_adjust >= policy.adjust_cooldown_ticks:
+            if active_slots > policy.target_active_high:
+                width = min(policy.max_slot_width, width * policy.adjust_factor_up)
+                neuron.last_adjust_tick = tick_count
+            elif active_slots < policy.target_active_low and percent > width:
+                width = max(policy.min_slot_width, width * policy.adjust_factor_down)
+                neuron.last_adjust_tick = tick_count
+            # write back
+            policy.slot_width_percent = width
+
+    # Multi-resolution: stage widths
+    widths = [width]
+    if policy.mode == "multi_resolution":
+        widths = policy.multires_widths
+
+    # Non-uniform schedule for new slot creation
+    new_slot_width = None
+    if policy.nonuniform_schedule is not None:
+        idx = len(neuron.slots)
+        if idx < len(policy.nonuniform_schedule):
+            new_slot_width = policy.nonuniform_schedule[idx]
+
+    # Check if existing slot already covers this percent change
+    # We'll model slot ids as integer buckets of percent/width at chosen resolution
+    # Choose the first width that claims the value; if none, create using chosen new_slot_width or first width.
+    for w in widths:
+        bucket = int(percent / max(1e-9, w))
+        if bucket in neuron.slots:
+            return bucket, False
+
+    # Near-boundary refinement (optional): if percent is within 10% of a boundary, prefer a finer width
+    if policy.mode == "multi_resolution" and len(widths) > 1:
+        for w in widths[1:]:
+            bucket = int(percent / max(1e-9, w))
+            if bucket in neuron.slots:
+                return bucket, False
+
+    # Create new slot id based on chosen width for creation
+    use_w = new_slot_width if new_slot_width is not None else widths[-1]
+    new_id = int(percent / max(1e-9, use_w))
+    return new_id, True

@@ -1,3 +1,4 @@
+from slot_policy import SlotPolicyConfig
 # layer.mojo
 # Pool of neurons with a simple LateralBus and intra-layer connectivity managed here.
 
@@ -117,3 +118,6 @@ struct Layer:
                     kept.push(e)
             self.adjacency[key] = kept
         return pruned
+
+    fn set_slot_policy(inout self, policy: SlotPolicyConfig):
+        self.slot_policy = policy

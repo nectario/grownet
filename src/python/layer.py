@@ -5,7 +5,8 @@ class Layer:
     """Mixes neuron types; maintains a shared LateralBus."""
 
     def __init__(self, size_excit: int, size_inhib: int = 0, size_mod: int = 0):
-        self.bus = LateralBus()
+                self.slot_policy = SlotPolicyConfig()
+self.bus = LateralBus()
         self.neurons: List = []
 
         self.neurons += [ExcitatoryNeuron(f"E{i}", self.bus) for i in range(size_excit)]
