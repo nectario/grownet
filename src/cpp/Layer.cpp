@@ -1,4 +1,5 @@
 #include "Layer.h"
+#include "SlotPolicyConfig.h"
 
 namespace grownet {
 
@@ -54,3 +55,15 @@ void Layer::forward(double value) {
 }
 
 } // namespace grownet
+
+
+void Layer::setSlotPolicy(const SlotPolicyConfig& p) {
+    slotPolicy = p;
+    applyPolicyToNeurons();
+}
+
+void Layer::applyPolicyToNeurons() {
+    for (auto& neuronItem : neurons) {
+        if (neuronItem) neuronItem->setSlotPolicy(&slotPolicy);
+    }
+}

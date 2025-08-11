@@ -74,5 +74,5 @@ PruneSummary Region::prune(long long synapseStaleWindow, double synapseMinStreng
 } // namespace grownet
 
 void grownet::Region::setSlotPolicy(const SlotPolicyConfig& p){
-    for (auto & l : layers){ l->setSlotPolicy(p); l->applyPolicyToNeurons(); }
+    for (auto& l : layers){ l->setSlotPolicy(p); }
 }

@@ -15,6 +15,10 @@ namespace grownet {
     public:
         Layer(int excitatoryCount, int inhibitoryCount, int modulatoryCount);
 
+        void setSlotPolicy(const SlotPolicyConfig& p);
+        SlotPolicyConfig& getSlotPolicy() { return slotPolicy; }
+        void applyPolicyToNeurons();
+
         LateralBus& getBus() { return bus; }
         const std::vector<std::unique_ptr<Neuron>>& getNeurons() const { return neurons; }
         std::vector<std::unique_ptr<Neuron>>&       getNeurons()       { return neurons; }
@@ -22,11 +26,7 @@ namespace grownet {
         void wireRandomFeedforward(double probability);
         void wireRandomFeedback(double probability);
 
-        void setSlotPolicy(const SlotPolicyConfig& p) { slotPolicy = p; }
-        SlotPolicyConfig& getSlotPolicy() { return slotPolicy; }
-
         void forward(double value);
-        void applyPolicyToNeurons();
 
     private:
         LateralBus bus {};
@@ -38,9 +38,3 @@ namespace grownet {
     };
 
 } // namespace grownet
-
-namespace grownet {
-inline void Layer::applyPolicyToNeurons() {
-    for (auto & n : neurons) { if (n) n->setSlotPolicy(&slotPolicy); }
-}
-}

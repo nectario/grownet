@@ -8,59 +8,49 @@ double Neuron::computePercentDelta(double previous, double current) const {
 }
 
 int Neuron::selectOrCreateSlotId(double value) {
-    // Policy-driven slot selection / creation
-    double percent = computePercentDelta(hasLastInput ? lastInputValue : 0.0, value);
+    const double previous = hasLastInput ? lastInputValue : 0.0;
+    double percent = computePercentDelta(previous, value);
     double width = (slotPolicy ? slotPolicy->slotWidthPercent : 0.10);
 
-    // Active slots count (hitCount > 0)
+    // Active slots
     int active = 0;
-    for (auto & kv : slots) {
-        if (kv.second.getHitCount() > 0) active++;
-    }
+    for (auto & kv : slots) if (kv.second.getHitCount() > 0) active++;
 
-    // Adaptive: adjust width based on active slots, with cooldown by bus current step if available
+    // Adaptive cooldown uses bus->getCurrentStep() if available
     long long tick = bus ? bus->getCurrentStep() : 0;
     if (slotPolicy && slotPolicy->mode == SlotPolicyConfig::ADAPTIVE) {
-        if (tick - lastAdjustTick >= slotPolicy->adjustCooldownTicks) {
+        if (tick - policyLastAdjustTick >= slotPolicy->adjustCooldownTicks) {
             if (active > slotPolicy->targetActiveHigh) {
                 width = std::min(slotPolicy->maxSlotWidth, width * slotPolicy->adjustFactorUp);
-                lastAdjustTick = tick;
+                policyLastAdjustTick = tick;
             } else if (active < slotPolicy->targetActiveLow && percent > width) {
                 width = std::max(slotPolicy->minSlotWidth, width * slotPolicy->adjustFactorDown);
-                lastAdjustTick = tick;
+                policyLastAdjustTick = tick;
             }
         }
     }
 
-    // Determine width tiers
     std::vector<double> widths;
-    if (slotPolicy && slotPolicy->mode == SlotPolicyConfig::MULTI_RESOLUTION) {
-        widths = slotPolicy->multiresWidths;
-    } else {
-        widths = { width };
-    }
+    if (slotPolicy && slotPolicy->mode == SlotPolicyConfig::MULTI_RESOLUTION) widths = slotPolicy->multiresWidths;
+    else widths = { width };
 
-    // Try existing buckets
     for (double w : widths) {
         int bucket = (int) std::floor(percent / std::max(1e-9, w));
         if (slots.find(bucket) != slots.end()) return bucket;
     }
-    // Try finer widths as fallback
     if (widths.size() > 1) {
-        for (size_t i = 1; i < widths.size(); ++i) {
+        for (size_t i=1; i<widths.size(); ++i) {
             int bucket = (int) std::floor(percent / std::max(1e-9, widths[i]));
             if (slots.find(bucket) != slots.end()) return bucket;
         }
     }
 
-    // Creation: non-uniform schedule if provided
     double useW = widths.back();
-    if (slotPolicy && !slotPolicy->nonuniformSchedule.empty()) {
+    if (slotPolicy && !slotPolicy->nonuniformSchedule.empty()){
         size_t idx = slots.size();
         if (idx < slotPolicy->nonuniformSchedule.size()) useW = slotPolicy->nonuniformSchedule[idx];
     }
     int newId = (int) std::floor(percent / std::max(1e-9, useW));
-    // Enforce optional global slot limit
     if (slotLimit >= 0 && (int)slots.size() >= slotLimit) {
         return slots.begin()->first; // reuse first slot
     }

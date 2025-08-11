@@ -23,7 +23,7 @@ public:
         std::vector<FireHook> fireHooks;
 
     public:
-        void setSlotPolicy(const SlotPolicyConfig* p){ slotPolicy = p; }
+        void setSlotPolicy(const SlotPolicyConfig* p) { slotPolicy = p; }
         // slotLimit < 0 means "unlimited"
         static int slotLimit;
 
@@ -58,7 +58,9 @@ public:
 
     protected:
         const SlotPolicyConfig* slotPolicy {nullptr};
-        long long lastAdjustTick { -1000000000LL };
+        long long policyLastAdjustTick { -1000000000LL };
+        double computePercentDelta(double previous, double current) const;
+        int selectOrCreateSlotId(double value);
         // Route to a slot based on percent delta from last input.
         Weight& selectSlot(double inputValue);
 
