@@ -15,7 +15,6 @@ public abstract class Neuron {
     protected final List<Synapse> outgoing = new ArrayList<>();
     protected Double lastInputValue = null;
 
-
     protected Neuron(String neuronId, LateralBus bus) {
         this.neuronId = neuronId;
         this.bus = bus;
@@ -65,7 +64,6 @@ public abstract class Neuron {
         for (FireHook hook : fireHooks) {
             hook.onFire(inputValue, this);
         }
-
     }
 
     /** Route to a slot based on percent delta from last input. */
@@ -107,8 +105,7 @@ public abstract class Neuron {
             }
             case "firing_rate": {
                 double sum = 0.0;
-                for (Weight w : slots.values()) sum += /* emaRate not exposed; add a getter if you want exact parity */
-                        // quick proxy if you don't want to expose emaRate:
+                for (Weight w : slots.values()) sum +=
                         (w.getStrengthValue() > w.getThresholdValue() ? 1.0 : 0.0);
                 return sum / slots.size();
             }
@@ -126,6 +123,8 @@ public abstract class Neuron {
         fireHooks.add(hook);
     }
 
-
     public void onOutput(double amplitude) { /* no-op by default */ }
 }
+// Remove or relocate stray methods that were here:
+///* protected static double computePercentDelta(...) { ... } */
+// /* protected static int[] selectOrCreateSlot(...) { ... } */

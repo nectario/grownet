@@ -21,7 +21,7 @@ public final class Weight {
 
     public double getStrengthValue() { return strengthValue; }
     public double getThresholdValue() { return thresholdValue; }
-    public int hitCount() { return hitCount; }
+    public int getHitCount() { return hitCount; }
 
     public void setStepValue(double v) { this.stepValue = v; }
 

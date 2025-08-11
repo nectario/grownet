@@ -1,10 +1,13 @@
 package ai.nektron.grownet;
 
+import ai.nektron.grownet.SlotPolicyConfig;
+
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** A pool of neurons sharing a LateralBus. */
 public final class Layer {
+    protected SlotPolicyConfig slotPolicy = new SlotPolicyConfig();
     private final LateralBus bus = new LateralBus();
     private final List<Neuron> neurons = new ArrayList<>();
 
