@@ -1,44 +1,46 @@
-# weight.mojo
-# Reinforceable, thresholded unit (used for slots and inter-neuron connections).
+alias BETA: Float64          = 0.01      # EMA horizon
+alias ADAPT_SPEED: Float64   = 0.02      # threshold adapt speed
+alias TARGET_RATE: Float64   = 0.05      # homeostasis target
+alias EPSILON_FIRE: Float64  = 0.01      # T0 slack
+alias T0_SLACK: Float64      = 0.02
+alias HIT_SAT: Int64         = 10_000
 
-from math_utils import smooth_clamp, abs_f64
+fn absf(x: Float64) -> Float64:
+    if x < 0.0: return -x
+    return x
 
-# Global constants (compile-time)
-alias HIT_SATURATION: Int64 = 10_000
-alias EPS: Float64  = 0.02   # first-threshold slack (T0)
-alias BETA: Float64 = 0.01   # EMA horizon
-alias ETA: Float64  = 0.02   # threshold adapt speed
-alias R_STAR: Float64 = 0.05 # target firing rate
+fn clamp01(x: Float64) -> Float64:
+    if x < 0.0: return 0.0
+    if x > 1.0: return 1.0
+    return x
 
 struct Weight:
-    var step_value: Float64 = 0.001
-    var strength_value: Float64 = 0.0
-    var reinforcement_count: Int64 = 0
+    var strength_value: Float64
+    var threshold_value: Float64
+    var ema_rate: Float64
+    var first_seen: Bool
+    var hit_count: Int64
 
-    # Adaptive-threshold state (slot-local)
-    var threshold_value: Float64 = 0.0
-    var ema_rate: Float64 = 0.0
-    var first_seen: Bool = False
+    fn __init__() -> Self:
+        return Self(0.0, 0.0, 0.0, False, 0)
 
-    fn reinforce(self, modulation_factor: Float64, inhibition_factor: Float64):
-        if self.reinforcement_count >= HIT_SATURATION:
+    fn reinforce(mut self , modulation_factor: Float64, inhibition_factor: Float64):
+        if self.hit_count >= HIT_SAT:
             return
-        var effective = self.step_value * modulation_factor * inhibition_factor
-        self.strength_value = smooth_clamp(self.strength_value + effective, -1.0, 1.0)
-        self.reinforcement_count = self.reinforcement_count + 1
+        let base_step: Float64 = 0.01
+        let step = base_step * modulation_factor * inhibition_factor
+        self.strength_value = clamp01(self.strength_value + step)
+        self.hit_count += 1
 
-    fn update_threshold(self, input_value: Float64) -> Bool:
-        # T0: first-time imprint sets a conservative threshold
+    fn update_threshold(mut self , input_value: Float64) -> Bool:
+        # Couple amplitude with strength for an “effective drive”
+        let effective = absf(input_value) * (1.0 + self.strength_value)
+
         if not self.first_seen:
-            self.threshold_value = abs_f64(input_value) * (1.0 + EPS)
+            self.threshold_value = effective * (1.0 - EPSILON_FIRE)
             self.first_seen = True
 
-        # Fire if gate is higher than the threshold
-        var fired = self.strength_value > self.threshold_value
-
-        # T2: homeostasis via EMA towards target rate
-        var fired_float: Float64 = 1.0 if fired else 0.0
-        self.ema_rate = (1.0 - BETA) * self.ema_rate + BETA * fired_float
-        self.threshold_value = self.threshold_value + ETA * (self.ema_rate - R_STAR)
-
+        let fired = (effective > self.threshold_value)
+        self.ema_rate       = (1.0 - BETA) * self.ema_rate + BETA * (1.0 if fired else 0.0)
+        self.threshold_value += ADAPT_SPEED * (self.ema_rate - TARGET_RATE)
         return fired

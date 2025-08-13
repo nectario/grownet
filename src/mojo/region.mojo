@@ -1,182 +1,146 @@
-# region.mojo
-# Region (group of layers) with Tracts (inter-layer bundles) and a two-phase tick.
-
-from layer import Layer, LateralBus
-from neuron import Neuron
-from weight import Weight
-from math_utils import pseudo_random_pair
-
-struct RegionBus:
-    var inhibition_factor: Float64 = 1.0
-    var modulation_factor: Float64 = 1.0
-    var current_step: Int64 = 0
-
-    fn decay(self):
-        self.inhibition_factor = 1.0
-        self.modulation_factor = 1.0
-        self.current_step = self.current_step + 1
-
-struct InterLayerEdge:
-    var target_index: Int64
-    var weight: Weight = Weight()
-    var is_feedback: Bool = False
-    var last_step: Int64 = 0
-
-struct QueuedEvent:
-    var target_index: Int64
-    var value: Float64
+from layer import Layer
+from input_layer_2d import InputLayer2D
+from output_layer_2d import OutputLayer2D
 
 struct Tract:
-    var source: Layer
-    var destination: Layer
-    var region_bus: RegionBus
-    var is_feedback: Bool = False
+    var src_index: Int64
+    var dst_index: Int64
+    var edges: Dict[Int64, Array[Int64]]   # srcNeuron -> [dstNeurons]
+    var probability: Float64
 
-    var edges: Dict[Int64, Array[InterLayerEdge]] = Dict()
-    var queue: Array[QueuedEvent] = Array()
+    fn __init__(src_index: Int64, dst_index: Int64, probability: Float64) -> Self:
+        return Self(src_index, dst_index, Dict[Int64, Array[Int64]](), probability)
 
-    fn wire_dense_random(self, probability: Float64):
-        var ns = Int64(self.source.neurons.len)
-        var nd = Int64(self.destination.neurons.len)
-        for i in range(ns):
-            for j in range(nd):
-                var r = pseudo_random_pair(i + 101, j + 211)
-                if r < probability:
-                    if not self.edges.contains(i):
-                        self.edges[i] = Array[InterLayerEdge]()
-                    var e = InterLayerEdge(target_index=Int64(j), is_feedback=self.is_feedback)
-                    self.edges[i].push(e)
+    fn wire_dense_deterministic(mut self , src_count: Int64, dst_count: Int64):
+        if self.probability <= 0.0: return
+        let threshold = Int64(self.probability * 10000.0)
+        for s in range(src_count):
+            var fan = Array[Int64]()
+            for d in range(dst_count):
+                # deterministic pseudo-random without RNG
+                let score = (Int64( s * 9973 + d * 7919 ) % 10000)
+                if score < threshold:
+                    fan.append(Int64(d))
+            if fan.size > 0:
+                self.edges[Int64(s)] = fan
 
-    fn collect_from_sources(self):
-        # Build a per-tick queue based on source neurons that fired in Phase A
-        for i in range(Int64(self.source.neurons.len)):
-            var n = self.source.neurons[i]
-            if not n.fired_last:
+    fn flush(mut self , mut region: Region) -> Int64:
+        var delivered: Int64 = 0
+        var src_layer = region.layers[self.src_index]
+        var dst_layer = region.layers[self.dst_index]
+        for ev in src_layer.local_fires:
+            let sidx = ev.source_index
+            let value = ev.amplitude
+            let list_opt = self.edges.get(sidx)
+            if list_opt is None:
                 continue
-            if not self.edges.contains(i):
-                continue
-            var edges = self.edges[i]
-            for e in edges:
-                e.weight.reinforce(self.region_bus.modulation_factor, self.region_bus.inhibition_factor)
-                var fired = e.weight.update_threshold(n.last_input_value)
-                e.last_step = self.region_bus.current_step
-                if fired:
-                    var ev = QueuedEvent(target_index=e.target_index, value=n.last_input_value)
-                    self.queue.push(ev)
-
-    fn flush(self) -> Int64:
-        var delivered = 0
-        if self.queue.len == 0:
-            return delivered
-        var pending = self.queue
-        self.queue = Array[QueuedEvent]()
-        for ev in pending:
-            # Inject into destination layer at target index; allow local propagation
-            self.destination.propagate_from(ev.target_index, ev.value)
-            delivered = delivered + 1
+            let lst = list_opt!
+            for d in lst:
+                dst_layer.receive_from_tract(d, value)
+                delivered += 1
+        region.layers[self.dst_index] = dst_layer
         return delivered
-
-    fn prune_edges(self, stale_window: Int64, min_strength: Float64) -> Int64:
-        var pruned = 0
-        for key in self.edges.keys():
-            var vec = self.edges[key]
-            var kept = Array[InterLayerEdge]()
-            for e in vec:
-                var stale = (self.region_bus.current_step - e.last_step) > stale_window
-                var weak  = e.weight.strength_value < min_strength
-                if stale and weak:
-                    pruned = pruned + 1
-                else:
-                    kept.push(e)
-            self.edges[key] = kept
-        return pruned
-
-struct RegionMetrics:
-    var delivered_events: Int64
-    var total_slots: Int64
-    var total_synapses: Int64
-
-struct PruneSummary:
-    var pruned_synapses: Int64
-    var pruned_edges: Int64
 
 struct Region:
     var name: String
-    var layers: Array[Layer] = Array()
-    var tracts: Array[Tract] = Array()
-    var bus: RegionBus = RegionBus()
-    var input_ports: Dict[String, Array[Int64]] = Dict()
-    var output_ports: Dict[String, Array[Int64]] = Dict()
+    var layers: Array[Layer]
+    var input_2d: Dict[Int64, InputLayer2D]
+    var output_2d: Dict[Int64, OutputLayer2D]
+    var input_ports: Dict[String, Array[Int64]]
+    var tracts: Array[Tract]
 
-    fn add_layer(self, excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> Int64:
-        var l = Layer()
-        l.init(excitatory_count, inhibitory_count, modulatory_count)
-        self.layers.push(l)
-        return Int64(self.layers.len) - 1
+    fn __init__(name: String) -> Self:
+        return Self(
+            name = name,
+            layers = Array[Layer](),
+            input_2d = Dict[Int64, InputLayer2D](),
+            output_2d = Dict[Int64, OutputLayer2D](),
+            input_ports = Dict[String, Array[Int64]](),
+            tracts = Array[Tract]()
+        )
 
-    fn connect_layers(self, source_index: Int64, dest_index: Int64, probability: Float64, feedback: Bool = False) -> Tract:
-        var src = self.layers[source_index]
-        var dst = self.layers[dest_index]
-        var t = Tract(source=src, destination=dst, region_bus=self.bus, is_feedback=feedback)
-        t.wire_dense_random(probability)
-        self.tracts.push(t)
+    fn add_layer(mut self , excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> Int64:
+        var layer = Layer()
+        from neuron import Neuron, NeuronType
+        for _ in range(excitatory_count): layer.add_neuron(Neuron(NeuronType.EXCITATORY, layer.bus))
+        for _ in range(inhibitory_count): layer.add_neuron(Neuron(NeuronType.INHIBITORY, layer.bus))
+        for _ in range(modulatory_count): layer.add_neuron(Neuron(NeuronType.MODULATORY, layer.bus))
+        self.layers.append(layer)
+        return Int64(self.layers.size) - 1
+
+    fn add_input_layer_2d(mut self , h: Int64, w: Int64, gain: Float64 = 1.0, epsilon_fire_unused: Float64 = 0.01) -> Int64:
+        var wrapper = InputLayer2D(h, w, gain)
+        self.layers.append(wrapper.base)
+        let idx = Int64(self.layers.size) - 1
+        self.input_2d[idx] = wrapper
+        return idx
+
+    fn add_output_layer_2d(mut self , h: Int64, w: Int64, smoothing: Float64 = 0.20) -> Int64:
+        var wrapper = OutputLayer2D(h, w, smoothing)
+        self.layers.append(wrapper.base)
+        let idx = Int64(self.layers.size) - 1
+        self.output_2d[idx] = wrapper
+        return idx
+
+    fn bind_input(mut self , port: String, layer_indexes: Array[Int64]):
+        self.input_ports[port] = layer_indexes
+
+    fn connect_layers(mut self , src_index: Int64, dst_index: Int64, probability: Float64, feedback: Bool = False) -> Tract:
+        var t = Tract(src_index, dst_index, probability)
+        t.wire_dense_deterministic(Int64(self.layers[src_index].neurons.size),
+                                   Int64(self.layers[dst_index].neurons.size))
+        self.tracts.append(t)
         return t
 
-    fn bind_input(self, port: String, layer_indices: Array[Int64]):
-        self.input_ports[port] = layer_indices
+    fn tick_image(mut self, port: String, image: Array[Array[Float64]]) -> Dict[String, Float64]:
 
-    fn bind_output(self, port: String, layer_indices: Array[Int64]):
-        self.output_ports[port] = layer_indices
+        # -------- Phase A: drive bound input 2D layers --------
+        if self.input_ports.has(port):
+            var bound = self.input_ports[port]           # Array[Int64]
+            for bi in range(Int64(bound.size())):
+                var idx = bound[bi]
+                if self.input_2d.has(idx):
+                    var wrapper = self.input_2d[idx]     # InputLayer2D
+                    wrapper.forward_image(image)         # no container re-assignment
 
-    fn pulse_inhibition(self, factor: Float64):
-        self.bus.inhibition_factor = factor
+        # -------- Phase B: flush inter-layer tracts once ------
+        var delivered: Int64 = 0
+        for ti in range(Int64(self.tracts.size())):
+            delivered += self.tracts[ti].flush(self)     # Tract.flush(region) -> Int64
 
-    fn pulse_modulation(self, factor: Float64):
-        self.bus.modulation_factor = factor
+        # -------- Finalize outputs ----------------------------
+        for li in range(Int64(self.layers.size())):
+            if self.output_2d.has(li):
+                var out_neuron = self.output_2d[li]             # OutputLayer2D
+                out_neuron.end_tick()                           # compute EMA frame
 
-    fn tick(self, port: String, value: Float64) -> RegionMetrics:
-        # Phase A: external input to entry layers (intra-layer propagation occurs immediately)
-        if self.input_ports.contains(port):
-            var entries = self.input_ports[port]
-            for idx in entries:
-                self.layers[idx].forward(value)
-
-        # Collect from fired sources
-        for t in self.tracts:
-            t.collect_from_sources()
-
-        # Phase B: flush inter-layer tracts once
-        var delivered = 0
-        for t in self.tracts:
-            delivered = delivered + t.flush()
-
-        # Decay
-        for l in self.layers:
-            l.bus.decay()
+        # -------- Decay buses ---------------------------------
+        for li in range(Int64(self.layers.size())):
+            # Call directly on the element; avoid write-back like self.layers[li] = layer
+            self.layers[li].bus.decay()
         self.bus.decay()
 
-        # Metrics
-        var total_slots = 0
-        var total_synapses = 0
-        for l in self.layers:
-            for n in l.neurons:
-                total_slots = total_slots + Int64(n.slots.len)
-                # approximate synapse count by adjacency sum
-            for key in l.adjacency.keys():
-                total_synapses = total_synapses + Int64(l.adjacency[key].len)
+        # -------- Metrics -------------------------------------
+        var total_slots: Int64 = 0
+        var total_synapses: Int64 = 0
 
-        return RegionMetrics(delivered_events=delivered, total_slots=total_slots, total_synapses=total_synapses)
+        for li in range(Int64(self.layers.size())):
+            var layer = self.layers[li]
+            # count slots
+            for ni in range(Int64(layer.neurons.size())):
+                total_slots += Int64(layer.neurons[ni].slots.size())
+            # count intra-layer adjacency edges
+            for si in range(Int64(layer.neurons.size())):
+                if layer.adjacency.has(si):
+                    total_synapses += Int64(layer.adjacency[si].size())
 
-    fn prune(self, synapse_stale_window: Int64 = 10_000, synapse_min_strength: Float64 = 0.05,
-                   tract_stale_window: Int64 = 10_000, tract_min_strength: Float64 = 0.05) -> PruneSummary:
-        var pruned_syn = 0
-        for l in self.layers:
-            pruned_syn = pruned_syn + l.prune_synapses(self.bus.current_step, synapse_stale_window, synapse_min_strength)
-        var pruned_edges = 0
-        for t in self.tracts:
-            pruned_edges = pruned_edges + t.prune_edges(tract_stale_window, tract_min_strength)
-        return PruneSummary(pruned_synapses=pruned_syn, pruned_edges=pruned_edges)
+        # Note: if your Tract exposes `edge_count()`, you can add inter-layer edges too:
+        # for ti in range(Int64(self.tracts.size())):
+        #     total_synapses += self.tracts[ti].edge_count()
 
-fn set_slot_policy(inout self, policy: SlotPolicyConfig):
-    for l in self.layers:
-        l.set_slot_policy(policy)
+        var m = Dict[String, Float64]()
+        m["delivered_events"] = Float64(delivered)
+        m["total_slots"]      = Float64(total_slots)
+        m["total_synapses"]   = Float64(total_synapses)
+        return m
+

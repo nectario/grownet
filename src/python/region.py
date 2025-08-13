@@ -1,3 +1,6 @@
+import numpy as np
+from output_layer_2d import OutputLayer2D
+from input_layer_2d import InputLayer2D
 # src/python/region.py
 from __future__ import annotations
 
@@ -229,3 +232,57 @@ def set_slot_policy(self, policy):
     for layer in self.layers:
         if hasattr(layer, "slot_policy"):
             layer.slot_policy = policy
+
+
+def add_input_layer_2d(self, height: int, width: int, gain: float = 1.0, epsilon_fire: float = 0.01) -> int:
+    layer = InputLayer2D(height, width, gain, epsilon_fire)
+    if not hasattr(self, "layers"):
+        self.layers = []
+    self.layers.append(layer)
+    return len(self.layers) - 1
+
+
+def add_output_layer_2d(self, height: int, width: int, smoothing: float = 0.2) -> int:
+    layer = OutputLayer2D(height, width, smoothing)
+    if not hasattr(self, "layers"):
+        self.layers = []
+    self.layers.append(layer)
+    return len(self.layers) - 1
+
+
+def tick_image(self, port: str, image):
+    delivered = 0
+    bound = []
+    if hasattr(self, "input_ports"):
+        bound = self.input_ports.get(port, [])
+    for idx in bound:
+        layer = self.layers[idx]
+        if hasattr(layer, "forward_image"):
+            delivered += int(layer.forward_image(image) or 0)
+        elif hasattr(layer, "forward"):
+            scalar_value = float(getattr(image, "mean", lambda: 0.0)())
+            delivered += int(layer.forward(scalar_value) or 0)
+    if hasattr(self, "tracts"):
+        for tract in self.tracts:
+            if hasattr(tract, "flush"):
+                delivered += int(tract.flush() or 0)
+    for layer in getattr(self, "layers", []):
+        if isinstance(layer, OutputLayer2D) and hasattr(layer, "end_tick"):
+            layer.end_tick()
+    for layer in getattr(self, "layers", []):
+        if hasattr(layer, "bus") and hasattr(layer.bus, "decay"):
+            layer.bus.decay()
+    if hasattr(self, "bus") and hasattr(self.bus, "decay"):
+        self.bus.decay()
+    total_slots = 0
+    total_synapses = 0
+    for L in getattr(self, "layers", []):
+        neurons = getattr(L, "neurons", [])
+        for n in neurons:
+            total_slots += len(getattr(n, "slots", {}))
+            total_synapses += len(getattr(n, "outgoing", [])) if hasattr(n, "outgoing") else 0
+    return {
+        "delivered_events": delivered,
+        "total_slots": total_slots,
+        "total_synapses": total_synapses
+    }

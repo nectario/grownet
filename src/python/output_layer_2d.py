@@ -1,7 +1,7 @@
 from typing import List
 import numpy as np
 from output_neuron import OutputNeuron
-from layer import LateralBus
+from bus import LateralBus
 
 class OutputLayer2D:
     """Shape-aware output layer (e.g., image writer) using unified onInput/onOutput."""

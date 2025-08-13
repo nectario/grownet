@@ -1,6 +1,7 @@
 package ai.nektron.grownet;
 
 import java.util.List;
+import ai.nektron.grownet.Layer;
 
 /** Shape-aware output layer (e.g., image writer) using unified onInput/onOutput. */
 public class OutputLayer2D extends Layer {

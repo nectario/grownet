@@ -1,23 +1,29 @@
-from input_neuron import InputNeuron
+from layer import Layer, FireEvent
+from neuron import Neuron, NeuronType
 
 struct InputLayer2D:
+    var base: Layer
     var height: Int64
     var width: Int64
-    var neurons: Array[InputNeuron] = Array()
+    var gain: Float64
 
-    fn init(self, height: Int64, width: Int64, gain: Float64 = 1.0, epsilon_fire: Float64 = 0.01):
-        self.height = height
-        self.width = width
-        for y in range(height):
-            for x in range(width):
-                var n = InputNeuron(name=f"IN[{y},{x}]", gain=gain, epsilon_fire=epsilon_fire)
-                self.neurons.push(n)
+    fn __init__(h: Int64, w: Int64, gain: Float64 = 1.0) -> Self:
+        var layer = Layer()
+        # one Input neuron per pixel
+        for _ in range(h * w):
+            layer.add_neuron(Neuron(NeuronType.INPUT, layer.bus))
+        return Self(base = layer, height = h, width = w, gain = gain)
 
-    fn index(self, y: Int64, x: Int64) -> Int64:
-        return y * self.width + x
-
-    fn forward_image(self, image: Array[Array[Float64]], modulation: Float64 = 1.0, inhibition: Float64 = 1.0):
+    fn forward_image(mut self , image: Array[Array[Float64]]):
+        self.base.local_fires.clear()
+        var idx: Int64 = 0
         for y in range(self.height):
             for x in range(self.width):
-                var idx = self.index(y, x)
-                _ = self.neurons[idx].on_sensor_value(image[Int(y)][Int(x)], modulation, inhibition)
+                let v = image[Int(y)][Int(x)] * self.gain
+                var neu = self.base.neurons[idx]
+                let fired = neu.on_input(v)
+                if fired:
+                    neu.on_output(v)
+                    self.base.local_fires.append(FireEvent(idx, v))
+                self.base.neurons[idx] = neu
+                idx += 1

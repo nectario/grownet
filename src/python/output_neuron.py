@@ -35,3 +35,8 @@ class OutputNeuron(Neuron):
             self.output_value = (1.0 - self.smoothing) * self.output_value + self.smoothing * mean
         self.accumulated_sum = 0.0
         self.accumulated_count = 0
+
+
+def fire(self, amplitude):
+    # Outputs are actuators and must never propagate events
+    return None

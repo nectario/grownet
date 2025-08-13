@@ -17,10 +17,11 @@ fn main():
         var value = pseudo_random_pair(Int64(step), 17)
         var m = region.tick("pixels", value)
         if (step + 1) % 200 == 0:
-            print(f"[step {step+1}] delivered={m.delivered_events} slots={m.total_slots} syn={m.total_synapses}")
+            print("[step {step+1}] delivered={m.delivered_events} slots={m.total_slots} syn={m.total_synapses}")
 
     var p = region.prune()
-    print(f"Prune summary: syn={p.pruned_synapses} edges={p.pruned_edges}")
+    print("Prune summary: syn={p.pruned_synapses} edges={p.pruned_edges}")
 
 if __name__ == "__main__":
     main()
+

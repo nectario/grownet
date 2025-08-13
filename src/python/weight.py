@@ -1,3 +1,12 @@
+
+# Default parameters per v2 one-pager
+beta = 0.01
+adaptSpeed = 0.02
+targetRate = 0.05
+epsilonFire = 0.01
+t0Slack = 0.02
+slotHitSaturation = 10000
+
 from math_utils import smooth_clamp
 
 class Weight:

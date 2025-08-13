@@ -26,8 +26,6 @@ class Neuron:
     # put inside
     def onOutput(self, amplitude: float) -> None:
         return
-class Neuron
-
     def neuron_value(self, mode: str = "readiness") -> float:
         """Return a single scalar summary derived from this neuron's slots.
 
@@ -204,3 +202,12 @@ def select_or_create_slot(neuron, value: float, policy: SlotPolicyConfig):
     use_w = new_slot_width if new_slot_width is not None else widths[-1]
     new_id = int(percent / max(1e-9, use_w))
     return new_id, True
+
+
+
+def on_input(self, value):
+    """Unified v2 entry point: returns whether the neuron fired."""
+    if hasattr(self, "on_input") and callable(getattr(self, "on_input")):
+        result = self.on_input(value)
+        return bool(getattr(self, "fired_last", bool(result)))
+    return bool(getattr(self, "fired_last", False))

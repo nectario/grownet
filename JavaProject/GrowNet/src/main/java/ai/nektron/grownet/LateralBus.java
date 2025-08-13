@@ -13,6 +13,20 @@ public final class LateralBus {
     public void setInhibitionFactor(double v) { this.inhibitionFactor = v; }
     public void setModulationFactor(double v) { this.modulationFactor = v; }
 
+    public double getInhibitionFactor() {
+        return inhibitionFactor;
+    }
+
+    public double getModulationFactor() {
+        return modulationFactor;
+    }
+    public long getCurrentStep() {
+        return currentStep;
+    }
+    public void setCurrentStep(long currentStep) {
+        this.currentStep = currentStep;
+    }
+
     /** Advance one tick, resetting transient signals. */
     public void decay() {
         this.inhibitionFactor = 1.0;

@@ -34,6 +34,19 @@ public final class Weight {
         hitCount++;
     }
 
+    public boolean isSeenFirst() {
+        return seenFirst;
+    }
+
+    public void setSeenFirst(boolean seenFirst) {
+        this.seenFirst = seenFirst;
+    }
+
+    public void setStrengthValue(double value) {
+        this.strengthValue = value;
+    }
+
+
     /** T0 imprint + T2 homeostasis. @return true if this slot fires. */
     public boolean updateThreshold(double inputValue) {
         if (!seenFirst) {

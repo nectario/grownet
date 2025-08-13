@@ -19,9 +19,9 @@ public class InputNeuron extends Neuron {
         double effective = clamp01(stimulus * modulation * inhibition);
 
         Weight slot = getSlots().get(0);
-        if (!slot.isFirstSeen()) {
-            slot.setThresholdValue(Math.max(0.0, effective * (1.0 - epsilonFire)));
-            slot.setFirstSeen(true);
+        if (!slot.isSeenFirst()) {
+            slot.updateThreshold(Math.max(0.0, effective * (1.0 - epsilonFire)));
+            slot.setSeenFirst(true);
         }
         slot.setStrengthValue(effective);
 

@@ -13,7 +13,7 @@ struct SlotPolicyConfig:
     var adjust_factor_down: Float64
     var nonuniform_schedule: List[Float64]   # empty list = off
 
-    fn __init__(inout self):
+    fn __init__(mut self ):
         self.mode = "fixed"
         self.slot_width_percent = 0.10
         self.multires_widths = [0.10, 0.05, 0.02]

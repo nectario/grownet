@@ -4,30 +4,62 @@ import java.util.*;
 
 /** Base neuron with slot logic. Subclasses can override fire() behaviour. */
 public abstract class Neuron {
-    /** Optional cap on slot count (null means unlimited). */
+    /**
+     * Optional cap on slot count (null means unlimited).
+     */
     public static Integer SLOT_LIMIT = null;
 
     protected final String neuronId;
-    protected final LateralBus bus;
+    protected LateralBus bus;
     private final List<FireHook> fireHooks = new ArrayList<>();
 
     protected final Map<Integer, Weight> slots = new LinkedHashMap<>();
     protected final List<Synapse> outgoing = new ArrayList<>();
     protected Double lastInputValue = null;
+    protected boolean firedLast = false;
 
     protected Neuron(String neuronId, LateralBus bus) {
         this.neuronId = neuronId;
         this.bus = bus;
     }
 
-    public String neuronId() { return neuronId; }
-    public Map<Integer, Weight> slots() { return slots; }
-    public List<Synapse> outgoing() { return outgoing; }
+    protected Neuron(String neuronId) {
+        this.neuronId = neuronId;
+    }
 
+    public String neuronId() {
+        return neuronId;
+    }
+
+    public Map<Integer, Weight> slots() {
+        return slots;
+    }
+
+    public List<Synapse> outgoing() {
+        return outgoing;
+    }
+
+
+    public java.util.List<Synapse> getOutgoing() {
+        return outgoing;
+    }
+
+    public Double getLastInputValue() { return lastInputValue; }
+
+    // 1) Add (or keep) these accessors
     public java.util.Map<Integer, Weight> getSlots() { return slots; }
-    public java.util.List<Synapse> getOutgoing()     { return outgoing; }
 
-    /** Route input into a slot, learn locally, maybe fire. */
+
+    // 2) Replace the body of your protected selectSlot(double inputValue) with:
+    protected Weight selectSlot(double inputValue) {
+        int bucket = SlotPolicyEngine.selectOrCreateSlot(this, inputValue, SlotPolicyConfig.defaults());
+        // selectOrCreateSlot has ensured presence in 'slots'
+        return slots.get(bucket);
+    }
+
+    /**
+     * Route input into a slot, learn locally, maybe fire.
+     */
     public void onInput(double inputValue) {
         Weight slot = selectSlot(inputValue);
         slot.reinforce(bus.modulationFactor(), bus.inhibitionFactor());
@@ -35,23 +67,29 @@ public abstract class Neuron {
         lastInputValue = inputValue;
     }
 
-    /** Create a new synapse to target and return it (fluent style). */
+    /**
+     * Create a new synapse to target and return it (fluent style).
+     */
     public Synapse connect(Neuron target, boolean feedback) {
         Synapse s = new Synapse(target, feedback);
         outgoing.add(s);
         return s;
     }
 
-    /** Drop stale + weak synapses. */
+    /**
+     * Drop stale + weak synapses.
+     */
     public void pruneSynapses(long currentStep, long staleWindow, double minStrength) {
         outgoing.removeIf(s -> {
             boolean stale = (currentStep - s.lastStep) > staleWindow;
-            boolean weak  = s.getWeight().getStrengthValue() < minStrength;
+            boolean weak = s.getWeight().getStrengthValue() < minStrength;
             return stale && weak;
         });
     }
 
-    /** Default excitatory behaviour: propagate along outgoing synapses. */
+    /**
+     * Default excitatory behaviour: propagate along outgoing synapses.
+     */
     public void fire(double inputValue) {
         for (Synapse s : outgoing) {
             s.weight.reinforce(bus.modulationFactor(), bus.inhibitionFactor());
@@ -66,29 +104,7 @@ public abstract class Neuron {
         }
     }
 
-    /** Route to a slot based on percent delta from last input. */
-    protected Weight selectSlot(double inputValue) {
-        int binId;
-        if (lastInputValue == null || lastInputValue == 0.0) {
-            binId = 0;
-        } else {
-            double delta = Math.abs(inputValue - lastInputValue) / Math.abs(lastInputValue);
-            double deltaPercent = delta * 100.0;
-            binId = (deltaPercent == 0.0) ? 0 : (int) Math.ceil(deltaPercent / 10.0);
-        }
 
-        Weight slot = slots.get(binId);
-        if (slot == null) {
-            if (SLOT_LIMIT != null && slots.size() >= SLOT_LIMIT) {
-                // trivial reuse policy: earliest created slot
-                slot = slots.values().iterator().next();
-            } else {
-                slot = new Weight();
-                slots.put(binId, slot);
-            }
-        }
-        return slot;
-    }
 
     // inside class Neuron
     public double neuronValue(String mode) {
@@ -105,8 +121,9 @@ public abstract class Neuron {
             }
             case "firing_rate": {
                 double sum = 0.0;
-                for (Weight w : slots.values()) sum +=
-                        (w.getStrengthValue() > w.getThresholdValue() ? 1.0 : 0.0);
+                for (Weight w : slots.values())
+                    sum +=
+                            (w.getStrengthValue() > w.getThresholdValue() ? 1.0 : 0.0);
                 return sum / slots.size();
             }
             case "memory": {
@@ -124,7 +141,17 @@ public abstract class Neuron {
     }
 
     public void onOutput(double amplitude) { /* no-op by default */ }
+
+    public void setLastInputValue(Double lastInputValue) {
+        this.lastInputValue = lastInputValue;
+    }
+
+    public boolean isFiredLast() {
+        return firedLast;
+    }
+
+    public void setFiredLast(boolean firedLast) {
+        this.firedLast = firedLast;
+    }
+
 }
-// Remove or relocate stray methods that were here:
-///* protected static double computePercentDelta(...) { ... } */
-// /* protected static int[] selectOrCreateSlot(...) { ... } */

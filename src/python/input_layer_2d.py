@@ -1,7 +1,7 @@
 from typing import List
 import numpy as np
 from input_neuron import InputNeuron
-from layer import LateralBus
+from bus import LateralBus
 
 class InputLayer2D:
     """Shape-aware sensory layer (e.g., grayscale image) using unified onInput/onOutput."""
