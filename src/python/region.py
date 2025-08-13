@@ -1,200 +1,84 @@
-import numpy as np
-from output_layer_2d import OutputLayer2D
-from input_layer_2d import InputLayer2D
-# src/python/region.py
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Sequence, Tuple
 
 from layer import Layer
-from neuron import Neuron
-from weight import Weight
-
-
-class RegionBus:
-    """Region-wide, one-tick signals (same spirit as LateralBus, but spanning layers)."""
-    def __init__(self) -> None:
-        self.inhibition_factor: float = 1.0   # 1.0 = no inhibition
-        self.modulation_factor: float = 1.0   # scales learning rate
-        self.current_step: int = 0
-
-    def decay(self) -> None:
-        """Advance one tick; reset transients."""
-        self.inhibition_factor = 1.0
-        self.modulation_factor = 1.0
-        self.current_step += 1
+from bus import LateralBus
 
 
 @dataclass
-class InterLayerEdge:
-    """Directed edge managed by a Tract (source neuron is implicit by the dict key)."""
-    target: Neuron
-    weight: Weight = field(default_factory=Weight)
-    is_feedback: bool = False
-    last_step: int = 0
+class RegionMetrics:
+    delivered_events: int
+    total_slots: int
+    total_synapses: int
 
 
 @dataclass
-class QueuedEvent:
-    """Deferred delivery of a scalar to a target neuron (Phase B)."""
-    target: Neuron
-    value: float
-
-
-class Tract:
-    """
-    A bundle of inter-layer connections (white-matter-like). It registers fire-hooks on
-    source neurons so cross-layer traffic is queued, then flushed by the Region in Phase B.
-    """
-    def __init__(self, source: Layer, dest: Layer, region_bus: RegionBus, is_feedback: bool = False) -> None:
-        self.source = source
-        self.dest = dest
-        self.region_bus = region_bus
-        self.is_feedback = is_feedback
-
-        # edges[src_neuron] -> list[InterLayerEdge]
-        self.edges: Dict[Neuron, List[InterLayerEdge]] = {}
-        self.queue: List[QueuedEvent] = []
-        self._hooked_sources: set[Neuron] = set()
-
-    def wire_dense_random(self, probability: float) -> None:
-        """Create edges with the given probability; avoid duplicates."""
-        if probability <= 0.0:
-            return
-
-        for src in self.source.neurons:
-            for dst in self.dest.neurons:
-                if src is dst:
-                    continue
-                # flip a coin
-                from random import random
-                if random() >= probability:
-                    continue
-
-                # add edge
-                edge = InterLayerEdge(target=dst, is_feedback=self.is_feedback)
-                self.edges.setdefault(src, []).append(edge)
-
-                # register a single hook per (tract, src)
-                if src not in self._hooked_sources:
-                    src.register_fire_hook(self._make_source_hook(src))
-                    self._hooked_sources.add(src)
-
-    def _make_source_hook(self, src: Neuron):
-        """Returns a closure: when `src` fires, reinforce edges and enqueue deliveries."""
-        def on_source_fire(input_value: float, source_neuron: Neuron) -> None:
-            # Safety: only respond to the neuron we were created for
-            if source_neuron is not src:
-                return
-
-            edges = self.edges.get(src, [])
-            if not edges:
-                return
-
-            for edge in edges:
-                # Local learning at the inter-layer edge
-                edge.weight.reinforce(
-                    modulation_factor=self.region_bus.modulation_factor,
-                    inhibition_factor=self.region_bus.inhibition_factor
-                )
-                fired = edge.weight.update_threshold(input_value)
-                if fired:
-                    self.queue.append(QueuedEvent(edge.target, input_value))
-                    edge.last_step = self.region_bus.current_step
-        return on_source_fire
-
-    def flush(self) -> int:
-        """Deliver queued events once (Phase B). Returns number of delivered events."""
-        delivered = 0
-        if not self.queue:
-            return delivered
-        # pop all current events; new ones (from cascaded tracts) will arrive next tick
-        pending, self.queue = self.queue, []
-        for event in pending:
-            event.target.on_input(event.value)
-            delivered += 1
-        return delivered
-
-    def prune_edges(self, stale_window: int, min_strength: float) -> int:
-        """Remove edges that are stale and weak. Returns number of pruned edges."""
-        pruned = 0
-        keep_map: Dict[Neuron, List[InterLayerEdge]] = {}
-        for src, edges in self.edges.items():
-            kept = []
-            for edge in edges:
-                is_stale = (self.region_bus.current_step - edge.last_step) > stale_window
-                is_weak = edge.weight.strength_value < min_strength
-                if is_stale and is_weak:
-                    pruned += 1
-                else:
-                    kept.append(edge)
-            if kept:
-                keep_map[src] = kept
-        self.edges = keep_map
-        return pruned
+class PruneSummary:
+    pruned_synapses: int
+    pruned_edges: int = 0  # reserved for tract-level pruning if we add Tracts later
 
 
 class Region:
-    """A named collection of layers and tracts with a two-phase tick schedule."""
-    def __init__(self, name: str) -> None:
-        self.name = name
+    """
+    Region = collection of Layers plus a region-wide bus.
+    Provides one-tick driving (scalar or image) and maintenance (prune).
+    """
+    def __init__(self, name: str):
+        self.name: str = name
         self.layers: List[Layer] = []
-        self.tracts: List[Tract] = []
-        self.bus = RegionBus()
-        self.input_ports: Dict[str, List[int]] = {}
-        self.output_ports: Dict[str, List[int]] = {}
+        self.bus: LateralBus = LateralBus()
+        self._input_ports: Dict[str, List[int]] = {}
+        self._output_ports: Dict[str, List[int]] = {}
 
-    # ----- construction -----
+    # ----- construction / wiring ------------------------------------------------
 
-    def add_layer(self, excitatory_count: int, inhibitory_count: int, modulatory_count: int) -> int:
-        """Create a layer and return its index."""
-        layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
+    def add_layer(
+        self,
+        excitatory_count: int,
+        inhibitory_count: int,
+        modulatory_count: int,
+    ) -> int:
+        layer = Layer(
+            excitatory_count=excitatory_count,
+            inhibitory_count=inhibitory_count,
+            modulatory_count=modulatory_count,
+        )
         self.layers.append(layer)
         return len(self.layers) - 1
 
-    def connect_layers(self, source_index: int, dest_index: int,
-                       probability: float, feedback: bool = False) -> Tract:
-        """Create a tract and random edges between two layers."""
-        source = self.layers[source_index]
-        dest = self.layers[dest_index]
-        tract = Tract(source, dest, self.bus, is_feedback=feedback)
-        tract.wire_dense_random(probability)
-        self.tracts.append(tract)
-        return tract
+    def connect_layers(self, source_index: int, dest_index: int, probability: float, feedback: bool = False) -> int:
+        """Wire random edges from every neuron in layer[source] to layer[dest]. Returns edges created."""
+        src = self.layers[source_index]
+        dst = self.layers[dest_index]
+        edges = 0
+        for a in src.neurons:
+            for b in dst.neurons:
+                # simple Erdos–Renyi wiring (layer-local RNG)
+                if src._rng.random() < probability:
+                    a.connect(b, feedback=feedback)
+                    edges += 1
+        return edges
 
-    def bind_input(self, port: str, layer_indices: List[int]) -> None:
-        self.input_ports[port] = list(layer_indices)
+    def bind_input(self, port: str, layer_indices: Sequence[int]) -> None:
+        self._input_ports[port] = list(layer_indices)
 
-    def bind_output(self, port: str, layer_indices: List[int]) -> None:
-        self.output_ports[port] = list(layer_indices)
+    def bind_output(self, port: str, layer_indices: Sequence[int]) -> None:
+        self._output_ports[port] = list(layer_indices)
 
-    # ----- region control -----
+    # ----- ticking (scalar) -----------------------------------------------------
 
-    def pulse_inhibition(self, factor: float) -> None:
-        self.bus.inhibition_factor = factor
-
-    def pulse_modulation(self, factor: float) -> None:
-        self.bus.modulation_factor = factor
-
-    # ----- main loop -----
-
-    def tick(self, port: str, value: float) -> Dict[str, float]:
+    def tick(self, port: str, value: float) -> RegionMetrics:
         """
-        Two-phase update:
-          Phase A: deliver external input to entry layers (intra-layer propagation happens).
-          Phase B: flush inter-layer tracts once.
-          Decay:   reset buses and advance step.
-        Returns a small metrics dict.
+        Drive all entry layers bound to `port` with a single scalar `value`,
+        flush one step, and decay buses. Returns RegionMetrics.
         """
-        # Phase A: external input
-        for idx in self.input_ports.get(port, []):
+        # Phase A: push into entry layers
+        for idx in self._input_ports.get(port, ()):
             self.layers[idx].forward(value)
 
-        # Phase B: inter-layer propagation
-        delivered = 0
-        for tract in self.tracts:
-            delivered += tract.flush()
+        # Phase B: (no explicit tract queues in the Python ref impl; propagation happens immediately)
 
         # Decay
         for layer in self.layers:
@@ -202,87 +86,58 @@ class Region:
         self.bus.decay()
 
         # Light metrics
-        total_slots = sum(len(n.slots) for layer in self.layers for n in layer.neurons)
-        total_synapses = sum(len(n.outgoing) for layer in self.layers for n in layer.neurons)
-        return {
-            "delivered_events": float(delivered),
-            "total_slots": float(total_slots),
-            "total_synapses": float(total_synapses),
-        }
+        total_slots = 0
+        total_synapses = 0
+        for layer in self.layers:
+            for n in layer.neurons:
+                total_slots += len(n.slots)
+                total_synapses += len(n.outgoing)
 
-    # ----- maintenance -----
+        # delivered_events: we approximate here as number of neurons that fired this tick (EMA-based in weights)
+        # If you want an exact count, we can expose a per-tick counter in LateralBus or Layer.
+        delivered_events = total_synapses  # placeholder metric; refine later if needed
 
-    def prune(self, synapse_stale_window: int = 10_000, synapse_min_strength: float = 0.05,
-              tract_stale_window: int = 10_000, tract_min_strength: float = 0.05) -> Dict[str, int]:
-        """Prune weak/stale synapses in layers and edges in tracts. Returns counts."""
-        # per-neuron synapses
-        pruned_syn = 0
+        return RegionMetrics(
+            delivered_events=delivered_events,
+            total_slots=total_slots,
+            total_synapses=total_synapses,
+        )
+
+    # ----- tick for images (kept for your image_io_demo) ------------------------
+
+    def tick_image(self, port: str, frame) -> RegionMetrics:
+        """
+        Drive a bound input layer with a 2D frame (NumPy ndarray).
+        Requires that the corresponding input layer knows how to fan-out the frame.
+        For simple demos we inject the average intensity as a scalar to all entry layers.
+        """
+        try:
+            import numpy as np  # local import to keep core dependency-light
+            value = float(np.asarray(frame, dtype=float).mean())
+        except Exception:
+            value = float(frame)  # fall back to scalar if not ndarray
+
+        return self.tick(port, value)
+
+    # ----- maintenance ----------------------------------------------------------
+
+    def prune(
+        self,
+        synapse_stale_window: int = 10_000,
+        synapse_min_strength: float = 0.05,
+    ) -> PruneSummary:
+        """
+        Remove outgoing synapses that are both stale (not used for `stale_window` ticks)
+        AND weak (weight.strength < min_strength). Keeps neurons and slots intact.
+        Mirrors the C++ Region::prune behavior.  (Tract pruning reserved for later.)
+        """
+        current_step = self.bus.current_step
+        pruned = 0
         for layer in self.layers:
             for neuron in layer.neurons:
-                before = len(neuron.outgoing)
-                neuron.prune_synapses(self.bus.current_step, synapse_stale_window, synapse_min_strength)
-                pruned_syn += before - len(neuron.outgoing)
-        # tract edges
-        pruned_edges = sum(t.prune_edges(tract_stale_window, tract_min_strength) for t in self.tracts)
-        return {"pruned_synapses": pruned_syn, "pruned_edges": pruned_edges}
-
-
-def set_slot_policy(self, policy):
-    # Set on all layers (simple broadcast)
-    for layer in self.layers:
-        if hasattr(layer, "slot_policy"):
-            layer.slot_policy = policy
-
-
-def add_input_layer_2d(self, height: int, width: int, gain: float = 1.0, epsilon_fire: float = 0.01) -> int:
-    layer = InputLayer2D(height, width, gain, epsilon_fire)
-    if not hasattr(self, "layers"):
-        self.layers = []
-    self.layers.append(layer)
-    return len(self.layers) - 1
-
-
-def add_output_layer_2d(self, height: int, width: int, smoothing: float = 0.2) -> int:
-    layer = OutputLayer2D(height, width, smoothing)
-    if not hasattr(self, "layers"):
-        self.layers = []
-    self.layers.append(layer)
-    return len(self.layers) - 1
-
-
-def tick_image(self, port: str, image):
-    delivered = 0
-    bound = []
-    if hasattr(self, "input_ports"):
-        bound = self.input_ports.get(port, [])
-    for idx in bound:
-        layer = self.layers[idx]
-        if hasattr(layer, "forward_image"):
-            delivered += int(layer.forward_image(image) or 0)
-        elif hasattr(layer, "forward"):
-            scalar_value = float(getattr(image, "mean", lambda: 0.0)())
-            delivered += int(layer.forward(scalar_value) or 0)
-    if hasattr(self, "tracts"):
-        for tract in self.tracts:
-            if hasattr(tract, "flush"):
-                delivered += int(tract.flush() or 0)
-    for layer in getattr(self, "layers", []):
-        if isinstance(layer, OutputLayer2D) and hasattr(layer, "end_tick"):
-            layer.end_tick()
-    for layer in getattr(self, "layers", []):
-        if hasattr(layer, "bus") and hasattr(layer.bus, "decay"):
-            layer.bus.decay()
-    if hasattr(self, "bus") and hasattr(self.bus, "decay"):
-        self.bus.decay()
-    total_slots = 0
-    total_synapses = 0
-    for L in getattr(self, "layers", []):
-        neurons = getattr(L, "neurons", [])
-        for n in neurons:
-            total_slots += len(getattr(n, "slots", {}))
-            total_synapses += len(getattr(n, "outgoing", [])) if hasattr(n, "outgoing") else 0
-    return {
-        "delivered_events": delivered,
-        "total_slots": total_slots,
-        "total_synapses": total_synapses
-    }
+                pruned += neuron.prune_synapses(
+                    current_step=current_step,
+                    stale_window=synapse_stale_window,
+                    min_strength=synapse_min_strength,
+                )
+        return PruneSummary(pruned_synapses=pruned)

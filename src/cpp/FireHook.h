@@ -1,9 +1,9 @@
+
 #pragma once
 #include <functional>
 
 namespace grownet {
-    class Neuron;
+    class Neuron; // forward declaration
 
-    // Called when a neuron fires. Signature: (inputValue, self)
-    using FireHook = std::function<void(double, Neuron&)>;
-} // namespace grownet
+    using FireHook = std::function<void(double /*inputValue*/, const Neuron& /*self*/)>;
+}

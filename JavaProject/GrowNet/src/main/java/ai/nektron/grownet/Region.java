@@ -2,138 +2,90 @@ package ai.nektron.grownet;
 
 import java.util.*;
 
-/**
- * Region = a small group of layers plus inter-layer tracts,
- * scheduled with a two-phase tick:
- *   Phase A: inject external input to entry layers (intra-layer propagation).
- *   Phase B: flush inter-layer tracts once; finalize outputs; decay buses.
- */
-public final class Region {
-
-    private static final double DEFAULT_INPUT_GAIN = 1.0;
-    private static final double DEFAULT_EPSILON_FIRE = 0.01;
-    private static final double DEFAULT_OUTPUT_SMOOTHING = 0.20;
+/** Region = a set of layers plus directed tracts between them. */
+public class Region {
+    public static class RegionMetrics {
+        public int deliveredEvents;
+        public int totalSlots;
+        public int totalSynapses;
+    }
+    public static class PruneSummary {
+        public int prunedSynapses;
+        public int prunedEdges;
+    }
 
     private final String name;
+    private final RegionBus bus = new RegionBus();
     private final List<Layer> layers = new ArrayList<>();
     private final List<Tract> tracts = new ArrayList<>();
     private final Map<String, List<Integer>> inputPorts = new HashMap<>();
+    private final Map<String, List<Integer>> outputPorts = new HashMap<>();
 
-    public Region(String name) {
-        this.name = name;
-    }
+    public Region(String name) { this.name = name; }
 
-    // ----- Layer factories (Java bindings per v2 API) -----
-
-    /** Hidden mixed-type layer. */
-    public int addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
-        Layer layer = new Layer(excitatoryCount, inhibitoryCount, modulatoryCount);
+    public int addLayer(int excitatory, int inhibitory, int modulatory) {
+        Layer layer = new Layer(excitatory, inhibitory, modulatory);
         layers.add(layer);
         return layers.size() - 1;
     }
 
-    /** 2D input layer (shape-aware). */
-    public int addInputLayer2D(int height, int width, double gain, double epsilonFire) {
-        InputLayer2D layer = new InputLayer2D(height, width, gain, epsilonFire);
-        layers.add(layer);
-        return layers.size() - 1;
-    }
-
-    /** Convenience overload using defaults. */
-    public int addInputLayer2D(int height, int width) {
-        return addInputLayer2D(height, width, DEFAULT_INPUT_GAIN, DEFAULT_EPSILON_FIRE);
-    }
-
-    /** 2D output layer (frame buffer). */
-    public int addOutputLayer2D(int height, int width, double smoothing) {
-        OutputLayer2D layer = new OutputLayer2D(height, width, smoothing);
-        layers.add(layer);
-        return layers.size() - 1;
-    }
-
-    /** Convenience overload using default smoothing. */
-    public int addOutputLayer2D(int height, int width) {
-        return addOutputLayer2D(height, width, DEFAULT_OUTPUT_SMOOTHING);
-    }
-
-    // ----- Wiring & binding -----
-
-    /** Bind a named input port to one or more entry layers (usually InputLayer2D). */
-    public void bindInput(String port, List<Integer> layerIndexes) {
-        inputPorts.put(port, new ArrayList<>(layerIndexes));
-    }
-
-    /** Connect two layers via a new tract; random dense wiring with given probability. */
     public Tract connectLayers(int sourceIndex, int destIndex, double probability, boolean feedback) {
-        Layer source = layers.get(sourceIndex);
-        Layer dest = layers.get(destIndex);
-        Tract tract = new Tract(source, dest, feedback);
-        tract.wireDenseRandom(probability);
-        tracts.add(tract);
-        return tract;
+        Layer src = layers.get(sourceIndex);
+        Layer dst = layers.get(destIndex);
+        Tract t = new Tract(src, dst, bus, feedback);
+        t.wireDenseRandom(probability);
+        tracts.add(t);
+        return t;
     }
 
-    // ----- Tick (image) -----
+    public void bindInput(String port, List<Integer> layerIndices) {
+        inputPorts.put(port, new ArrayList<>(layerIndices));
+    }
 
-    /**
-     * Run one image tick:
-     * Phase A: deliver image to bound input layers and run intra-layer propagation.
-     * Phase B: flush tracts once, finalize output layers, decay layer buses.
-     * Returns lightweight metrics.
-     */
-    public Map<String, Double> tickImage(String port, double[][] image) {
-        // Phase A — inject to all layers bound to this port
-        List<Integer> entries = inputPorts.getOrDefault(port, Collections.emptyList());
-        for (int idx : entries) {
-            Layer layer = layers.get(idx);
-            if (layer instanceof InputLayer2D input) {
-                input.forwardImage(image);
-            } else {
-                // If a non-image layer is accidentally bound, ignore safely.
-            }
+    public void bindOutput(String port, List<Integer> layerIndices) {
+        outputPorts.put(port, new ArrayList<>(layerIndices));
+    }
+
+    public RegionMetrics tick(String port, double value) {
+        // Phase A: external input to entry layers
+        List<Integer> indices = inputPorts.get(port);
+        if (indices != null) {
+            for (int idx : indices) layers.get(idx).forward(value);
         }
-
-        // Phase B — flush inter-layer tracts exactly once
+        // Phase B: inter-layer deliveries
         int delivered = 0;
-        for (Tract t : tracts) {
-            delivered += t.flush();
-        }
-
-        // Finalize outputs (EMA to frame)
-        for (Layer layer : layers) {
-            if (layer instanceof OutputLayer2D out) {
-                out.endTick();
+        for (Tract t : tracts) delivered += t.flush();
+        // Decay buses
+        for (Layer l : layers) l.getBus().decay();
+        bus.decay();
+        // Metrics
+        RegionMetrics m = new RegionMetrics();
+        m.deliveredEvents = delivered;
+        for (Layer l : layers) {
+            for (Neuron n : l.getNeurons()) {
+                m.totalSlots += n.getSlots().size();
+                m.totalSynapses += n.getOutgoing().size();
             }
         }
-
-        // Decay layer buses
-        for (Layer layer : layers) {
-            layer.getBus().decay();
-        }
-
-        // Metrics (simple, cheap)
-        int totalSlots = 0;
-        int totalSynapses = 0;
-        for (Layer layer : layers) {
-            totalSlots += layer.countSlots();
-            totalSynapses += layer.countSynapses();
-        }
-
-        Map<String, Double> m = new LinkedHashMap<>();
-        m.put("delivered_events", (double) delivered);
-        m.put("total_slots", (double) totalSlots);
-        m.put("total_synapses", (double) totalSynapses);
         return m;
     }
 
-    // ----- Accessors -----
-
-    public String getName() {
-        return name;
+    public PruneSummary prune(long synapseStaleWindow, double synapseMinStrength,
+                              long tractStaleWindow,   double tractMinStrength) {
+        PruneSummary s = new PruneSummary();
+        for (Layer l : layers) {
+            for (Neuron n : l.getNeurons()) {
+                int before = n.getOutgoing().size();
+                n.pruneSynapses(bus.getCurrentStep(), synapseStaleWindow, synapseMinStrength);
+                s.prunedSynapses += (before - n.getOutgoing().size());
+            }
+        }
+        for (Tract t : tracts) s.prunedEdges += t.pruneEdges(tractStaleWindow, tractMinStrength);
+        return s;
     }
 
-    /** Exposed so demos can read frames from the output layer. */
-    public List<Layer> getLayers() {
-        return layers;
-    }
+    public String getName() { return name; }
+    public List<Layer> getLayers() { return layers; }
+    public List<Tract> getTracts() { return tracts; }
+    public RegionBus getBus() { return bus; }
 }

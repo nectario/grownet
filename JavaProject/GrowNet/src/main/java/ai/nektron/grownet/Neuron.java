@@ -1,157 +1,121 @@
 package ai.nektron.grownet;
 
 import java.util.*;
+import java.util.function.BiConsumer;
 
-/** Base neuron with slot logic. Subclasses can override fire() behaviour. */
+/** Base neuron containing slot logic and fan-out synapses (intra-layer). */
 public abstract class Neuron {
-    /**
-     * Optional cap on slot count (null means unlimited).
-     */
-    public static Integer SLOT_LIMIT = null;
+    public static int slotLimit = -1; // negative = unlimited
 
     protected final String neuronId;
-    protected LateralBus bus;
-    private final List<FireHook> fireHooks = new ArrayList<>();
+    protected final LateralBus bus;
 
-    protected final Map<Integer, Weight> slots = new LinkedHashMap<>();
+    protected final Map<Integer, Weight> slots = new HashMap<>();
     protected final List<Synapse> outgoing = new ArrayList<>();
-    protected Double lastInputValue = null;
-    protected boolean firedLast = false;
+
+    protected boolean hasLastInput = false;
+    protected double lastInputValue = 0.0;
+
+    protected SlotPolicy slotPolicy = SlotPolicy.uniformFixed(10.0);
+
+    private final List<FireHook> fireHooks = new ArrayList<>();
 
     protected Neuron(String neuronId, LateralBus bus) {
         this.neuronId = neuronId;
         this.bus = bus;
     }
 
-    protected Neuron(String neuronId) {
-        this.neuronId = neuronId;
-    }
+    public String getId() { return neuronId; }
+    public Map<Integer, Weight> getSlots() { return slots; }
+    public List<Synapse> getOutgoing() { return outgoing; }
+    public LateralBus getBus() { return bus; }
 
-    public String neuronId() {
-        return neuronId;
-    }
+    public void setSlotPolicy(SlotPolicy policy) { this.slotPolicy = policy; }
 
-    public Map<Integer, Weight> slots() {
-        return slots;
-    }
-
-    public List<Synapse> outgoing() {
-        return outgoing;
-    }
-
-
-    public java.util.List<Synapse> getOutgoing() {
-        return outgoing;
-    }
-
-    public Double getLastInputValue() { return lastInputValue; }
-
-    // 1) Add (or keep) these accessors
-    public java.util.Map<Integer, Weight> getSlots() { return slots; }
-
-
-    // 2) Replace the body of your protected selectSlot(double inputValue) with:
-    protected Weight selectSlot(double inputValue) {
-        int bucket = SlotPolicyEngine.selectOrCreateSlot(this, inputValue, SlotPolicyConfig.defaults());
-        // selectOrCreateSlot has ensured presence in 'slots'
-        return slots.get(bucket);
-    }
-
-    /**
-     * Route input into a slot, learn locally, maybe fire.
-     */
+    /** External input arrives here (or routed input from tracts). */
     public void onInput(double inputValue) {
         Weight slot = selectSlot(inputValue);
-        slot.reinforce(bus.modulationFactor(), bus.inhibitionFactor());
-        if (slot.updateThreshold(inputValue)) fire(inputValue);
+        slot.reinforce(bus.getModulationScale(), bus.getInhibitionFactor());
+        if (slot.updateThreshold(inputValue)) {
+            fire(inputValue);
+        }
+        hasLastInput = true;
         lastInputValue = inputValue;
     }
 
-    /**
-     * Create a new synapse to target and return it (fluent style).
-     */
-    public Synapse connect(Neuron target, boolean feedback) {
-        Synapse s = new Synapse(target, feedback);
-        outgoing.add(s);
-        return s;
+    /** Called when this neuron should emit to the outside world (for OutputNeuron). */
+    public void onOutput(double amplitude) {
+        // default no-op; OutputNeuron overrides
     }
 
-    /**
-     * Drop stale + weak synapses.
-     */
-    public void pruneSynapses(long currentStep, long staleWindow, double minStrength) {
-        outgoing.removeIf(s -> {
-            boolean stale = (currentStep - s.lastStep) > staleWindow;
-            boolean weak = s.getWeight().getStrengthValue() < minStrength;
-            return stale && weak;
-        });
-    }
-
-    /**
-     * Default excitatory behaviour: propagate along outgoing synapses.
-     */
-    public void fire(double inputValue) {
-        for (Synapse s : outgoing) {
-            s.weight.reinforce(bus.modulationFactor(), bus.inhibitionFactor());
-            s.lastStep = bus.currentStep();
-            if (s.weight.updateThreshold(inputValue)) {
-                s.target.onInput(inputValue);
+    /** Default excitatory fire: fan-out to outgoing synapses. Subclasses override as needed. */
+    protected void fire(double inputValue) {
+        for (Synapse syn : outgoing) {
+            syn.getWeight().reinforce(bus.getModulationScale(), bus.getInhibitionFactor());
+            syn.lastStep = bus.getCurrentStep();
+            if (syn.getWeight().updateThreshold(inputValue) && syn.getTarget() != null) {
+                syn.getTarget().onInput(inputValue);
             }
         }
-
         for (FireHook hook : fireHooks) {
             hook.onFire(inputValue, this);
         }
     }
 
+    /** Connect to another neuron within the same layer. */
+    public Synapse connect(Neuron target, boolean isFeedback) {
+        Synapse s = new Synapse(target, isFeedback);
+        outgoing.add(s);
+        return s;
+    }
 
+    /** Remove stale + weak synapses. */
+    public void pruneSynapses(long currentStep, long staleWindow, double minStrength) {
+        outgoing.removeIf(s -> (currentStep - s.lastStep) > staleWindow
+                && s.getWeight().getStrength() < minStrength);
+    }
 
-    // inside class Neuron
+    /** Scalar summaries for logging. */
     public double neuronValue(String mode) {
         if (slots.isEmpty()) return 0.0;
-        String m = mode.toLowerCase();
-        switch (m) {
-            case "readiness": {
-                double best = Double.NEGATIVE_INFINITY;
-                for (Weight w : slots.values()) {
-                    double margin = w.getStrengthValue() - w.getThresholdValue();
-                    if (margin > best) best = margin;
-                }
-                return best;
-            }
+        switch (mode) {
             case "firing_rate": {
                 double sum = 0.0;
-                for (Weight w : slots.values())
-                    sum +=
-                            (w.getStrengthValue() > w.getThresholdValue() ? 1.0 : 0.0);
+                for (Weight w : slots.values()) sum += w.getEmaRate();
                 return sum / slots.size();
             }
             case "memory": {
                 double sum = 0.0;
-                for (Weight w : slots.values()) sum += Math.abs(w.getStrengthValue());
+                for (Weight w : slots.values()) sum += Math.abs(w.getStrength());
                 return sum;
             }
-            default:
-                throw new IllegalArgumentException("Unknown mode: " + mode);
+            case "readiness":
+            default: {
+                double best = -1e300;
+                for (Weight w : slots.values()) {
+                    double margin = w.getStrength() - w.getThreshold();
+                    if (margin > best) best = margin;
+                }
+                return best;
+            }
         }
     }
 
-    public void registerFireHook(FireHook hook) {
-        fireHooks.add(hook);
+    /** Choose a slot by percent-delta policy, respecting slotLimit. */
+    protected Weight selectSlot(double inputValue) {
+        int binId = slotPolicy.slotId(lastInputValue, hasLastInput, inputValue);
+        Weight w = slots.get(binId);
+        if (w == null) {
+            if (slotLimit >= 0 && slots.size() >= slotLimit) {
+                // simple reuse policy: return the lowest-key slot
+                int firstKey = Collections.min(slots.keySet());
+                return slots.get(firstKey);
+            }
+            w = new Weight();
+            slots.put(binId, w);
+        }
+        return w;
     }
 
-    public void onOutput(double amplitude) { /* no-op by default */ }
-
-    public void setLastInputValue(Double lastInputValue) {
-        this.lastInputValue = lastInputValue;
-    }
-
-    public boolean isFiredLast() {
-        return firedLast;
-    }
-
-    public void setFiredLast(boolean firedLast) {
-        this.firedLast = firedLast;
-    }
-
+    public void registerFireHook(FireHook hook) { fireHooks.add(hook); }
 }

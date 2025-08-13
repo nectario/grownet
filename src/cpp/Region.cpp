@@ -1,8 +1,9 @@
+
 #include "Region.h"
 
 namespace grownet {
 
-Region::Region(std::string n) : name(std::move(n)) {}
+Region::Region(std::string regionName) : name(std::move(regionName)) {}
 
 int Region::addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
     auto layer = std::make_shared<Layer>(excitatoryCount, inhibitoryCount, modulatoryCount);
@@ -28,7 +29,6 @@ void Region::bindOutput(const std::string& port, const std::vector<int>& layerIn
 }
 
 RegionMetrics Region::tick(const std::string& port, double value) {
-    // Phase A: external input to entry layers (intra-layer propagation occurs immediately)
     auto it = inputPorts.find(port);
     if (it != inputPorts.end()) {
         for (int idx : it->second) {
@@ -36,15 +36,12 @@ RegionMetrics Region::tick(const std::string& port, double value) {
         }
     }
 
-    // Phase B: flush inter-layer tracts once
     int delivered = 0;
     for (auto& t : tracts) delivered += t->flush();
 
-    // Decay
     for (auto& l : layers) l->getBus().decay();
     bus.decay();
 
-    // Light metrics
     int totalSlots = 0;
     int totalSynapses = 0;
     for (auto& l : layers) {
@@ -56,8 +53,8 @@ RegionMetrics Region::tick(const std::string& port, double value) {
     return RegionMetrics{delivered, totalSlots, totalSynapses};
 }
 
-PruneSummary Region::prune(long long synapseStaleWindow, double synapseMinStrength,
-                           long long tractStaleWindow,   double tractMinStrength) {
+PruneSummary Region::prune(std::int64_t synapseStaleWindow, double synapseMinStrength,
+                           std::int64_t tractStaleWindow,   double tractMinStrength) {
     int prunedSyn = 0;
     for (auto& l : layers) {
         for (const auto& n : l->getNeurons()) {
@@ -72,7 +69,3 @@ PruneSummary Region::prune(long long synapseStaleWindow, double synapseMinStreng
 }
 
 } // namespace grownet
-
-void grownet::Region::setSlotPolicy(const SlotPolicyConfig& p){
-    for (auto& l : layers){ l->setSlotPolicy(p); }
-}

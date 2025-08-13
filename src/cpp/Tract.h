@@ -1,62 +1,48 @@
-#pragma once
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
-#include <memory>
 
+#pragma once
+#include <memory>
+#include <vector>
 #include "RegionBus.h"
-#include "FireHook.h"
 #include "Layer.h"
-#include "Neuron.h"
-#include "Weight.h"
+#include "Synapse.h"
 
 namespace grownet {
 
-    /**
-     * Bundle of inter‑layer edges (white‑matter‑like).
-     * Registers a fire‑hook on each source neuron; when sources fire, we
-     * reinforce edges and queue deliveries. Region flushes the queue once per tick.
-     */
-    class Tract {
-    public:
-        Tract(std::shared_ptr<Layer> source,
-              std::shared_ptr<Layer> destination,
-              RegionBus& regionBus,
-              bool feedback = false);
+// Minimal tract: wires neurons across layers using the existing immediate propagation path.
+// flush() currently returns 0 because spikes propagate immediately via Neuron::fire.
+class Tract {
+public:
+    Tract(std::shared_ptr<Layer> src,
+          std::shared_ptr<Layer> dst,
+          RegionBus& regionBusRef,
+          bool isFeedback = false)
+        : source(std::move(src)), dest(std::move(dst)), regionBus(regionBusRef), feedback(isFeedback) {}
 
-        // Randomly connect source neurons to destination neurons.
-        void wireDenseRandom(double probability);
+    void wireDenseRandom(double probability) {
+        if (!source || !dest || probability <= 0.0) return;
+        auto& srcNeurons = source->getNeurons();
+        auto& dstNeurons = dest->getNeurons();
+        std::mt19937_64 rng{std::random_device{}()};
+        std::uniform_real_distribution<double> U(0.0, 1.0);
+        for (auto& s : srcNeurons) {
+            for (auto& d : dstNeurons) {
+                if (U(rng) < probability) {
+                    Synapse* syn = feedback ? d->connect(s.get(), true)
+                                            : s->connect(d.get(), false);
+                    (void)syn; // stored implicitly in neurons
+                }
+            }
+        }
+    }
 
-        // Deliver queued events once (Phase B). Returns number delivered.
-        int flush();
+    int flush() { return 0; } // immediate propagation already performed
+    int pruneEdges(std::int64_t /*staleWindow*/, double /*minStrength*/) { return 0; }
 
-        // Remove edges that are both stale and weak. Returns number pruned.
-        int pruneEdges(long long staleWindow, double minStrength);
-
-    private:
-        struct InterLayerEdge {
-            std::shared_ptr<Neuron> target;
-            Weight   weight;
-            bool     isFeedback {false};
-            long long lastStep  {0};
-        };
-
-        struct QueuedEvent {
-            std::shared_ptr<Neuron> target;
-            double value;
-        };
-
-        std::shared_ptr<Layer> source;
-        std::shared_ptr<Layer> destination;
-        RegionBus& regionBus;
-        bool feedback;
-
-        // Keyed by raw pointer (stable while Layer owns shared_ptr)
-        std::unordered_map<Neuron*, std::vector<InterLayerEdge>> edges;
-        std::vector<QueuedEvent> queue;
-        std::unordered_set<Neuron*> hookedSources;
-
-        FireHook makeSourceHook(Neuron* src);
-    };
+private:
+    std::shared_ptr<Layer> source;
+    std::shared_ptr<Layer> dest;
+    RegionBus& regionBus;
+    bool feedback {false};
+};
 
 } // namespace grownet

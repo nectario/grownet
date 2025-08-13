@@ -1,2 +1,3 @@
+
 #include "LateralBus.h"
-// All methods are inline/simple; nothing to implement here
+namespace grownet { /* header-only behaviour */ }

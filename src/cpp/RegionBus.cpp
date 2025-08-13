@@ -1,3 +1,3 @@
 
-#include "ExcitatoryNeuron.h"
+#include "RegionBus.h"
 namespace grownet { /* no-op */ }

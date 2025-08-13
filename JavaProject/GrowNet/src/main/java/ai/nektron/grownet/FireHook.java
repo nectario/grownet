@@ -1,7 +1,7 @@
 package ai.nektron.grownet;
 
+/** Callback invoked after a neuron fires. */
 @FunctionalInterface
 public interface FireHook {
-    /** Called when a neuron fires (after its intra‑layer propagation completes). */
-    void onFire(double inputValue, Neuron self);
+    void onFire(double inputValue, Neuron neuron);
 }

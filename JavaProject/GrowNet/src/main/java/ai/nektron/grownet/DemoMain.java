@@ -1,28 +1,38 @@
 package ai.nektron.grownet;
 
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Arrays;
 
-public final class DemoMain {
+/** Simple demo wiring and tick loop. */
+public class DemoMain {
     public static void main(String[] args) {
-        Layer layer = new Layer(50, 10, 5);
-        layer.wireRandomFeedforward(0.10);
-        layer.wireRandomFeedback(0.01);
+        Region region = new Region("V1-lite");
 
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        int l0 = region.addLayer(8, 2, 1);
+        int l1 = region.addLayer(12, 3, 2);
 
-        for (int i = 0; i < 5_000; i++) {
-            layer.forward(rnd.nextDouble());
-            if ((i + 1) % 500 == 0) {
-                double avg = layer.getNeurons().stream()
-                        .mapToDouble(n -> n.neuronValue("readiness")).average().orElse(0.0);
-                double max = layer.getNeurons().stream()
-                        .mapToDouble(n -> n.neuronValue("readiness")).max().orElse(0.0);
-                System.out.printf("[tick %d] readiness avg=%.3f max=%.3f%n", i + 1, avg, max);
+        // Intra-layer random wiring
+        region.getLayers().get(l0).wireRandomFeedforward(0.10);
+        region.getLayers().get(l0).wireRandomFeedback(0.05);
+        region.getLayers().get(l1).wireRandomFeedforward(0.10);
+
+        // Inter-layer projection
+        region.connectLayers(l0, l1, 0.15, false);
+
+        // Bind external input to first layer
+        region.bindInput("vision", Arrays.asList(l0));
+
+        // Drive a simple ramp and print metrics
+        for (int step = 0; step < 50; step++) {
+            double value = (step % 10) * 0.1; // toy signal
+            Region.RegionMetrics m = region.tick("vision", value);
+            if (step % 10 == 0) {
+                System.out.printf("step=%d  delivered=%d  slots=%d  synapses=%d%n",
+                        step, m.deliveredEvents, m.totalSlots, m.totalSynapses);
             }
         }
 
-        int totalSlots = layer.getNeurons().stream().mapToInt(n -> n.slots().size()).sum();
-        int totalSynapses = layer.getNeurons().stream().mapToInt(n -> n.outgoing().size()).sum();
-        System.out.printf("Finished. totalSlots=%d totalSynapses=%d%n", totalSlots, totalSynapses);
+        // Maintenance
+        Region.PruneSummary pr = region.prune(10_000, 0.05, 10_000, 0.05);
+        System.out.printf("Pruned synapses=%d  edges=%d%n", pr.prunedSynapses, pr.prunedEdges);
     }
 }

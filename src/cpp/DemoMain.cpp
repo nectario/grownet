@@ -1,46 +1,30 @@
+
 #include <iostream>
-#include <random>
-#include "Layer.h"
+#include "Region.h"
 
 using namespace grownet;
 
 int main() {
-    Layer layer(50, 10, 5);
-    layer.wireRandomFeedforward(0.10);
-    layer.wireRandomFeedback(0.01);
+    Region region("vision");
 
-    std::mt19937_64 engine{std::random_device{}()};
-    std::uniform_real_distribution<double> uniform01{0.0, 1.0};
+    int l0 = region.addLayer(8, 2, 1);
+    int l1 = region.addLayer(12, 3, 2);
 
-    for (int stepIndex = 0; stepIndex < 5'000; ++stepIndex) {
-        layer.forward(uniform01(engine));
+    region.connectLayers(l0, l1, 0.2, false);
+    region.bindInput("pixels", {l0});
 
-        if ((stepIndex + 1) % 500 == 0) {
-            double readinessSum = 0.0;
-            double readinessMax = -1e300;
-            int neuronCount = 0;
-            for (const auto& neuronPtr : layer.getNeurons()) {
-                const double readiness = neuronPtr->neuronValue("readiness");
-                readinessSum += readiness;
-                if (readiness > readinessMax) readinessMax = readiness;
-                neuronCount += 1;
-            }
-            double readinessAvg = neuronCount > 0 ? readinessSum / neuronCount : 0.0;
-            std::cout << "[tick " << (stepIndex + 1)
-                      << "] readiness avg=" << readinessAvg
-                      << " max=" << readinessMax << "\n";
+    for (int t = 0; t < 100; ++t) {
+        double value = (t % 10) * 0.1; // simple varying input
+        RegionMetrics m = region.tick("pixels", value);
+        if (t % 10 == 0) {
+            std::cout << "[t=" << t << "] delivered=" << m.deliveredEvents
+                      << " slots=" << m.totalSlots
+                      << " synapses=" << m.totalSynapses << std::endl;
         }
     }
 
-    int totalSlots = 0;
-    int totalSynapses = 0;
-    for (const auto& neuronPtr : layer.getNeurons()) {
-        totalSlots += static_cast<int>(neuronPtr->getSlots().size());
-        totalSynapses += static_cast<int>(neuronPtr->getOutgoing().size());
-    }
-
-    std::cout << "Finished. totalSlots=" << totalSlots
-              << " totalSynapses=" << totalSynapses << std::endl;
-
+    PruneSummary ps = region.prune();
+    std::cout << "Pruned synapses: " << ps.prunedSynapses
+              << " | pruned edges: " << ps.prunedEdges << std::endl;
     return 0;
 }

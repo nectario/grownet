@@ -1,36 +1,40 @@
 package ai.nektron.grownet;
 
-/** Shared, per-layer bus for simple, time-local signals. */
-public final class LateralBus {
-    private double inhibitionFactor = 1.0;  // 1.0 means no inhibition
-    private double modulationFactor = 1.0;  // scales learning rate
-    private long currentStep = 0L;          // global tick
+/**
+ * Per-layer bus carrying transient inhibitory and modulatory signals.
+ * Values decay each tick.
+ */
+public class LateralBus {
+    private long currentStep = 0L;
+    private double inhibitionFactor = 1.0;   // multiplicative effect on strengths (<=1)
+    private double modulationScale  = 1.0;   // scales learning step
+    private double inhibitionDecay  = 0.90;  // decay per tick toward 1.0
+    private double modulationDecay  = 0.0;   // resets toward 1.0 quickly
 
-    public double inhibitionFactor() { return inhibitionFactor; }
-    public double modulationFactor() { return modulationFactor; }
-    public long currentStep()        { return currentStep; }
+    public long getCurrentStep() { return currentStep; }
 
-    public void setInhibitionFactor(double v) { this.inhibitionFactor = v; }
-    public void setModulationFactor(double v) { this.modulationFactor = v; }
+    public double getInhibitionFactor() { return inhibitionFactor; }
+    public double getModulationScale()  { return modulationScale;  }
 
-    public double getInhibitionFactor() {
-        return inhibitionFactor;
+    /** Apply an inhibitory pulse (values < 1.0). */
+    public void pulseInhibition(double factor) {
+        inhibitionFactor = MathUtils.clamp(factor, 0.0, 1.0);
     }
 
-    public double getModulationFactor() {
-        return modulationFactor;
-    }
-    public long getCurrentStep() {
-        return currentStep;
-    }
-    public void setCurrentStep(long currentStep) {
-        this.currentStep = currentStep;
+    /** Apply a modulatory pulse (> 0.0). */
+    public void pulseModulation(double scale) {
+        modulationScale = Math.max(0.0, scale);
     }
 
-    /** Advance one tick, resetting transient signals. */
+    /** Advance one tick; inhibition relaxes to 1.0, modulation relaxes to 1.0. */
     public void decay() {
-        this.inhibitionFactor = 1.0;
-        this.modulationFactor = 1.0;
-        this.currentStep++;
+        currentStep += 1;
+        // Relax inhibition upward toward 1.0
+        inhibitionFactor = 1.0 - (1.0 - inhibitionFactor) * inhibitionDecay;
+        // Relax modulation toward 1.0
+        modulationScale = 1.0 + (modulationScale - 1.0) * modulationDecay;
+        // Snap very close values to 1.0 to avoid drift
+        if (Math.abs(inhibitionFactor - 1.0) < 1e-6) inhibitionFactor = 1.0;
+        if (Math.abs(modulationScale  - 1.0) < 1e-6) modulationScale  = 1.0;
     }
 }

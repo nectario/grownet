@@ -1,84 +1,66 @@
-from __future__ import annotations
-from typing import Optional, List
-from weight import Weight
+# src/python/grownet/slot_policy.py
+from bisect import bisect_right
+from dataclasses import dataclass
+from typing import List, Optional
 
+class SlotPolicy:
+    """Return an integer slot id based on last and current inputs."""
+    def compute_slot_id(self, last_input: Optional[float], current_input: float) -> int:
+        raise NotImplementedError
 
-class SlotPolicyConfig:
+@dataclass
+class FixedPercentPolicy(SlotPolicy):
+    """Uniform bins of `step_percent` (e.g., 10 -> 0,1,2,... by 10% bands)."""
+    step_percent: float = 10.0
+
+    def compute_slot_id(self, last_input: Optional[float], current_input: float) -> int:
+        if last_input is None or last_input == 0.0:
+            return 0
+        delta_percent = abs(current_input - last_input) / abs(last_input) * 100.0
+        if delta_percent == 0.0:
+            return 0
+        return int(math_ceil(delta_percent / max(1e-9, self.step_percent)))
+
+def math_ceil(x: float) -> int:
+    i = int(x)
+    return i if i == x else (i + 1 if x > 0 else i)
+
+@dataclass
+class NonUniformPercentPolicy(SlotPolicy):
     """
-    Slot selection & creation policy.
-
-    mode:
-        "fixed"            -> single width (slot_width_percent)
-        "multi_resolution" -> reuse coarse bins if present, else create at the finest width
-        "adaptive"         -> reserved (fields kept for parity; not used by select_or_create_slot yet)
+    Non-uniform edges in percent (e.g., [2, 5, 10, 20, 40, 80]).
+    Slot id is index of first edge >= delta%, else len(edges).
     """
-    def __init__(
-        self,
-        mode: str = "fixed",
-        slot_width_percent: float = 0.10,
-        multires_widths: Optional[List[float]] = None,   # e.g. [0.10, 0.05, 0.02] (coarse → fine)
-        boundary_refine_hits: int = 5,
-        target_active_low: int = 6,
-        target_active_high: int = 12,
-        min_slot_width: float = 0.01,
-        max_slot_width: float = 0.20,
-        adjust_cooldown_ticks: int = 200,
-        adjust_factor_up: float = 1.2,
-        adjust_factor_down: float = 0.9,
-        nonuniform_schedule: Optional[List[float]] = None
-    ) -> None:
-        mode_lc = (mode or "fixed").lower()
-        if mode_lc not in {"fixed", "multi_resolution", "adaptive"}:
-            raise ValueError(f"Unknown mode: {mode}")
+    edges_percent: List[float]
 
-        self.mode = mode_lc
-        self.slot_width_percent = float(slot_width_percent)
-        # default multi-resolution schedule (coarse → fine)
-        self.multires_widths = list(multires_widths) if multires_widths is not None else [0.10, 0.05, 0.02]
+    def compute_slot_id(self, last_input: Optional[float], current_input: float) -> int:
+        if last_input is None or last_input == 0.0:
+            return 0
+        delta_percent = abs(current_input - last_input) / abs(last_input) * 100.0
+        # Place into the first bin whose upper edge >= delta
+        return bisect_right(self.edges_percent, delta_percent)
 
-        # Kept for parity with Java & future adaptive policy
-        self.boundary_refine_hits = int(boundary_refine_hits)
-        self.target_active_low = int(target_active_low)
-        self.target_active_high = int(target_active_high)
-        self.min_slot_width = float(min_slot_width)
-        self.max_slot_width = float(max_slot_width)
-        self.adjust_cooldown_ticks = int(adjust_cooldown_ticks)
-        self.adjust_factor_up = float(adjust_factor_up)
-        self.adjust_factor_down = float(adjust_factor_down)
-        self.nonuniform_schedule = list(nonuniform_schedule) if nonuniform_schedule else None
-
-
-def compute_percent_delta(last_value: Optional[float], value: float) -> float:
+@dataclass
+class AdaptivePercentPolicy(SlotPolicy):
     """
-    |Δ| as a percent of the (nonzero) previous value; first stimulus → 0.0.
+    Minimal adaptive skeleton:
+    - Start with uniform bins (step_percent).
+    - Caller can optionally call `note_slot_use(slot_id, hit_count)` and when
+      a slot's hit_count exceeds `split_threshold`, you *may* split the slot
+      by reducing step_percent (coarser -> finer).
     """
-    if last_value is None or last_value == 0.0:
-        return 0.0
-    denom = max(1e-9, abs(last_value))
-    return 100.0 * abs(value - last_value) / denom
+    step_percent: float = 10.0
+    min_step_percent: float = 2.0
+    split_threshold: int = 128
 
+    def compute_slot_id(self, last_input: Optional[float], current_input: float) -> int:
+        if last_input is None or last_input == 0.0:
+            return 0
+        delta_percent = abs(current_input - last_input) / abs(last_input) * 100.0
+        if delta_percent == 0.0:
+            return 0
+        return int(math_ceil(delta_percent / max(1e-9, self.step_percent)))
 
-def select_or_create_slot(neuron, value: float, policy: SlotPolicyConfig) -> int:
-    """
-    Decide the percent‑bucket for this input; create the slot when needed.
-    Works for single‑width and multi‑resolution policies.
-    Returns the chosen bucket id (int).
-    """
-    percent = compute_percent_delta(getattr(neuron, "last_input_value", None), value)
-
-    if policy.mode == "multi_resolution" and policy.multires_widths:
-        widths = list(policy.multires_widths)
-    else:
-        widths = [policy.slot_width_percent]
-
-    # Reuse if possible (coarse → fine)
-    for width in widths:
-        bucket = int(percent // max(1e-9, width))
-        if bucket in neuron.slots:
-            return bucket
-
-    # Otherwise create at the finest resolution
-    finest = widths[-1]
-    bucket = int(percent // max(1e-9, finest))
-    neuron.slots.setdefault(bucket, Weight())
-    return bucket
+    def note_slot_use(self, slot_id: int, hit_count: int) -> None:
+        if hit_count >= self.split_threshold and self.step_percent > self.min_step_percent:
+            self.step_percent = max(self.min_step_percent, self.step_percent * 0.5)  # refine

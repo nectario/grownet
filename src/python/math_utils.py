@@ -1,13 +1,27 @@
-from math import isclose
+import math
 
-def smooth_step(edge_start: float, edge_end: float, value: float) -> float:
-    """Cubic Hermite smoothstep for gentle transitions."""
-    if isclose(edge_end, edge_start):
-        return 0.0
-    t = (value - edge_start) / (edge_end - edge_start)
-    t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
-    return t * t * (3.0 - 2.0 * t)
+def clamp(value: float, min_value: float, max_value: float) -> float:
+    if value < min_value:
+        return min_value
+    if value > max_value:
+        return max_value
+    return value
 
-def smooth_clamp(value: float, lower: float, upper: float) -> float:
-    """Clamp with smooth edges to avoid hard saturation kinks."""
-    return smooth_step(0.0, 1.0, (value - lower) / (upper - lower)) * (upper - lower) + lower
+def smooth_clamp(value: float, min_value: float, max_value: float, softness: float = 0.0) -> float:
+    """
+    Clamp with optional 'soft' knee near bounds.
+    softness=0 -> hard clamp. For small softness (e.g., 0.01) transitions are smoother.
+    """
+    if softness <= 0.0:
+        return clamp(value, min_value, max_value)
+    # Soft knee: compress when moving past the bounds
+    if value < min_value:
+        return min_value + math.tanh((value - min_value) / softness) * softness
+    if value > max_value:
+        return max_value + math.tanh((value - max_value) / softness) * softness
+    return value
+
+def compute_percent_delta(current_value: float, previous_value: float) -> float:
+    if previous_value == 0.0:
+        return 0.0 if current_value == 0.0 else 100.0
+    return abs(current_value - previous_value) / abs(previous_value) * 100.0

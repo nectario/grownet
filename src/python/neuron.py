@@ -1,213 +1,165 @@
-from slot_policy import SlotPolicyConfig
+from typing import Dict, List, Optional, Callable
 import math
-import typing
-from typing import Dict, List, Optional
+
 from weight import Weight
 from synapse import Synapse
 from bus import LateralBus
 
+
 class Neuron:
     """
-    Base neuron with slot logic. Subclasses override fire() behaviour.
-    Compartments are keyed by percent-delta bins:
-      bin 0: 0%
-      bin 1: (0,10%], bin 2: (10,20%], ...
+    Base neuron with slot logic and unified on_input/on_output hooks.
+    Subclasses may override fire() for excitatory / inhibitory / modulatory behavior.
     """
-    SLOT_LIMIT: Optional[int] = None  # None = unlimited
 
-    def __init__(self, neuron_id: str, bus: LateralBus):
-        self.neuron_id = neuron_id
-        self.bus = bus
+    # slot_limit < 0 means "unlimited"
+    slot_limit: int = -1
+
+    def __init__(self, neuron_id: str, shared_bus: Optional[LateralBus] = None) -> None:
+        self.neuron_id: str = neuron_id
+        self.bus: LateralBus = shared_bus if shared_bus is not None else LateralBus()
         self.slots: Dict[int, Weight] = {}
         self.outgoing: List[Synapse] = []
-        self.last_input_value: Optional[float] = None
-        self.fire_hooks: list[typing.Callable[[float, "Neuron"], None]] = []
 
-    # put inside
-    def onOutput(self, amplitude: float) -> None:
-        return
-    def neuron_value(self, mode: str = "readiness") -> float:
-        """Return a single scalar summary derived from this neuron's slots.
+        self.has_last_input: bool = False
+        self.last_input_value: float = 0.0
 
-        modes:
-          - 'readiness'   : max(strength - threshold) across slots
-          - 'firing_rate' : mean of ema_rate across slots
-          - 'memory'      : sum of abs(strength) across slots
+        self.fire_hooks: List[Callable[[float, "Neuron"], None]] = []
+
+    # ---------------------------------------------------------------------
+    # I/O
+
+    def on_input(self, value: float) -> bool:
         """
-        if not self.slots:
-            return 0.0
-        mode_lower = mode.lower()
-        if mode_lower == "readiness":
-            return max(w.strength_value - w.threshold_value for w in self.slots.values())
-        if mode_lower == "firing_rate":
-            return sum(w.ema_rate for w in self.slots.values()) / len(self.slots)
-        if mode_lower == "memory":
-            return sum(abs(w.strength_value) for w in self.slots.values())
-        raise ValueError(f"Unknown mode: {mode}")
+        Route to a slot, learn locally, maybe fire.
+        Returns True if this neuron fired.
+        """
+        slot = self.select_slot(value)
 
-
-    # ----------------- public API -----------------
-    def on_input(self, input_value: float):
-        slot = self.select_slot(input_value)
-        # Local learning in the active slot
+        # local learning (modulation/inhibition supplied by the bus)
         slot.reinforce(
             modulation_factor=self.bus.modulation_factor,
             inhibition_factor=self.bus.inhibition_factor,
         )
-        if slot.update_threshold(input_value):
-            self.fire(input_value)
 
-        # remember last input for next binning step
-        self.last_input_value = input_value
+        fired = slot.update_threshold(value)
+        if fired:
+            self.fire(value)
 
-    def connect(self, target: "Neuron", is_feedback: bool = False) -> Synapse:
-        syn = Synapse(target, is_feedback)
+        # update book-keeping
+        self.has_last_input = True
+        self.last_input_value = value
+        return fired
+
+    def on_output(self, amplitude: float) -> None:
+        """Default no‑op; OutputNeuron overrides this."""
+        return
+
+    # ---------------------------------------------------------------------
+    # Connectivity
+
+    def connect(self, target: "Neuron", feedback: bool = False) -> Synapse:
+        syn = Synapse(target=target, is_feedback=feedback)
         self.outgoing.append(syn)
         return syn
 
-    def prune_synapses(self, current_step: int, stale_window: int = 10_000, min_strength: float = 0.05):
-        """Drop synapses that have not been used for a long time and stayed weak."""
-        self.outgoing = [
-            s for s in self.outgoing
-            if (current_step - s.last_step) <= stale_window or s.weight.strength_value >= min_strength
-        ]
-
-    # ----------------- default firing -----------------
-    def fire(self, input_value: float):
-        """Excitatory default: propagate along all outgoing synapses."""
+    def prune_synapses(self, current_step: int, stale_window: int, min_strength: float) -> int:
+        """
+        Drop synapses where (current_step - last_step) > stale_window AND
+        syn.weight.strength_value < min_strength.
+        Returns number of synapses removed.
+        """
+        keep: List[Synapse] = []
+        removed = 0
         for syn in self.outgoing:
-            # Reinforce the synapse’s weight when source fires
+            stale_too_long = (current_step - syn.last_step) > stale_window
+            weak = syn.weight.strength_value < min_strength
+            if stale_too_long and weak:
+                removed += 1
+            else:
+                keep.append(syn)
+        self.outgoing = keep
+        return removed
+
+    # ---------------------------------------------------------------------
+    # Spiking
+
+    def fire(self, input_value: float) -> None:
+        """
+        Default excitatory behavior: propagate along outgoing synapses.
+        Edge gating: only transmit if the edge's local threshold fires.
+        """
+        for syn in self.outgoing:
+            # local learning also occurs on edges
             syn.weight.reinforce(
                 modulation_factor=self.bus.modulation_factor,
                 inhibition_factor=self.bus.inhibition_factor,
             )
             syn.last_step = self.bus.current_step
+
+            # gate transmission by the edge's (weight) threshold
             if syn.weight.update_threshold(input_value):
                 syn.target.on_input(input_value)
 
-         # NEW: notify any inter-layer tracts to queue deliveries for Phase B
+        # fire hooks (e.g., debugging/telemetry)
         for hook in self.fire_hooks:
             hook(input_value, self)
 
-    # ----------------- helpers -----------------
-    def select_slot(self, input_value: float) -> Weight:
-        """Route to a slot based on percent delta from last input."""
-        if self.last_input_value is None or self.last_input_value == 0.0:
-            bin_id = 0
-        else:
-            delta = abs(input_value - self.last_input_value) / abs(self.last_input_value)
+    # ---------------------------------------------------------------------
+    # Helpers
+
+    def select_slot(self, value: float) -> Weight:
+        """
+        Pick/create a slot keyed by percent‑delta of current vs last input.
+        Bin width is 10% (can be made policy-driven later).
+        Bin id = 0 for identical; otherwise ceil(delta% / 10).
+        """
+        bin_id = 0
+        if self.has_last_input and self.last_input_value != 0.0:
+            delta = abs(value - self.last_input_value) / abs(self.last_input_value)
             delta_percent = delta * 100.0
-            bin_id = 0 if delta_percent == 0.0 else int(math.ceil(delta_percent / 10.0))
+            bin_id = 0 if delta_percent == 0.0 else math.ceil(delta_percent / 10.0)
 
-        comp = self.slots.get(bin_id)
-        if comp is None:
-            if Neuron.SLOT_LIMIT is not None and len(self.slots) >= Neuron.SLOT_LIMIT:
-                # trivial reuse: return the earliest created slot
-                comp = next(iter(self.slots.values()))
+        slot = self.slots.get(bin_id)
+        if slot is None:
+            # capacity policy: reuse first slot if at limit (simple baseline)
+            if Neuron.slot_limit > 0 and len(self.slots) >= Neuron.slot_limit:
+                slot = next(iter(self.slots.values()))
             else:
-                comp = Weight()
-                self.slots[bin_id] = comp
-        return comp
+                slot = Weight()
+                self.slots[bin_id] = slot
+        return slot
 
+    # ---------------------------------------------------------------------
+    # Utilities
 
-    def register_fire_hook(self, hook: typing.Callable[[float, "Neuron"], None]) -> None:
-        """Register a callback invoked when this neuron fires. Signature: (input_value, self)."""
+    def register_fire_hook(self, hook: Callable[[float, "Neuron"], None]) -> None:
         self.fire_hooks.append(hook)
 
+    def neuron_value(self, mode: str = "readiness") -> float:
+        """
+        Simple scalar summaries, useful for logging.
+        - readiness: max margin (strength - theta) across slots
+        - firing_rate: average EMA across slots
+        - memory: sum of absolute strengths
+        """
+        if not self.slots:
+            return 0.0
 
+        if mode == "readiness":
+            best = -1e300
+            for w in self.slots.values():
+                margin = w.strength_value - w.threshold_value
+                if margin > best:
+                    best = margin
+            return best
 
-# ----------------- subclasses -----------------
-class ExcitatoryNeuron(Neuron):
-    """Inherits default excitatory behaviour."""
-    pass
+        if mode == "firing_rate":
+            total = sum(w.ema_rate for w in self.slots.values())
+            return total / float(len(self.slots))
 
+        if mode == "memory":
+            return sum(abs(w.strength_value) for w in self.slots.values())
 
-class InhibitoryNeuron(Neuron):
-    """Emits an inhibitory pulse (scales down learning/strength this tick)."""
-    def fire(self, input_value: float):
-        # gamma < 1 attenuates; reset occurs in bus.decay()
-        self.bus.inhibition_factor = 0.7
-
-
-class ModulatoryNeuron(Neuron):
-    """Emits a modulatory pulse (scales learning rate this tick)."""
-    def fire(self, input_value: float):
-        self.bus.modulation_factor = 1.5
-
-
-def compute_percent_delta(previous: float | None, current: float) -> float:
-    if previous is None or previous == 0.0:
-        return 1.0  # treat first as full novelty
-    return abs(current - previous) / max(1e-9, abs(previous))
-
-
-def select_or_create_slot(neuron, value: float, policy: SlotPolicyConfig):
-    """
-    Determine which slot id should handle this value, possibly creating a new slot.
-    Non-uniform schedule: if provided, uses schedule[len(slots)] as width for the new slot.
-    Multi-resolution: tries coarse->fine, refines near boundary.
-    Adaptive: adjusts policy.slot_width_percent periodically based on active slot count.
-    """
-    # Get last input seen by neuron
-    previous = getattr(neuron, "last_input_value", None)
-    percent = compute_percent_delta(previous, value)
-
-    # Determine width to use for deciding creation
-    width = policy.slot_width_percent
-
-    # Adaptive width adjustment (cooldown-based)
-    tick_count = getattr(neuron, "tick_count_for_policy", 0)
-    last_adjust = getattr(neuron, "last_adjust_tick", -10**9)
-    active_slots = sum(1 for s in neuron.slots.values() if getattr(s, "hit_count", 0) > 0)
-
-    if policy.mode == "adaptive":
-        if tick_count - last_adjust >= policy.adjust_cooldown_ticks:
-            if active_slots > policy.target_active_high:
-                width = min(policy.max_slot_width, width * policy.adjust_factor_up)
-                neuron.last_adjust_tick = tick_count
-            elif active_slots < policy.target_active_low and percent > width:
-                width = max(policy.min_slot_width, width * policy.adjust_factor_down)
-                neuron.last_adjust_tick = tick_count
-            # write back
-            policy.slot_width_percent = width
-
-    # Multi-resolution: stage widths
-    widths = [width]
-    if policy.mode == "multi_resolution":
-        widths = policy.multires_widths
-
-    # Non-uniform schedule for new slot creation
-    new_slot_width = None
-    if policy.nonuniform_schedule is not None:
-        idx = len(neuron.slots)
-        if idx < len(policy.nonuniform_schedule):
-            new_slot_width = policy.nonuniform_schedule[idx]
-
-    # Check if existing slot already covers this percent change
-    # We'll model slot ids as integer buckets of percent/width at chosen resolution
-    # Choose the first width that claims the value; if none, create using chosen new_slot_width or first width.
-    for w in widths:
-        bucket = int(percent / max(1e-9, w))
-        if bucket in neuron.slots:
-            return bucket, False
-
-    # Near-boundary refinement (optional): if percent is within 10% of a boundary, prefer a finer width
-    if policy.mode == "multi_resolution" and len(widths) > 1:
-        for w in widths[1:]:
-            bucket = int(percent / max(1e-9, w))
-            if bucket in neuron.slots:
-                return bucket, False
-
-    # Create new slot id based on chosen width for creation
-    use_w = new_slot_width if new_slot_width is not None else widths[-1]
-    new_id = int(percent / max(1e-9, use_w))
-    return new_id, True
-
-
-
-def on_input(self, value):
-    """Unified v2 entry point: returns whether the neuron fired."""
-    if hasattr(self, "on_input") and callable(getattr(self, "on_input")):
-        result = self.on_input(value)
-        return bool(getattr(self, "fired_last", bool(result)))
-    return bool(getattr(self, "fired_last", False))
+        # default
+        return self.neuron_value("readiness")

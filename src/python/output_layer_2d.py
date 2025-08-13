@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 from typing import List
 import numpy as np
-from output_neuron import OutputNeuron
+
 from bus import LateralBus
+from output_neuron import OutputNeuron
+
 
 class OutputLayer2D:
-    """Shape-aware output layer (e.g., image writer) using unified onInput/onOutput."""
-    def __init__(self, height: int, width: int, smoothing: float = 0.2):
+    """Shape‑aware output layer (e.g., image writer) using unified on_input/on_output."""
+
+    def __init__(self, height: int, width: int, *, smoothing: float = 0.2) -> None:
         self.height = height
         self.width = width
         self.bus = LateralBus()
@@ -15,21 +20,24 @@ class OutputLayer2D:
                 n = OutputNeuron(name=f"OUT[{y},{x}]", smoothing=smoothing)
                 n.bus = self.bus
                 self.neurons.append(n)
+
+        # last rendered frame, updated in end_tick()
         self.frame = np.zeros((height, width), dtype=float)
 
     def index(self, y: int, x: int) -> int:
         return y * self.width + x
 
     def propagate_from(self, source_index: int, value: float) -> None:
+        """Convenience hook for tracts to deliver a value to a specific output neuron."""
         if 0 <= source_index < len(self.neurons):
             n = self.neurons[source_index]
-            fired = n.onInput(value)
+            fired = n.on_input(value)
             if fired:
-                n.onOutput(value)
+                n.on_output(value)
 
     def end_tick(self) -> None:
+        """Finalize this tick: update the frame from neuron outputs."""
         for idx, neuron in enumerate(self.neurons):
-            neuron.end_tick()
             y, x = divmod(idx, self.width)
             self.frame[y, x] = neuron.output_value
 

@@ -1,9 +1,16 @@
-# GrowNet – Mojo prototype (NektronAI)
+# GrowNet (Python Reference)
 
-## Quick‑start
+This folder contains the Python reference implementation of GrowNet with
+slot-based neurons, inhibitory and modulatory dynamics, and region/layer wiring.
+
+## Quick start
+
 ```bash
-# 1. Install Modular CLI (>= 0.8) and a Python 3.10 env
-pip install modular-cli torch torchvision tqdm
+python -m src.python.demo_region
+```
 
-# 2. Run the first experiment
-modular run src/bridges/py_mod.py --exp experiments/E00_omniglot.yaml
+## Tests
+
+```bash
+pytest -q
+```

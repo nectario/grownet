@@ -1,28 +1,29 @@
+
 #pragma once
+#include <cstdint>
 #include "Weight.h"
 
 namespace grownet {
 
-    class Neuron; // forward declaration
+class Neuron; // forward declaration
 
-    // Directed edge: source neuron --(weight)--> target neuron, with routing metadata.
-    class Synapse {
-    public:
-        Synapse(Neuron* targetNeuron, bool feedbackFlag)
-            : target(targetNeuron), isFeedback(feedbackFlag) {}
+class Synapse {
+public:
+    Synapse(Neuron* targetPtr = nullptr, bool feedbackEdge = false)
+        : target(targetPtr), isFeedback(feedbackEdge) {}
 
-        Weight&       getWeight()      { return weight; }
-        const Weight& getWeight() const{ return weight; }
+    Neuron* getTarget() const { return target; }
+    Weight& getWeight() { return weight; }
+    const Weight& getWeight() const { return weight; }
 
-        Neuron* getTarget() const      { return target; }
-        bool    getIsFeedback() const  { return isFeedback; }
+    bool getIsFeedback() const { return isFeedback; }
 
-        long long lastStep {0};
+    std::int64_t lastStep {0}; // last time this synapse carried a spike
 
-    private:
-        Weight  weight {};
-        Neuron* target {nullptr};
-        bool    isFeedback {false};
-    };
+private:
+    Neuron* target {nullptr};
+    Weight  weight {};
+    bool    isFeedback {false};
+};
 
 } // namespace grownet

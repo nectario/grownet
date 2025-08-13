@@ -1,17 +1,24 @@
 package ai.nektron.grownet;
 
-final class MathUtils {
+/** Utility math helpers for GrowNet. */
+public final class MathUtils {
     private MathUtils() {}
 
-    static double smoothStep(double edgeStart, double edgeEnd, double value) {
-        if (edgeEnd == edgeStart) return 0.0;
-        double t = (value - edgeStart) / (edgeEnd - edgeStart);
-        if (t < 0.0) t = 0.0;
-        else if (t > 1.0) t = 1.0;
-        return t * t * (3.0 - 2.0 * t);
+    /** Smoothly clamps a value into [min, max] using a soft transition near the bounds. */
+    public static double smoothClamp(double value, double minValue, double maxValue) {
+        if (value < minValue) {
+            double distance = minValue - value;
+            return minValue - distance / (1.0 + distance);
+        }
+        if (value > maxValue) {
+            double distance = value - maxValue;
+            return maxValue + distance / (1.0 + distance * distance);
+        }
+        return value;
     }
 
-    static double smoothClamp(double value, double lower, double upper) {
-        return smoothStep(0.0, 1.0, (value - lower) / (upper - lower)) * (upper - lower) + lower;
+    /** Linear clamp helper. */
+    public static double clamp(double value, double minValue, double maxValue) {
+        return Math.max(minValue, Math.min(maxValue, value));
     }
 }

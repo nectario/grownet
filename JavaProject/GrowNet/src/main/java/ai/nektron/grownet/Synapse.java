@@ -1,22 +1,21 @@
 package ai.nektron.grownet;
 
-/** Directed edge: source neuron --(weight)--> target neuron, with routing metadata. */
-public final class Synapse {
-    public final Weight weight = new Weight();
-    public final Neuron target;
-    public final boolean feedback;
-    public long lastStep = 0L;
+/**
+ * Directed connection from a source neuron to a target neuron.
+ * Holds its own Weight and last-step timestamp.
+ */
+public class Synapse {
+    private final Neuron target;
+    private final boolean feedback;
+    private final Weight weight = new Weight();
+    long lastStep = 0L;
 
     public Synapse(Neuron target, boolean feedback) {
         this.target = target;
         this.feedback = feedback;
     }
 
-    public Weight getWeight() {
-        return weight;
-    }
-
-    public Neuron getTarget() {
-        return target;
-    }
+    public Neuron getTarget()    { return target; }
+    public boolean isFeedback()  { return feedback; }
+    public Weight getWeight()    { return weight;  }
 }

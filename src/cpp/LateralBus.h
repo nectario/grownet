@@ -1,29 +1,39 @@
+
 #pragma once
+#include <algorithm>
+#include <cstdint>
 
 namespace grownet {
 
-    class LateralBus {
-    public:
-        LateralBus() = default;
+class LateralBus {
+public:
+    LateralBus() = default;
 
-        double getInhibitionFactor() const { return inhibitionFactor; }
-        double getModulationFactor() const { return modulationFactor; }
-        long long getCurrentStep()   const { return currentStep; }
+    void setInhibitionFactor(double factor) { inhibitionFactor = std::clamp(factor, 0.0, 1.0); }
+    void setModulationFactor(double factor) { modulationFactor = factor; }
 
-        void setInhibitionFactor(double value) { inhibitionFactor = value; }
-        void setModulationFactor(double value) { modulationFactor = value; }
+    double getInhibitionFactor() const { return inhibitionFactor; }
+    double getModulationFactor() const { return modulationFactor; }
 
-        // Advance one tick; reset transient signals
-        void decay() {
-            inhibitionFactor = 1.0;
-            modulationFactor = 1.0;
-            currentStep += 1;
-        }
+    void setInhibitionDecay(double decay) { inhibitionDecay = std::clamp(decay, 0.0, 1.0); }
+    void setModulationRelax(double relax) { modulationRelax = std::clamp(relax, 0.0, 1.0); }
 
-    private:
-        double inhibitionFactor {1.0};  // 1.0 = no inhibition
-        double modulationFactor {1.0};  // scales learning rate
-        long long currentStep   {0};
-    };
+    void decay() {
+        // advance one step and apply simple decay/relaxation
+        ++currentStep;
+        inhibitionFactor *= inhibitionDecay;
+        // drive modulation back towards 1.0
+        modulationFactor = 1.0 + (modulationFactor - 1.0) * modulationRelax;
+    }
+
+    std::int64_t getCurrentStep() const { return currentStep; }
+
+private:
+    double inhibitionFactor {0.0}; // 0..1 (multiplicative damping)
+    double modulationFactor {1.0}; // scales learning step
+    double inhibitionDecay  {0.90};
+    double modulationRelax  {0.90};
+    std::int64_t currentStep {0};
+};
 
 } // namespace grownet

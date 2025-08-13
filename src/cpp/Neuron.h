@@ -1,79 +1,68 @@
+
 #pragma once
 #include <unordered_map>
 #include <vector>
 #include <string>
 #include <cmath>
-#include <optional>
+#include <algorithm>
+
 #include "Weight.h"
 #include "Synapse.h"
 #include "LateralBus.h"
 #include "FireHook.h"
-#include "SlotPolicyConfig.h"
 
 namespace grownet {
 
-    // Base neuron with slot logic. Subclasses can override fire() behaviour.
-    class Neuron {
+class Neuron {
 public:
-    virtual bool onInput(double value, const LateralBus& bus) { return false; }
-    virtual void onOutput(double amplitude) {}
+    static int slotLimit; // <0 means unlimited
 
+    Neuron(const std::string& id, LateralBus* sharedBus)
+        : neuronId(id), bus(sharedBus) {}
 
-    private:
-        std::vector<FireHook> fireHooks;
+    virtual ~Neuron() = default;
 
-    public:
-        void setSlotPolicy(const SlotPolicyConfig* p) { slotPolicy = p; }
-        // slotLimit < 0 means "unlimited"
-        static int slotLimit;
+    // Input processing: route to slot, reinforce, potentially fire
+    void onInput(double inputValue);
 
-        Neuron(const std::string& id, LateralBus* sharedBus)
-            : neuronId(id), bus(sharedBus) {}
+    // Output hook for consistency (used by OutputNeuron in other languages)
+    virtual void onOutput(double amplitude) { (void)amplitude; }
 
-        virtual ~Neuron() = default;
+    // Create a synapse to target
+    Synapse* connect(Neuron* target, bool isFeedback);
 
-        // Route input into a slot, learn locally, maybe fire.
-        void onInput(double inputValue);
+    // Remove stale+weak synapses
+    void pruneSynapses(std::int64_t currentStep, std::int64_t staleWindow, double minStrength);
 
-        // Create a new synapse to target and return a pointer to it.
-        Synapse* connect(Neuron* target, bool isFeedback);
+    // Default firing behaviour: propagate along outgoing synapses
+    virtual void fire(double inputValue);
 
-        // Drop stale + weak synapses.
-        void pruneSynapses(long long currentStep, long long staleWindow, double minStrength);
+    // Simple scalar summaries for logging
+    double neuronValue(const std::string& mode) const;
 
-        // Default excitatory behaviour: propagate along outgoing synapses.
-        virtual void fire(double inputValue);
+    // Accessors
+    const std::string& getId() const { return neuronId; }
+    const std::unordered_map<int, Weight>& getSlots() const { return slots; }
+    std::unordered_map<int, Weight>&       getSlots()       { return slots; }
+    const std::vector<Synapse>& getOutgoing() const { return outgoing; }
+    std::vector<Synapse>&       getOutgoing()       { return outgoing; }
 
-        // Simple scalar summaries for logging (readiness / firing_rate / memory).
-        double neuronValue(const std::string& mode) const;
+    void registerFireHook(const FireHook& hook) { fireHooks.push_back(hook); }
 
-        // Accessors
-        const std::string& getId() const { return neuronId; }
-        const std::unordered_map<int, Weight>& getSlots() const { return slots; }
-        std::unordered_map<int, Weight>&       getSlots()       { return slots; }
-        const std::vector<Synapse>& getOutgoing() const { return outgoing; }
-        std::vector<Synapse>&       getOutgoing()       { return outgoing; }
+protected:
+    Weight& selectSlot(double inputValue);
 
-        void registerFireHook(const FireHook& hook) { fireHooks.push_back(hook); }
+    std::string neuronId;
+    LateralBus* bus {nullptr};
 
-    protected:
-        const SlotPolicyConfig* slotPolicy {nullptr};
-        long long policyLastAdjustTick { -1000000000LL };
-        double computePercentDelta(double previous, double current) const;
-        int selectOrCreateSlotId(double value);
-        // Route to a slot based on percent delta from last input.
-        Weight& selectSlot(double inputValue);
+    std::unordered_map<int, Weight> slots;  // slotId -> Weight
+    std::vector<Synapse> outgoing;
 
-        std::string neuronId;
-        LateralBus* bus {nullptr};
+    bool   hasLastInput {false};
+    double lastInputValue {0.0};
 
-        std::unordered_map<int, Weight> slots;
-        std::vector<Synapse> outgoing;
-
-        bool   hasLastInput {false};
-        double lastInputValue {0.0};
-    };
-
-
+private:
+    std::vector<FireHook> fireHooks;
+};
 
 } // namespace grownet
