@@ -77,8 +77,8 @@ public final class Region {
         Layer dst = layers.get(destIndex);
 
         int edges = 0;
-        for (Neuron a : src.neurons()) {
-            for (Neuron b : dst.neurons()) {
+        for (Neuron a : src.getNeurons()) {
+            for (Neuron b : dst.getNeurons()) {
                 if (a == b) continue; // defensive; layers differ anyway
                 if (rng.nextDouble() < probability) {
                     a.connect(b, feedback);
@@ -129,7 +129,7 @@ public final class Region {
 
         // Aggregate simple counts for visibility
         for (Layer layer : layers) {
-            for (Neuron n : layer.neurons()) {
+            for (Neuron n : layer.getNeurons()) {
                 m.totalSlots    += n.getSlots().size();
                 m.totalSynapses += n.getOutgoing().size();
             }
@@ -146,7 +146,7 @@ public final class Region {
     public PruneSummary prune(long synapseStaleWindow, double synapseMinStrength) {
         PruneSummary ps = new PruneSummary();
         for (Layer layer : layers) {
-            for (Neuron n : layer.neurons()) {
+            for (Neuron n : layer.getNeurons()) {
                 ps.prunedSynapses += n.pruneSynapses(synapseStaleWindow, synapseMinStrength);
             }
         }

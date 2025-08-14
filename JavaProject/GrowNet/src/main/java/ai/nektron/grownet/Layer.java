@@ -32,8 +32,9 @@ public class Layer {
 
     // --------------------------------------------- accessors ------------------------------------------------
 
-    public List<Neuron> neurons() { return neurons; }
+    public List<Neuron> getNeurons() { return neurons; }
 
+    public LateralBus getBus() { return bus; }
     // ------------------------------------------ intra‑layer wiring ------------------------------------------
 
     /** Layer‑local fanout (demo‑level). */
