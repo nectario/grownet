@@ -129,6 +129,39 @@ public class Neuron {
         }
     }
 
+    // Neuron.java  — add inside class Neuron
+    /**
+     * Remove outgoing synapses that are both stale and weak.
+     *
+     * @param staleWindow        prune if (currentStep - lastStep) > staleWindow
+     * @param minStrength        prune if weight.strength < minStrength
+     * @return number of synapses removed
+     */
+    public int pruneSynapses(long staleWindow, double minStrength) {
+        int removed = 0;
+        final long currentStep = bus.getCurrentStep();   // LateralBus (layer bus) step
+
+        // Keep list to avoid ConcurrentModificationException
+        final List<Synapse> keep = new ArrayList<>(outgoing.size());
+        for (Synapse synapse : outgoing) {
+            final long    lastStep      = synapse.getLastStep();
+            final double  strength      = synapse.getWeight().getStrengthValue();
+            final boolean isStale       = (currentStep - lastStep) > staleWindow;
+            final boolean isWeak        = strength < minStrength;
+
+            if (isStale && isWeak) {
+                removed += 1;
+                // drop this synapse
+            } else {
+                keep.add(synapse);
+            }
+        }
+        outgoing.clear();
+        outgoing.addAll(keep);
+        return removed;
+    }
+
+    
     // -------- hooks API (used by Tract) --------
 
     /** Register a hook (value, who) called every time this neuron fires. */

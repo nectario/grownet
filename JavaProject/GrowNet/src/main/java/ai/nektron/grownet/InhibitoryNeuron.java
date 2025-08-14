@@ -16,7 +16,7 @@ public final class InhibitoryNeuron extends Neuron {
 
     @Override
     protected void fire(double inputValue) {
-        bus().setInhibitionFactor(gamma);
+        getBus().setInhibitionFactor(gamma);
         // If you later want mixed behavior, you could also call super.fire(inputValue)
         // to both inhibit and propagate. For now we keep the role pure and simple.
     }

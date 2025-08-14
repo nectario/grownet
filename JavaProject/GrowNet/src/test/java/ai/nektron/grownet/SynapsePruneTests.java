@@ -1,27 +1,34 @@
 package ai.nektron.grownet;
 
 import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 final class SynapsePruneTests {
+
     @Test
-    void connectAndPrune() {
+    void connectThenPruneStaleWeakEdges() {
         LateralBus bus = new LateralBus();
-        ExcitatoryNeuron a = new ExcitatoryNeuron("A", bus);
-        ExcitatoryNeuron b = new ExcitatoryNeuron("B", bus);
+        SlotConfig cfg = SlotConfig.fixed(10.0);
 
-        a.connect(b, false);
-        assertEquals(1, a.outgoing().size());
+        ExcitatoryNeuron a = new ExcitatoryNeuron("A", bus, cfg, -1);
+        ExcitatoryNeuron b = new ExcitatoryNeuron("B", bus, cfg, -1);
 
-        // use synapse a few steps
-        for (int step = 0; step < 5; step++) {
+        a.connect(b, /*feedback=*/false);
+        assertEquals(1, a.getOutgoing().size(), "A must have one outgoing edge");
+
+        // Do a few normal steps (not strictly required for pruning)
+        for (int step = 0; step < 5; ++step) {
             a.onInput(1.0);
             bus.decay();
         }
 
-        // advance time without use; force prune
-        for (int i = 0; i < 20_000; i++) bus.decay();
-        a.pruneSynapses(bus.currentStep(), 10_000, 0.9);
-        assertEquals(0, a.outgoing().size());
+        // Advance time so the edge becomes very stale.
+        for (int i = 0; i < 20_000; ++i) bus.decay();
+
+        // Prune with high min-strength so the default 0.0-strength edge qualifies.
+        int removed = a.pruneSynapses(/*staleWindow=*/10_000, /*minStrength=*/0.9);
+        assertEquals(1, removed, "the single weak + stale edge should be pruned");
+        assertEquals(0, a.getOutgoing().size(), "no outgoing edges remain");
     }
 }

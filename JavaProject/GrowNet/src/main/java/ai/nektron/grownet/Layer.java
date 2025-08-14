@@ -13,28 +13,28 @@ public class Layer {
 
     public Layer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
         // Default slot policy for this demo layer.
-        SlotConfig cfg = SlotConfig.fixed(10.0);  // 10% Δ bins
-        int slotLimit = -1;                               // unlimited
+        SlotConfig cfg = SlotConfig.fixed(10.0);   // 10% Δ bins
+        int slotLimit = -1;                        // unlimited
 
         for (int i = 0; i < excitatoryCount; ++i) {
-            Neuron n = new ExcitatoryNeuron("E" + i, bus, cfg, slotLimit);
-            neurons.add(n);
+            Neuron neuron = new ExcitatoryNeuron("E" + i, bus, cfg, slotLimit);
+            neurons.add(neuron);
         }
         for (int i = 0; i < inhibitoryCount; ++i) {
-            Neuron n = new InhibitoryNeuron("I" + i, bus, cfg, slotLimit);
-            neurons.add(n);
+            Neuron neuron = new InhibitoryNeuron("I" + i, bus, cfg, slotLimit);
+            neurons.add(neuron);
         }
         for (int i = 0; i < modulatoryCount; ++i) {
-            Neuron n = new ModulatoryNeuron("M" + i, bus, cfg, slotLimit);
-            neurons.add(n);
+            Neuron neuron = new ModulatoryNeuron("M" + i, bus, cfg, slotLimit);
+            neurons.add(neuron);
         }
     }
 
     // --------------------------------------------- accessors ------------------------------------------------
 
     public List<Neuron> getNeurons() { return neurons; }
-
     public LateralBus getBus() { return bus; }
+
     // ------------------------------------------ intra‑layer wiring ------------------------------------------
 
     /** Layer‑local fanout (demo‑level). */
@@ -64,12 +64,25 @@ public class Layer {
 
     /** Drive all neurons with a scalar value for this tick. */
     public void forward(double value) {
-        for (Neuron n : neurons) {
-            boolean fired = n.onInput(value);
+        for (Neuron neuron : neurons) {
+            boolean fired = neuron.onInput(value);
             if (fired) {
-                n.onOutput(value);
+                neuron.onOutput(value);
             }
         }
+    }
+
+    /**
+     * Optional helper used by shape‑aware layers (e.g., OutputLayer2D).
+     * Default behaviour: route {@code value} to the N‑th neuron and apply the unified onInput/onOutput contract.
+     * NOTE: The inter‑layer wiring (`Tract`) does NOT call this; it delivers directly to target neurons.
+     * This method exists so specialized layers can @Override it for local bookkeeping.
+     */
+    public void propagateFrom(int sourceIndex, double value) {
+        if (sourceIndex < 0 || sourceIndex >= neurons.size()) return;
+        Neuron neuron = neurons.get(sourceIndex);
+        boolean fired = neuron.onInput(value);
+        if (fired) neuron.onOutput(value);
     }
 
     /** End‑of‑tick housekeeping: decay inhibition/modulation back toward neutral. */

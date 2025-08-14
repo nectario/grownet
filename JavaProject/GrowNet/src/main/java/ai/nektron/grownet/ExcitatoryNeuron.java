@@ -15,9 +15,9 @@ public final class ExcitatoryNeuron extends Neuron {
 
     @Override
     protected void fire(double inputValue) {
-        final List<Synapse> edges = outgoing();
-        final double mod = bus().getModulationFactor();
-        final long   step = bus().getCurrentStep();
+        final List<Synapse> edges = getOutgoing();
+        final double mod = getBus().getModulationFactor();
+        final long   step = getBus().getCurrentStep();
 
         for (Synapse s : edges) {
             Weight w = s.getWeight();
