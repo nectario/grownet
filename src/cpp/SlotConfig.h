@@ -1,5 +1,5 @@
 #pragma once
-#include <vector>
+#include <cmath>
 
 namespace grownet {
 
@@ -7,21 +7,14 @@ enum class SlotPolicy { FIXED, NONUNIFORM, ADAPTIVE };
 
 struct SlotConfig {
     SlotPolicy policy { SlotPolicy::FIXED };
-    double slotWidthPercent { 10.0 };
-    std::vector<double> nonuniformEdges; // ascending
-    int maxSlots { -1 }; // -1 = unbounded
-
-    static SlotConfig fixed(double widthPercent) {
-        SlotConfig c; c.policy = SlotPolicy::FIXED; c.slotWidthPercent = widthPercent; return c;
-    }
-    static SlotConfig nonuniform(const std::vector<double>& edgesAsc) {
-        SlotConfig c; c.policy = SlotPolicy::NONUNIFORM; c.nonuniformEdges = edgesAsc; return c;
-    }
-    static SlotConfig adaptive(double seedWidthPercent, int max) {
-        SlotConfig c; c.policy = SlotPolicy::ADAPTIVE; c.slotWidthPercent = seedWidthPercent; c.maxSlots = max; return c;
-    }
-    static SlotConfig singleSlot() {
-        return fixed(100.0);
+    double fixedBinPercent { 10.0 }; // when FIXED: %Δ per bin (e.g., 10 means bins are -10..0..+10)
+    int maxSlots { -1 };             // -1 means unlimited
+    static SlotConfig fixed(double binPercent, int limit = -1) {
+        SlotConfig cfg;
+        cfg.policy = SlotPolicy::FIXED;
+        cfg.fixedBinPercent = binPercent;
+        cfg.maxSlots = limit;
+        return cfg;
     }
 };
 

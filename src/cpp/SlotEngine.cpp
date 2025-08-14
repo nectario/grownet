@@ -2,12 +2,18 @@
 #include "Neuron.h"
 
 namespace grownet {
-Weight& selectOrCreateSlot(Neuron& neuron, int id) {
-    auto& table = neuron.getSlots();
-    auto it = table.find(id);
-    if (it == table.end()) {
-        it = table.emplace(id, Weight{}).first;
+
+Weight& SlotEngine::selectOrCreateSlot(Neuron& neuron, double inputValue) const {
+    int desiredId = 0;
+    if (neuron.hasLastInput()) {
+        desiredId = slotId(neuron.getLastInputValue(), inputValue, static_cast<int>(neuron.getSlots().size()));
     }
-    return it->second;
+    auto& slots = neuron.getSlots();
+    auto iter = slots.find(desiredId);
+    if (iter == slots.end()) {
+        iter = slots.emplace(desiredId, Weight{}).first;
+    }
+    return iter->second;
 }
+
 } // namespace grownet

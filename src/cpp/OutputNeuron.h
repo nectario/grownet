@@ -2,31 +2,33 @@
 #include "Neuron.h"
 
 namespace grownet {
-
+/** Output neuron: captures last emitted amplitude; no downstream propagation. */
 class OutputNeuron : public Neuron {
+    double lastEmitted { 0.0 };
+    double smoothing { 0.0 };
 public:
-    OutputNeuron(const std::string& name, LateralBus& bus, double smoothing)
-        : Neuron(name, bus, SlotConfig::singleSlot(), 1), smoothing(smoothing) {
-        // Ensure slot zero exists
-        auto& m = getSlots();
-        if (m.find(0) == m.end()) m.emplace(0, Weight{});
+    OutputNeuron(std::string id, LateralBus& bus, const SlotConfig& cfg, double smoothing, int limit = -1)
+        : Neuron(std::move(id), bus, cfg, limit), smoothing(smoothing) {
+        slots[0]; // ensure slot-0 exists
     }
 
     bool onInput(double value) override {
-        Weight& slot = getSlots()[0];
+        Weight& slot = slots[0];
         slot.reinforce(getBus().getModulationFactor());
         bool fired = slot.updateThreshold(value);
-        if (fired) onOutput(value);
+        setFiredLast(fired);
+        setLastInputValue(value);
         return fired;
     }
 
-    void onOutput(double amplitude) override { lastEmitted = amplitude; }
-    void endTick() override { lastEmitted *= (1.0 - smoothing); } // simple decay
+    void onOutput(double amplitude) override {
+        lastEmitted = amplitude;
+        notifyFire(amplitude);
+        // swallow propagation
+    }
+
+    void endTick() override { lastEmitted *= (1.0 - smoothing); }
+
     double getOutputValue() const { return lastEmitted; }
-
-private:
-    double smoothing {0.2};
-    double lastEmitted {0.0};
 };
-
 } // namespace grownet

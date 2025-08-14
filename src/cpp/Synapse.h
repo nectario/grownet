@@ -1,15 +1,16 @@
 #pragma once
-#include "Weight.h"
+#include <cstddef>
 
 namespace grownet {
 class Neuron;
+
+/** Minimal outgoing connection record. */
 struct Synapse {
     Neuron* source { nullptr };
     Neuron* target { nullptr };
-    bool feedback { false };
-    Weight weight;
+    bool    feedback { false };
 
-    Synapse(Neuron* s=nullptr, Neuron* t=nullptr, bool fb=false)
-      : source(s), target(t), feedback(fb) {}
+    Synapse() = default;
+    Synapse(Neuron* src, Neuron* dst, bool fb) : source(src), target(dst), feedback(fb) {}
 };
 } // namespace grownet

@@ -7,67 +7,65 @@
 
 #include "LateralBus.h"
 #include "Weight.h"
-#include "Synapse.h"
 #include "SlotConfig.h"
 #include "SlotEngine.h"
+#include "Synapse.h"
 
 namespace grownet {
 
 class Neuron {
-public:
-    Neuron(std::string id, LateralBus& sharedBus, const SlotConfig& cfg, int limit = -1)
-        : neuronId(std::move(id)), bus(&sharedBus), slotEngine(cfg), slotLimit(limit) {}
-
-    virtual ~Neuron() = default;
-
-    // Core event handlers
-    virtual bool onInput(double value);
-    virtual void onOutput(double amplitude) {
-        // Base behaviour: notify any tract hooks
-        notifyFireHooks(amplitude);
-    }
-
-    // Wiring ---------------------------------------------------------------
-    Synapse& connect(Neuron* target, bool feedback = false);
-
-    // Accessors ------------------------------------------------------------
-    const std::string& id() const { return neuronId; }
-    std::unordered_map<int, Weight>& getSlots() { return slots; }
-    std::vector<std::unique_ptr<Synapse>>& getOutgoing() { return outgoing; }
-
-    bool       firedLastTick() const { return firedLast; }
-    bool       hasLastInput()  const { return haveLastInput; }
-    double     getLastInputValue() const { return lastInputValue; }
-
-    // Fire hooks (used by Tract to observe spikes from source layer)
-    void registerFireHook(std::function<void(Neuron*, double)> hook) {
-        fireHooks.emplace_back(std::move(hook));
-    }
-
-protected:
-    void notifyFireHooks(double value) {
-        for (auto& cb : fireHooks) { cb(this, value); }
-    }
-
 protected:
     std::string neuronId;
     LateralBus* bus { nullptr };
-
-    // Slot mechanics
     SlotEngine  slotEngine;
     int         slotLimit { -1 };
-    std::unordered_map<int, Weight> slots;
 
-    // Activity bookkeeping
+    std::unordered_map<int, Weight> slots;
+    std::vector<Synapse> outgoing;
+
     bool   haveLastInput { false };
     double lastInputValue { 0.0 };
     bool   firedLast { false };
 
-    // Outgoing fanout
-    std::vector<std::unique_ptr<Synapse>> outgoing;
-
-    // Tract listeners
     std::vector<std::function<void(Neuron*, double)>> fireHooks;
+
+    void notifyFire(double amplitude) {
+        for (auto& hook : fireHooks) hook(this, amplitude);
+    }
+
+public:
+    Neuron(std::string id, LateralBus& sharedBus, const SlotConfig& cfg, int limit = -1)
+        : neuronId(std::move(id)), bus(&sharedBus), slotEngine(cfg), slotLimit(limit) {}
+    virtual ~Neuron() = default;
+
+    virtual bool onInput(double value);      // implemented in Neuron.cpp
+    virtual void onOutput(double amplitude); // default = propagate downstream + notify
+    virtual void endTick() {}                // per-neuron end-of-tick hook (default no-op)
+
+    // Hook registration (used by Tract to bridge layers without explicit Synapse objects)
+    void registerFireHook(std::function<void(Neuron*, double)> hook) { fireHooks.push_back(std::move(hook)); }
+
+    // Wiring
+    Synapse& connect(Neuron* target, bool feedback = false) {
+        outgoing.emplace_back(this, target, feedback);
+        return outgoing.back();
+    }
+
+    // Accessors
+    LateralBus& getBus() { return *bus; }
+    const std::string& getId() const { return neuronId; }
+
+    std::unordered_map<int, Weight>& getSlots() { return slots; }
+    const std::unordered_map<int, Weight>& getSlots() const { return slots; }
+
+    std::vector<Synapse>& getOutgoing() { return outgoing; }
+    const std::vector<Synapse>& getOutgoing() const { return outgoing; }
+
+    bool hasLastInput() const { return haveLastInput; }
+    double getLastInputValue() const { return lastInputValue; }
+    bool didFireLast() const { return firedLast; }
+    void setFiredLast(bool v) { firedLast = v; }
+    void setLastInputValue(double v) { lastInputValue = v; haveLastInput = true; }
 };
 
 } // namespace grownet

@@ -1,14 +1,18 @@
 #pragma once
 namespace grownet {
+/** Per-layer lateral bus carrying transient inhibition / neuromodulation. */
 class LateralBus {
-public:
-    void setInhibitionFactor(double f) { inhibitionFactor = f; }
-    void setModulationFactor(double f) { modulationFactor = f; }
-    double getInhibitionFactor() const { return inhibitionFactor; }
-    double getModulationFactor() const { return modulationFactor; }
-    void decay() { inhibitionFactor *= 0.9; modulationFactor = 1.0; }
-private:
     double inhibitionFactor { 0.0 };
     double modulationFactor { 1.0 };
+public:
+    void setInhibitionFactor(double factor) { inhibitionFactor = factor; }
+    void setModulationFactor(double factor) { modulationFactor = factor; }
+    double getInhibitionFactor() const { return inhibitionFactor; }
+    double getModulationFactor() const { return modulationFactor; }
+    void decay() {
+        // Simple decay toward neutral values.
+        inhibitionFactor *= 0.9;   // decays to 0
+        modulationFactor  = 1.0;   // resets to neutral each tick
+    }
 };
 } // namespace grownet

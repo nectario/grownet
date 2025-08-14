@@ -1,21 +1,13 @@
 #include <iostream>
 #include "Region.h"
 
-using namespace grownet;
-
-int main() {
-    Region region("demo");
-    int l0 = region.addLayer(10, 0, 0);
-    int l1 = region.addLayer(10, 0, 0);
-    region.bindInput("pixels", {l0});
-    region.connectLayers(l0, l1, 0.1, false);
-
-    for (int step = 0; step < 10; ++step) {
-        auto m = region.tick("pixels", 1.0);
-        if ((step+1) % 2 == 0) {
-            std::cout << "[step " << (step+1) << "] delivered=" << m.deliveredEvents
-                      << " slots=" << m.totalSlots << " syn=" << m.totalSynapses << "\n";
-        }
-    }
+int main_demo() {
+    grownet::Region region("demo");
+    int l1 = region.addLayer(8, 2, 1);
+    int l2 = region.addLayer(8, 2, 1);
+    region.bindInput("u", { l1 });
+    region.connectLayers(l1, l2, 0.2, false);
+    auto m = region.tick("u", 1.0);
+    std::cout << "delivered=" << m.deliveredEvents << "\n";
     return 0;
 }

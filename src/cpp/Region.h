@@ -8,11 +8,14 @@
 #include "Tract.h"
 #include "Layer.h"
 #include "Neuron.h"
+#include "InputLayer2D.h"
+#include "OutputLayer2D.h"
 
 namespace grownet {
 
     struct RegionMetrics {
         int deliveredEvents {0};
+        int delivered_events {0}; // legacy alias for demos
         int totalSlots      {0};
         int totalSynapses   {0};
     };
@@ -28,6 +31,8 @@ namespace grownet {
 
         // Construction
         int addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount);
+        int addInputLayer2D(int h, int w, double gain, double epsilonFire);
+        int addOutputLayer2D(int h, int w, double smoothing);
         Tract& connectLayers(int sourceIndex, int destIndex, double probability, bool feedback = false);
         void bindInput(const std::string& port, const std::vector<int>& layerIndices);
         void bindOutput(const std::string& port, const std::vector<int>& layerIndices);
@@ -38,16 +43,13 @@ namespace grownet {
 
         // Main loop (two-phase)
         RegionMetrics tick(const std::string& port, double value);
+        RegionMetrics tickImage(const std::string& port, const std::vector<std::vector<double>>& frame);
 
-        // Maintenance (new in the unified contract).
-        // Kept header-inline so it links regardless of your Region.cpp content.
+        // Maintenance
         PruneSummary prune(long long /*synapseStaleWindow*/ = 10'000, double /*synapseMinStrength*/ = 0.05,
-                           long long /*tractStaleWindow*/   = 10'000, double /*tractMinStrength*/   = 0.05)
-        {
-            PruneSummary s{};
-            // Safe no-op placeholder: actual pruning logic is in your Tract/Neuron/Weight code.
-            // Returning a summary keeps downstream demos compiling against the updated API.
-            return s;
+                           long long /*tractStaleWindow*/   = 10'000, double /*tractMinStrength*/   = 0.05) {
+            // placeholder: no-op for now
+            return PruneSummary{};
         }
 
         // Accessors

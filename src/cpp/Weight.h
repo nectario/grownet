@@ -1,9 +1,9 @@
 #pragma once
 #include <algorithm>
-#include "MathUtils.h"
+#include <cmath>
 
 namespace grownet {
-
+/** Per-slot weight + adaptive threshold state. */
 struct Weight {
     // learning
     double stepValue { 0.001 };
@@ -16,11 +16,15 @@ struct Weight {
     bool   firstSeen { false };
 
     // constants
-    static constexpr int HIT_SATURATION = 10000;
-    static constexpr double EPS  = 0.02;
-    static constexpr double BETA = 0.01;
-    static constexpr double ETA  = 0.02;
-    static constexpr double RSTAR= 0.05;
+    static constexpr int    HIT_SATURATION = 10'000;
+    static constexpr double EPS   = 0.02;
+    static constexpr double BETA  = 0.01;
+    static constexpr double ETA   = 0.02;
+    static constexpr double RSTAR = 0.05;
+
+    inline static double smoothClamp(double x, double lo, double hi) {
+        return std::max(lo, std::min(hi, x));
+    }
 
     void reinforce(double modulationFactor) {
         if (reinforcementCount >= HIT_SATURATION) return;
@@ -35,15 +39,18 @@ struct Weight {
             firstSeen = true;
         }
         bool fired = strengthValue > thresholdValue;
-        double f = fired ? 1.0 : 0.0;
-        emaRate = (1.0 - BETA) * emaRate + BETA * f;
+        double isFired = fired ? 1.0 : 0.0;
+        emaRate = (1.0 - BETA) * emaRate + BETA * isFired;
         thresholdValue = thresholdValue + ETA * (emaRate - RSTAR);
         return fired;
     }
 
+    // accessors often handy in higher-level code
     double getStrengthValue() const { return strengthValue; }
+    void   setStrengthValue(double v) { strengthValue = v; }
+    bool   isFirstSeen() const { return firstSeen; }
+    void   setFirstSeen(bool v) { firstSeen = v; }
     double getThresholdValue() const { return thresholdValue; }
-    double getEmaRate() const { return emaRate; }
+    void   setThresholdValue(double v) { thresholdValue = v; }
 };
-
 } // namespace grownet
