@@ -6,7 +6,7 @@ package ai.nektron.grownet;
  * - modulationFactor scales learning rate (1.0 = neutral).
  * - currentStep increments once per tick (used for staleness checks).
  */
-public final class LateralBus {
+public class LateralBus {
     private double inhibitionFactor = 0.0;
     private double modulationFactor = 1.0;
     private long   currentStep      = 0L;

@@ -15,10 +15,9 @@ public final class RegionDemo {
 
         Random rng = new Random();
         for (int step = 1; step <= 2000; step++) {
-            Region.RegionMetrics m = region.tick("pixels", rng.nextDouble());
+            Region.Metrics m = region.tick("pixels", rng.nextDouble());
             if (step % 200 == 0) {
-                System.out.printf("[step %d] delivered=%d slots=%d syn=%d%n",
-                        step, m.deliveredEvents(), m.totalSlots(), m.totalSynapses());
+                System.out.printf("[step %d] delivered=%d slots=%d syn=%d%n", step, m.deliveredEvents, m.totalSlots, m.totalSynapses);
             }
         }
         Region.PruneSummary p = region.prune();

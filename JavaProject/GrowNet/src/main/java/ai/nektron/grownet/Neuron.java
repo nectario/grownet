@@ -168,7 +168,7 @@ public class Neuron {
         int removed = 0;
         List<Synapse> keep = new ArrayList<>(outgoing.size());
         for (Synapse s : outgoing) {
-            boolean weak = (s.weight != null) && (s.weight.strengthValue < synapseMinStrength);
+            boolean weak = (s.getWeight() != null) && (s.getWeight().strengthValue < synapseMinStrength);
 
             // TODO: when Synapse exposes lastStep and LateralBus exposes currentStep,
             //       also consider staleness: now - s.lastStep > synapseStaleWindow.

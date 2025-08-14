@@ -5,7 +5,7 @@ import java.util.*;
 /**
  * A mixed‑type population (excitatory, inhibitory, modulatory) that shares a lateral bus.
  */
-public final class Layer {
+public class Layer {
 
     private final List<Neuron> neurons = new ArrayList<>();
     private final LateralBus bus = new LateralBus();
