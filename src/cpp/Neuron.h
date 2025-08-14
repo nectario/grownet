@@ -1,68 +1,47 @@
-
 #pragma once
+#include <string>
 #include <unordered_map>
 #include <vector>
-#include <string>
-#include <cmath>
-#include <algorithm>
-
 #include "Weight.h"
+#include "RegionBus.h"
 #include "Synapse.h"
-#include "LateralBus.h"
-#include "FireHook.h"
+#include "SlotConfig.h"
+#include "SlotEngine.h"
 
 namespace grownet {
 
 class Neuron {
 public:
-    static int slotLimit; // <0 means unlimited
+    explicit Neuron(std::string id,
+                    const SlotConfig& cfg = {},
+                    RegionBus* sharedBus = nullptr);
 
-    Neuron(const std::string& id, LateralBus* sharedBus)
-        : neuronId(id), bus(sharedBus) {}
+    // main loop
+    bool onInput(double value);            // returns true if fired
+    virtual void onOutput(double amplitude) {}  // optional for output neurons
 
-    virtual ~Neuron() = default;
-
-    // Input processing: route to slot, reinforce, potentially fire
-    void onInput(double inputValue);
-
-    // Output hook for consistency (used by OutputNeuron in other languages)
-    virtual void onOutput(double amplitude) { (void)amplitude; }
-
-    // Create a synapse to target
-    Synapse* connect(Neuron* target, bool isFeedback);
-
-    // Remove stale+weak synapses
-    void pruneSynapses(std::int64_t currentStep, std::int64_t staleWindow, double minStrength);
-
-    // Default firing behaviour: propagate along outgoing synapses
+    // spike propagation
     virtual void fire(double inputValue);
 
-    // Simple scalar summaries for logging
-    double neuronValue(const std::string& mode) const;
+    // accessors for SlotEngine
+    std::unordered_map<int, Weight>& getSlots() { return slots; }
+    bool   hasLastInput() const { return haveLastInput; }
+    double getLastInputValue() const { return lastInputValue; }
 
-    // Accessors
-    const std::string& getId() const { return neuronId; }
-    const std::unordered_map<int, Weight>& getSlots() const { return slots; }
-    std::unordered_map<int, Weight>&       getSlots()       { return slots; }
-    const std::vector<Synapse>& getOutgoing() const { return outgoing; }
-    std::vector<Synapse>&       getOutgoing()       { return outgoing; }
-
-    void registerFireHook(const FireHook& hook) { fireHooks.push_back(hook); }
+    // wiring
+    std::vector<Synapse>& getOutgoing() { return outgoing; }
+    RegionBus& getBus() { return bus; }
 
 protected:
-    Weight& selectSlot(double inputValue);
-
     std::string neuronId;
-    LateralBus* bus {nullptr};
-
-    std::unordered_map<int, Weight> slots;  // slotId -> Weight
+    std::unordered_map<int, Weight> slots;
     std::vector<Synapse> outgoing;
 
-    bool   hasLastInput {false};
-    double lastInputValue {0.0};
+    bool   haveLastInput { false };
+    double lastInputValue { 0.0 };
 
-private:
-    std::vector<FireHook> fireHooks;
+    RegionBus bus;
+    SlotEngine slotEngine;
 };
 
 } // namespace grownet

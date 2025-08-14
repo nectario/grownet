@@ -1,27 +1,12 @@
-import math
+from __future__ import annotations
 
-def clamp(value: float, min_value: float, max_value: float) -> float:
-    if value < min_value:
-        return min_value
-    if value > max_value:
-        return max_value
-    return value
+def smooth_clamp(x: float, low: float, high: float) -> float:
+    if x < low:
+        return low
+    if x > high:
+        return high
+    return x
 
-def smooth_clamp(value: float, min_value: float, max_value: float, softness: float = 0.0) -> float:
-    """
-    Clamp with optional 'soft' knee near bounds.
-    softness=0 -> hard clamp. For small softness (e.g., 0.01) transitions are smoother.
-    """
-    if softness <= 0.0:
-        return clamp(value, min_value, max_value)
-    # Soft knee: compress when moving past the bounds
-    if value < min_value:
-        return min_value + math.tanh((value - min_value) / softness) * softness
-    if value > max_value:
-        return max_value + math.tanh((value - max_value) / softness) * softness
-    return value
-
-def compute_percent_delta(current_value: float, previous_value: float) -> float:
-    if previous_value == 0.0:
-        return 0.0 if current_value == 0.0 else 100.0
-    return abs(current_value - previous_value) / abs(previous_value) * 100.0
+def round_one_decimal(x: float) -> float:
+    # e.g., 0.27 -> 0.3; 0.24 -> 0.2
+    return round(x * 10.0) / 10.0

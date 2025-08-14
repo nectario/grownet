@@ -1,121 +1,100 @@
 package ai.nektron.grownet;
 
 import java.util.*;
-import java.util.function.BiConsumer;
 
-/** Base neuron containing slot logic and fan-out synapses (intra-layer). */
-public abstract class Neuron {
-    public static int slotLimit = -1; // negative = unlimited
-
+public class Neuron {
     protected final String neuronId;
     protected final LateralBus bus;
-
     protected final Map<Integer, Weight> slots = new HashMap<>();
     protected final List<Synapse> outgoing = new ArrayList<>();
+    protected final SlotEngine slotEngine;
+    protected final int slotLimit; // -1 = unbounded
 
-    protected boolean hasLastInput = false;
-    protected double lastInputValue = 0.0;
+    protected boolean haveLastInput = false;
+    protected double  lastInputValue = 0.0;
 
-    protected SlotPolicy slotPolicy = SlotPolicy.uniformFixed(10.0);
-
-    private final List<FireHook> fireHooks = new ArrayList<>();
-
-    protected Neuron(String neuronId, LateralBus bus) {
+    public Neuron(String neuronId, LateralBus bus,
+                  SlotConfig slotConfig, int slotLimit) {
         this.neuronId = neuronId;
         this.bus = bus;
+        this.slotEngine = new SlotEngine(slotConfig);
+        this.slotLimit = slotLimit;
     }
 
-    public String getId() { return neuronId; }
-    public Map<Integer, Weight> getSlots() { return slots; }
-    public List<Synapse> getOutgoing() { return outgoing; }
-    public LateralBus getBus() { return bus; }
-
-    public void setSlotPolicy(SlotPolicy policy) { this.slotPolicy = policy; }
-
-    /** External input arrives here (or routed input from tracts). */
-    public void onInput(double inputValue) {
-        Weight slot = selectSlot(inputValue);
-        slot.reinforce(bus.getModulationScale(), bus.getInhibitionFactor());
-        if (slot.updateThreshold(inputValue)) {
-            fire(inputValue);
-        }
-        hasLastInput = true;
-        lastInputValue = inputValue;
-    }
-
-    /** Called when this neuron should emit to the outside world (for OutputNeuron). */
-    public void onOutput(double amplitude) {
-        // default no-op; OutputNeuron overrides
-    }
-
-    /** Default excitatory fire: fan-out to outgoing synapses. Subclasses override as needed. */
-    protected void fire(double inputValue) {
-        for (Synapse syn : outgoing) {
-            syn.getWeight().reinforce(bus.getModulationScale(), bus.getInhibitionFactor());
-            syn.lastStep = bus.getCurrentStep();
-            if (syn.getWeight().updateThreshold(inputValue) && syn.getTarget() != null) {
-                syn.getTarget().onInput(inputValue);
-            }
-        }
-        for (FireHook hook : fireHooks) {
-            hook.onFire(inputValue, this);
-        }
-    }
-
-    /** Connect to another neuron within the same layer. */
-    public Synapse connect(Neuron target, boolean isFeedback) {
-        Synapse s = new Synapse(target, isFeedback);
+    // ---- wiring -----------------------------------------------------------
+    public Synapse connect(Neuron target, boolean feedback) {
+        Synapse s = new Synapse(target, feedback);
         outgoing.add(s);
         return s;
     }
 
-    /** Remove stale + weak synapses. */
-    public void pruneSynapses(long currentStep, long staleWindow, double minStrength) {
-        outgoing.removeIf(s -> (currentStep - s.lastStep) > staleWindow
-                && s.getWeight().getStrength() < minStrength);
+    // ---- IO ---------------------------------------------------------------
+    public boolean onInput(double value) {
+        int slotId = haveLastInput
+                ? slotEngine.slotId(lastInputValue, value, slots.size())
+                : 0; // T0 imprint
+
+        Weight slot = slots.get(slotId);
+        if (slot == null) {
+            if (slotLimit >= 0 && slots.size() >= slotLimit) {
+                // trivial reuse: first slot
+                int first = slots.keySet().iterator().next();
+                slot = slots.get(first);
+            } else {
+                slot = new Weight();
+                slots.put(slotId, slot);
+            }
+        }
+
+        slot.reinforce(bus.modulationFactor());
+        boolean fired = slot.updateThreshold(value);
+        if (fired) fire(value);
+
+        haveLastInput = true;
+        lastInputValue = value;
+        return fired;
     }
 
-    /** Scalar summaries for logging. */
+    public void onOutput(double amplitude) {
+        // default no-op; OutputNeuron overrides
+    }
+
+    // ---- spike semantics --------------------------------------------------
+    protected void fire(double inputValue) {
+        // default excitatory semantics handled in subclass;
+        // base keeps the unified API coherent.
+    }
+
+    // ---- small introspection ---------------------------------------------
     public double neuronValue(String mode) {
         if (slots.isEmpty()) return 0.0;
+
         switch (mode) {
-            case "firing_rate": {
-                double sum = 0.0;
-                for (Weight w : slots.values()) sum += w.getEmaRate();
-                return sum / slots.size();
-            }
-            case "memory": {
-                double sum = 0.0;
-                for (Weight w : slots.values()) sum += Math.abs(w.getStrength());
-                return sum;
-            }
-            case "readiness":
-            default: {
+            case "readiness": {
                 double best = -1e300;
                 for (Weight w : slots.values()) {
-                    double margin = w.getStrength() - w.getThreshold();
+                    double margin = w.strengthValue - w.thresholdValue;
                     if (margin > best) best = margin;
                 }
                 return best;
             }
-        }
-    }
-
-    /** Choose a slot by percent-delta policy, respecting slotLimit. */
-    protected Weight selectSlot(double inputValue) {
-        int binId = slotPolicy.slotId(lastInputValue, hasLastInput, inputValue);
-        Weight w = slots.get(binId);
-        if (w == null) {
-            if (slotLimit >= 0 && slots.size() >= slotLimit) {
-                // simple reuse policy: return the lowest-key slot
-                int firstKey = Collections.min(slots.keySet());
-                return slots.get(firstKey);
+            case "firing_rate": {
+                double sum = 0.0;
+                for (Weight w : slots.values()) sum += w.emaRate;
+                return sum / slots.size();
             }
-            w = new Weight();
-            slots.put(binId, w);
+            case "memory": {
+                double acc = 0.0;
+                for (Weight w : slots.values()) acc += Math.abs(w.strengthValue);
+                return acc;
+            }
+            default: return neuronValue("readiness");
         }
-        return w;
     }
 
-    public void registerFireHook(FireHook hook) { fireHooks.add(hook); }
+    // accessors
+    public Map<Integer, Weight> slots() { return slots; }
+    public List<Synapse> outgoing() { return outgoing; }
+    public LateralBus bus() { return bus; }
+    public String id() { return neuronId; }
 }

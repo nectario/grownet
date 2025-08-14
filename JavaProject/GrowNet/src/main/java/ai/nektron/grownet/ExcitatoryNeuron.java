@@ -1,9 +1,10 @@
 package ai.nektron.grownet;
 
-/** Standard excitatory neuron uses base fire() behaviour. */
 public class ExcitatoryNeuron extends Neuron {
-    public ExcitatoryNeuron(String id, LateralBus bus) {
-        super(id, bus);
+    public ExcitatoryNeuron(String id, LateralBus bus, SlotConfig cfg, int slotLimit) {
+        super(id, bus, cfg, slotLimit);
     }
-    // inherits default fire()
+    @Override protected void fire(double inputValue) {
+        // Layer/Tract handles routing; keep hook for symmetry
+    }
 }

@@ -1,33 +1,22 @@
-# input_neuron.mojo
-# Single-slot entry neuron:
-# - Treats all inputs as belonging to slot 0 (no delta-based binning)
-# - Uses the base Weight adaptive-threshold rule
-# - Calls `fire` only when the slot crosses threshold (same as other neurons)
+# input_neuron.mojo — single-slot sensory neuron (keeps contract)
 
-from neuron import Neuron, EXCITATORY
+from neuron import Neuron
 from weight import Weight
-from bus import LateralBus
 
 struct InputNeuron(Neuron):
-    fn init(self, neuron_id: String, bus: LateralBus) -> None:
-        self.neuron_id = neuron_id
-        self.bus = bus
-        self.type_tag = EXCITATORY  # entry neurons are excitatory by default
+    fn on_input(self, value: F64) -> Bool:
+        var slot: Weight
+        if self.slots.len == 0:
+            slot = Weight()
+            self.slots[0] = slot
+        else:
+            slot = self.slots[0]
 
-    fn on_input(self, input_value: F64) -> None:
-        # Always operate on slot 0 (single-slot semantics).
-        if not self.slots.contains(0):
-            self.slots[0] = Weight()
-
-        # Work on a local variable, then write back to ensure persistence.
-        var slot0 = self.slots[0]
-        slot0.reinforce(self.bus.modulation_factor)
-        let fired: Bool = slot0.update_threshold(input_value)
-        self.slots[0] = slot0  # persist mutations
-
+        slot.reinforce(self.bus.modulation_factor)
+        let fired = slot.update_threshold(value)
         if fired:
-            self.fire(input_value)
+            self.fire(value)
 
-        # Bookkeeping for completeness (even though delta isn't used here).
-        self.last_input_seen = True
-        self.last_input_value = input_value
+        self.have_last_input  = True
+        self.last_input_value = value
+        return fired

@@ -1,39 +1,31 @@
-# output_neuron.mojo
-# Single-slot exit neuron:
-# - Also a single-slot receiver (slot 0)
-# - On threshold crossing, records the amplitude and calls `on_output`
-#   so external code (dashboards/actuators) can hook into the emission.
+# output_neuron.mojo — single-slot sink + external exposure via on_output
 
-from neuron import Neuron, EXCITATORY
+from neuron import Neuron
 from weight import Weight
-from bus import LateralBus
 
 struct OutputNeuron(Neuron):
-    var last_emitted: F64 = 0.0
+    var last_emitted: F64
 
-    fn init(self, neuron_id: String, bus: LateralBus) -> None:
-        self.neuron_id = neuron_id
-        self.bus = bus
-        self.type_tag = EXCITATORY  # behavior-wise, exits are excitatory sinks
+    fn init(neuron_id: String, bus: LateralBus) -> None:
+        super.init(neuron_id, bus)
+        self.last_emitted = 0.0
 
-    # Hook for external systems (e.g., UI dashboards, actuators).
-    # Override in user code if you want actual side-effects.
     fn on_output(self, amplitude: F64) -> None:
-        pass
+        self.last_emitted = amplitude
 
-    fn on_input(self, input_value: F64) -> None:
-        # Always use slot 0 (single-slot semantics).
-        if not self.slots.contains(0):
-            self.slots[0] = Weight()
+    fn on_input(self, value: F64) -> Bool:
+        # keep contract: accept input, store, and report via on_output
+        var slot: Weight
+        if self.slots.len == 0:
+            slot = Weight()
+            self.slots[0] = slot
+        else:
+            slot = self.slots[0]
 
-        var slot0 = self.slots[0]
-        slot0.reinforce(self.bus.modulation_factor)
-        let fired: Bool = slot0.update_threshold(input_value)
-        self.slots[0] = slot0  # persist mutations
-
+        slot.reinforce(self.bus.modulation_factor)
+        let fired = slot.update_threshold(value)
         if fired:
-            self.last_emitted = input_value
-            self.on_output(input_value)
-
-        self.last_input_seen = True
-        self.last_input_value = input_value
+            self.on_output(value)
+        self.have_last_input = True
+        self.last_input_value = value
+        return fired

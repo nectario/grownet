@@ -1,8 +1,9 @@
-# neuron_excitatory.mojo
-from neuron import Neuron, EXCITATORY
+# neuron_excitatory.mojo — default spike = “forward”
+
+from neuron import Neuron
 
 struct ExcitatoryNeuron(Neuron):
-    fn init(self, neuron_id: String, bus) -> None:
-        self.neuron_id = neuron_id
-        self.bus = bus
-        self.type_tag = EXCITATORY
+    fn fire(self, input_value: F64) -> None:
+        # For now, fan-out wiring lives in Layer/Region.
+        # Keep the place-holder hook for consistency.
+        pass

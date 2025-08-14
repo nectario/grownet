@@ -1,21 +1,10 @@
 package ai.nektron.grownet;
 
-/** Modulatory neuron scales learning when it fires. */
 public class ModulatoryNeuron extends Neuron {
-    private double modulationScale = 1.5; // > 1.0 speeds learning, < 1.0 slows
-
-    public ModulatoryNeuron(String id, LateralBus bus) {
-        super(id, bus);
+    public ModulatoryNeuron(String id, LateralBus bus, SlotConfig cfg, int slotLimit) {
+        super(id, bus, cfg, slotLimit);
     }
-
-    public void setModulationScale(double scale) {
-        modulationScale = Math.max(0.0, scale);
-    }
-
-    @Override
-    protected void fire(double inputValue) {
-        bus.pulseModulation(modulationScale);
-        // Optional: also propagate locally
-        super.fire(inputValue);
+    @Override protected void fire(double inputValue) {
+        bus.setModulation(1.5); // tune later
     }
 }

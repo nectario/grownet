@@ -1,24 +1,27 @@
-# layer.mojo
-from bus import LateralBus
-from neuron_excitatory import ExcitatoryNeuron
-from neuron_inhibitory import InhibitoryNeuron
-from neuron_modulatory import ModulatoryNeuron
+# layer.mojo — keep it minimal; wiring helpers + forward
+
+from bus                 import LateralBus
+from neuron_excitatory   import ExcitatoryNeuron
+from neuron_inhibitory   import InhibitoryNeuron
+from neuron_modulatory   import ModulatoryNeuron
 
 struct Layer:
-    var bus: LateralBus
-    var neurons = []  # list of Neuron
+    var bus:      LateralBus
+    var neurons:  List[Neuron]
 
-    fn init(self, excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> None:
+    fn init(excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> None:
         self.bus = LateralBus()
-        # Create neurons
+        self.neurons = []
         for i in range(excitatory_count):
-            self.neurons.append(ExcitatoryNeuron(f"E{i}", self.bus))
+            self.neurons.append(ExcitatoryNeuron(neuron_id=f"E{i}", bus=self.bus))
         for i in range(inhibitory_count):
-            self.neurons.append(InhibitoryNeuron(f"I{i}", self.bus))
+            self.neurons.append(InhibitoryNeuron(neuron_id=f"I{i}", bus=self.bus))
         for i in range(modulatory_count):
-            self.neurons.append(ModulatoryNeuron(f"M{i}", self.bus))
+            self.neurons.append(ModulatoryNeuron(neuron_id=f"M{i}", bus=self.bus))
 
-    fn forward(self, input_value: F64) -> None:
+    fn forward(self, value: F64) -> None:
         for n in self.neurons:
-            n.on_input(input_value)
+            let _ = n.on_input(value)
+
+    fn decay(self) -> None:
         self.bus.decay()

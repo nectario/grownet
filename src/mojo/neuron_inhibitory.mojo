@@ -1,12 +1,7 @@
-# neuron_inhibitory.mojo
-from neuron import Neuron, INHIBITORY
+# neuron_inhibitory.mojo — pulse lateral inhibition on bus
+
+from neuron import Neuron
 
 struct InhibitoryNeuron(Neuron):
-    fn init(self, neuron_id: String, bus) -> None:
-        self.neuron_id = neuron_id
-        self.bus = bus
-        self.type_tag = INHIBITORY
-
-    fn fire(self, input_value: F64) -> None:
-        # Emit lateral inhibition pulse
-        self.bus.set_inhibition(0.7)
+    fn fire(self, _value: F64) -> None:
+        self.bus.inhibition_factor = 0.7   # tune later

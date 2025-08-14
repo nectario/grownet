@@ -1,12 +1,7 @@
-# neuron_modulatory.mojo
-from neuron import Neuron, MODULATORY
+# neuron_modulatory.mojo — pulse neuromodulation on bus
+
+from neuron import Neuron
 
 struct ModulatoryNeuron(Neuron):
-    fn init(self, neuron_id: String, bus) -> None:
-        self.neuron_id = neuron_id
-        self.bus = bus
-        self.type_tag = MODULATORY
-
-    fn fire(self, input_value: F64) -> None:
-        # Emit neuromodulation pulse
-        self.bus.set_modulation(1.5)
+    fn fire(self, _value: F64) -> None:
+        self.bus.modulation_factor = 1.5   # tune later

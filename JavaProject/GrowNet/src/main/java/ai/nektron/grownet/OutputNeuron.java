@@ -1,21 +1,28 @@
 package ai.nektron.grownet;
 
-/** Output neuron captures the most recent emitted amplitude via onOutput(). */
 public class OutputNeuron extends Neuron {
-    private double lastEmittedValue = 0.0;
+    private double lastEmitted = 0.0;
 
-    public OutputNeuron(String id, LateralBus bus) { super(id, bus); }
-
-    @Override
-    public void onOutput(double amplitude) {
-        lastEmittedValue = amplitude;
+    public OutputNeuron(String id, LateralBus bus, SlotConfig cfg) {
+        super(id, bus, cfg, 1); // single-slot sink
     }
 
-    public double getLastEmittedValue() { return lastEmittedValue; }
+    @Override public boolean onInput(double value) {
+        Weight slot = slots.getOrDefault(0, new Weight());
+        slots.putIfAbsent(0, slot);
 
-    // As a sink, by default do not propagate further on fire; comment to enable fan-out.
-    @Override
-    protected void fire(double inputValue) {
-        onOutput(inputValue);
+        slot.reinforce(bus.modulationFactor());
+        boolean fired = slot.updateThreshold(value);
+        if (fired) onOutput(value);
+
+        haveLastInput  = true;
+        lastInputValue = value;
+        return fired;
     }
+
+    @Override public void onOutput(double amplitude) {
+        lastEmitted = amplitude;
+    }
+
+    public double lastEmitted() { return lastEmitted; }
 }

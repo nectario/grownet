@@ -1,18 +1,19 @@
 package ai.nektron.grownet;
 
-/** Input neuron with a single effective slot; acts excitatorily downstream. */
 public class InputNeuron extends Neuron {
-    public InputNeuron(String id, LateralBus bus) { super(id, bus); }
-
-    @Override
-    protected Weight selectSlot(double inputValue) {
-        // Always use slot 0
-        Weight w = slots.get(0);
-        if (w == null) {
-            w = new Weight();
-            slots.put(0, w);
-        }
-        return w;
+    public InputNeuron(String id, LateralBus bus, SlotConfig cfg) {
+        super(id, bus, cfg, 1); // single-slot
     }
-    // fire() inherited (excitatory)
+    @Override public boolean onInput(double value) {
+        Weight slot = slots.getOrDefault(0, new Weight());
+        slots.putIfAbsent(0, slot);
+
+        slot.reinforce(bus.modulationFactor());
+        boolean fired = slot.updateThreshold(value);
+        if (fired) fire(value);
+
+        haveLastInput  = true;
+        lastInputValue = value;
+        return fired;
+    }
 }
