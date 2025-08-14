@@ -1,210 +1,126 @@
-version: 0.4
-language_conventions:
-  java:    camelCase
-  python:  snake_case
-  mojo:    snake_case
-  cpp:     camelCase # follow current Region.h style
-
-types:
-  Strength: float
-  Step:     long
-  SlotId:   int
-
-classes:
-
-  SlotConfig:
-    enum Policy: [FIXED, NONUNIFORM, ADAPTIVE]
-    fields:
-      policy: Policy
-      slotWidthPercent: float         # seed width for FIXED/ADAPTIVE
-      nonuniformEdges: float[]        # ascending, for NONUNIFORM
-      maxSlots: int                   # -1 = unbounded
-    factories:
-      fixed(widthPercent: float) -> SlotConfig
-      nonuniform(edgesAsc: float[]) -> SlotConfig
-      adaptive(seedWidthPercent: float, maxSlots: int) -> SlotConfig
-      singleSlot() -> SlotConfig
-
-  SlotEngine:
-    methods:
-      slotId(lastInput: float, input: float, currentSlotCount: int, cfg: SlotConfig) -> SlotId
-
-  Weight:
-    fields:
-      stepValue: float
-      strengthValue: Strength
-      reinforcementCount: int
-      thresholdValue: float
-      emaRate: float
-      firstSeen: bool
-    methods:
-      reinforce(modulationFactor: float) -> void
-      updateThreshold(inputValue: float) -> bool  # returns fired
-      getStrengthValue() -> Strength
-      getThresholdValue() -> float
-      getEmaRate() -> float
-
-  LateralBus:
-    fields:
-      inhibitionFactor: float
-      modulationFactor: float
-      currentStep: Step
-    methods:
-      setInhibitionFactor(f: float) -> void
-      setModulationFactor(f: float) -> void
-      decay() -> void
-      getCurrentStep() -> Step
-
-  RegionBus:
-    # same shape as LateralBus
-    alias_of: LateralBus
-
-  Synapse:
-    fields:
-      target: Neuron
-      weight: Weight
-      isFeedback: bool
-      lastStep: Step
-
-  FireHook:
-    signature: (amplitude: float, who: Neuron) -> void
-
-  Neuron:
-    ctor:
-      - (id: string, bus: LateralBus, slotConfig: SlotConfig, slotLimit: int)
-    fields:
-      slots: Map<SlotId, Weight>
-      outgoing: Synapse[]
-      slotLimit: int
-      lastInputValue: float
-    methods:
-      connect(target: Neuron, feedback: bool=false) -> Synapse
-      onInput(value: float) -> bool
-      onOutput(amplitude: float) -> void
-      fire(inputValue: float) -> void          # protected/override
-      pruneSynapses(currentStep: Step, staleWindow: Step, minStrength: float) -> int
-      registerFireHook(hook: FireHook) -> void
-      neuronValue(mode: string="readiness") -> float
-    accessors:
-      id() -> string
-      getSlots() -> Map<SlotId, Weight>
-      getOutgoing() -> Synapse[]
-      getBus() -> LateralBus
-      getLastInputValue() -> float
-
-  InputNeuron:
-    base: Neuron
-    fields:
-      gain: float
-      epsilonFire: float
-      outputValue: float
-    methods:
-      onInput(value: float) -> bool        # amplifies by gain, floors by epsilonFire
-      onOutput(amplitude: float) -> void   # records outputValue
-      getOutputValue() -> float
-      endTick() -> void                    # usually no-op
-
-  OutputNeuron:
-    base: Neuron
-    fields:
-      smoothing: float
-      outputValue: float
-    methods:
-      onInput(value: float) -> bool        # treat as single-slot sink
-      onOutput(amplitude: float) -> void   # records outputValue
-      endTick() -> void                    # apply EMA smoothing to outputValue
-      getOutputValue() -> float
-
-  Layer:
-    fields:
-      neurons: Neuron[]
-      bus: LateralBus
-    ctor:
-      - (excitatoryCount: int, inhibitoryCount: int, modulatoryCount: int)
-    methods:
-      wireRandomFeedforward(probability: float) -> void
-      wireRandomFeedback(probability: float) -> void
-      forward(value: float) -> void
-      propagateFrom(sourceIndex: int, value: float) -> void
-      endTick() -> void
-    accessors:
-      getNeurons() -> Neuron[]
-      getBus() -> LateralBus
-
-  InputLayer2D:
-    base: Layer
-    fields:
-      height: int
-      width: int
-    ctor:
-      - (height: int, width: int, gain: float=1.0, epsilonFire: float=0.01)
-    methods:
-      index(y: int, x: int) -> int
-      forwardImage(image: float[height][width]) -> void
-      getFrame() -> float[height][width]
-      propagateFrom(sourceIndex: int, value: float) -> void  # no-op
-
-  OutputLayer2D:
-    base: Layer
-    fields:
-      height: int
-      width: int
-      frame: float[height][width]
-    ctor:
-      - (height: int, width: int, smoothing: float=0.2)
-    methods:
-      index(y: int, x: int) -> int
-      propagateFrom(sourceIndex: int, value: float) -> void  # routes by index
-      endTick() -> void                                      # fill frame from neurons
-      getFrame() -> float[height][width]
-
-  Tract:
-    fields:
-      source: Layer
-      destination: Layer
-      bus: RegionBus
-      feedback: bool
-    ctor:
-      - (source: Layer, destination: Layer, bus: RegionBus, feedback: bool=false)
-    methods:
-      wireDenseRandom(probability: float) -> int         # returns edges created
-      flush() -> int                                     # delivered events
-      pruneEdges(staleWindow: Step, minStrength: float) -> int
-
-  Region:
-    fields:
-      name: string
-      layers: Layer[]
-      tracts: Tract[]
-      bus: RegionBus
-      inputPorts: Map<string, int[]>
-      outputPorts: Map<string, int[]>
-    ctor:
-      - (name: string)
-    methods:
-      addLayer(excitatoryCount: int, inhibitoryCount: int, modulatoryCount: int) -> int
-      addInputLayer2D(height: int, width: int, gain: float=1.0, epsilonFire: float=0.01) -> int
-      addOutputLayer2D(height: int, width: int, smoothing: float=0.2) -> int
-      connectLayers(sourceIndex: int, destIndex: int, probability: float, feedback: bool=false) -> Tract
-      bindInput(port: string, layerIndices: int[]) -> void
-      bindOutput(port: string, layerIndices: int[]) -> void
-      tick(port: string, value: float) -> Metrics
-      tickImage(port: string, frame: float[...][...]) -> Metrics
-      prune(synapseStaleWindow: Step=10000, synapseMinStrength: float=0.05) -> PruneSummary
-      pulseInhibition(factor: float) -> void   # optional, keep in C++ & expose in others
-      pulseModulation(factor: float) -> void
-    accessors:
-      getName() -> string
-      getLayers() -> Layer[]
-      getBus() -> RegionBus
-
-  Metrics:
-    fields:
-      deliveredEvents: int
-      totalSlots: int
-      totalSynapses: int
-
-  PruneSummary:
-    fields:
-      prunedSynapses: int
-      prunedEdges: int
+grownet:
+  version: 0.3.0
+  naming:
+    fields: camelCase   # Python may expose snake_case aliases
+    methods: lowerCamel
+    events: lowerCamel
+  enums:
+    SlotPolicy: [FIXED, NONUNIFORM, ADAPTIVE]
+  types:
+    Weight:
+      fields:
+        strength: double          # [-1, +1], clamped smoothly
+        hitCount: int             # saturates (e.g., 10_000)
+        theta: double             # adaptive threshold
+        emaRate: double           # recent spike rate (EMA)
+        seenFirst: boolean        # T0 imprint executed?
+      methods:
+        reinforce(modulationFactor: double): void
+        updateThreshold(inputValue: double): boolean  # returns "fired"
+    LateralBus:
+      fields:
+        inhibitionFactor: double  # decays to 0 each tick
+        modulationFactor: double  # resets toward 1.0 each tick
+      methods:
+        setInhibitionFactor(f: double): void
+        setModulationFactor(f: double): void
+        decay(): void
+    Synapse:
+      fields:
+        targetId: string
+        feedback: boolean
+        weight: Weight
+        lastUsedTick: long
+      methods:
+        deliver(amplitude: double): void
+    SlotConfig:
+      fields:
+        policy: SlotPolicy
+        fixedPercentDelta: double   # for FIXED policy (default 10.0)
+    SlotEngine:
+      methods:
+        slotId(lastInput: double, currentInput: double, knownSlots: int): int
+        computeBinForPercentDelta(deltaPercent: double, existing: map<int,Weight>): int
+        selectOrCreateSlot(neuronId: string, slots: map<int,Weight>, inputValue: double): (slotId:int, weight:Weight)
+    Neuron:
+      fields:
+        id: string
+        haveLastInput: boolean
+        lastInputValue: double
+        slots: map<int, Weight>
+        outgoing: list<Synapse>
+      methods:
+        onInput(value: double): boolean
+        onOutput(amplitude: double): void
+        fire(inputValue: double): void
+        connect(target: Neuron, feedback: boolean = false): Synapse
+        endTick(): void
+        pruneSynapses(staleWindow: long, minStrength: double): int
+        getLastInputValue(): double
+        registerFireHook(callback: function(Neuron,double)): void
+    ExcitatoryNeuron:
+      base: Neuron
+    InhibitoryNeuron:
+      base: Neuron
+    ModulatoryNeuron:
+      base: Neuron
+    Layer:
+      fields:
+        bus: LateralBus
+        neurons: list<Neuron>
+      ctor:
+        (excitatoryCount:int, inhibitoryCount:int, modulatoryCount:int)
+      methods:
+        wireRandomFeedforward(probability: double): void
+        wireRandomFeedback(probability: double): void
+        forward(value: double): void
+        endTick(): void
+        propagateFrom(sourceIndex: int, amplitude: double): void  # default: no-op
+    InputLayer2D:
+      base: Layer
+      ctor: (height:int, width:int, gain:double, epsilonFire:double)
+      methods:
+        forwardImage(frame: double[height][width]): void
+        propagateFrom(sourceIndex: int, amplitude: double): void  # default: no-op
+    OutputLayer2D:
+      base: Layer
+      ctor: (height:int, width:int, smoothing:double)
+      methods:
+        propagateFrom(sourceIndex: int, amplitude: double): void
+        endTick(): void
+        getFrame(): double[height][width]
+    RegionMetrics:
+      fields:
+        deliveredEvents: int
+        totalSlots: int
+        totalSynapses: int
+    PruneSummary:
+      fields:
+        prunedSynapses: int
+        prunedEdges: int
+    RegionBus: {}
+    Tract:
+      fields:
+        source: Layer
+        dest: Layer
+        feedback: boolean
+      methods:
+        onSourceFired(sourceNeuronIndex: int, amplitude: double): void
+    Region:
+      ctor: (name:string)
+      methods:
+        addLayer(excitatoryCount:int, inhibitoryCount:int, modulatoryCount:int): int
+        addInputLayer2D(height:int, width:int, gain:double, epsilonFire:double): int
+        addOutputLayer2D(height:int, width:int, smoothing:double): int
+        connectLayers(sourceIndex:int, destIndex:int, probability:double, feedback:boolean=false): Tract
+        bindInput(port:string, layerIndices:list<int>): void
+        bindOutput(port:string, layerIndices:list<int>): void
+        pulseInhibition(factor: double): void
+        pulseModulation(factor: double): void
+        tick(port:string, value:double): RegionMetrics
+        tickImage(port:string, frame:double[H][W]): RegionMetrics
+        prune(synapseStaleWindow:long, synapseMinStrength:double, tractStaleWindow:long, tractMinStrength:double): PruneSummary
+        getName(): string
+        getLayers(): list<Layer>
+        getTracts(): list<Tract>
+        getBus(): RegionBus
