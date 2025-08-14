@@ -41,4 +41,8 @@ final class Weight {
     private static double smoothClamp(double x, double lo, double hi) {
         return Math.max(lo, Math.min(hi, x));
     }
+
+    public double getStrengthValue() {
+        return strengthValue;
+    }
 }

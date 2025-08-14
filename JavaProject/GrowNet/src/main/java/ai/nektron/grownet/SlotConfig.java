@@ -31,4 +31,15 @@ public final class SlotConfig {
         c.maxSlots = maxSlots;
         return c;
     }
+
+
+
+    // SlotConfig.java  — add inside the class
+    /** Convenience: one-slot behaviour used by InputNeuron. */
+    public static SlotConfig singleSlot() {
+        // 100% bucket width means every delta falls into the same bucket;
+        // InputNeuron also passes slotLimit = 1 to the Neuron base.
+        return fixed(100.0);   // or `fixed(100.0)` if your factory is named `fixed`
+    }
+
 }
