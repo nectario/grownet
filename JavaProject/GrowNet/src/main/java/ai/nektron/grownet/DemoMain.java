@@ -1,38 +1,54 @@
 package ai.nektron.grownet;
 
 import java.util.Arrays;
+import ai.nektron.grownet.Region.Metrics;
 
-/** Simple demo wiring and tick loop. */
-public class DemoMain {
+/**
+ * Simple demo wiring and tick loop.
+ * Builds two layers, wires random feedforward/feedback inside each,
+ * connects Layer0 -> Layer1, binds an external input port, then ticks.
+ */
+public final class DemoMain {
     public static void main(String[] args) {
-        Region region = new Region("V1-lite");
 
-        int l0 = region.addLayer(8, 2, 1);
-        int l1 = region.addLayer(12, 3, 2);
+        // Region
+        Region region = new Region("v1_lite");
+
+        // Layers (excitatory, inhibitory, modulatory)
+        int inputLayerIndex  = region.addLayer(/*excitatory*/ 8,  /*inhibitory*/ 2, /*modulatory*/ 1);
+        int hiddenLayerIndex = region.addLayer(/*excitatory*/ 12, /*inhibitory*/ 3, /*modulatory*/ 2);
 
         // Intra-layer random wiring
-        region.getLayers().get(l0).wireRandomFeedforward(0.10);
-        region.getLayers().get(l0).wireRandomFeedback(0.05);
-        region.getLayers().get(l1).wireRandomFeedforward(0.10);
+        region.layers().get(inputLayerIndex).wireRandomFeedforward(0.10);
+        region.layers().get(inputLayerIndex).wireRandomFeedback(0.05);
+        region.layers().get(hiddenLayerIndex).wireRandomFeedforward(0.10);
 
-        // Inter-layer projection
-        region.connectLayers(l0, l1, 0.15, false);
+        // Inter-layer projection (feedforward only for this demo)
+        region.connectLayers(inputLayerIndex, hiddenLayerIndex, 0.15, /*feedback=*/ false);
 
-        // Bind external input to first layer
-        region.bindInput("vision", Arrays.asList(l0));
+        // Bind external input to the first layer
+        region.bindInput("vision", Arrays.asList(inputLayerIndex));
 
-        // Drive a simple ramp and print metrics
+        // Drive a simple ramp signal and print metrics
         for (int step = 0; step < 50; step++) {
-            double value = (step % 10) * 0.1; // toy signal
-            Region.RegionMetrics m = region.tick("vision", value);
-            if (step % 10 == 0) {
-                System.out.printf("step=%d  delivered=%d  slots=%d  synapses=%d%n",
-                        step, m.deliveredEvents, m.totalSlots, m.totalSynapses);
+            double value = (step % 10) * 0.1;   // toy input signal in [0.0, 0.9]
+            Metrics m = region.tick("vision", value);
+
+            if ((step % 10) == 0) {
+                System.out.printf(
+                        "step=%02d  delivered=%d  slots=%d  synapses=%d%n",
+                        step, m.deliveredEvents, m.totalSlots, m.totalSynapses
+                );
             }
         }
 
-        // Maintenance
-        Region.PruneSummary pr = region.prune(10_000, 0.05, 10_000, 0.05);
-        System.out.printf("Pruned synapses=%d  edges=%d%n", pr.prunedSynapses, pr.prunedEdges);
+        // Maintenance — prune weak/stale synapses (Java: 2-arg API)
+        Region.PruneSummary pr = region.prune(
+                /*synapseStaleWindow*/ 10_000L,
+                /*synapseMinStrength*/ 0.05
+        );
+
+        // If your PruneSummary also carries prunedEdges, feel free to print it too.
+        System.out.printf("Pruned synapses=%d%n", pr.prunedSynapses);
     }
 }

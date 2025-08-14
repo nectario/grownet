@@ -8,7 +8,7 @@ public class InputNeuron extends Neuron {
         Weight slot = slots.getOrDefault(0, new Weight());
         slots.putIfAbsent(0, slot);
 
-        slot.reinforce(bus.modulationFactor());
+        slot.reinforce(bus.getModulationFactor());
         boolean fired = slot.updateThreshold(value);
         if (fired) fire(value);
 

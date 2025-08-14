@@ -1,13 +1,22 @@
 package ai.nektron.grownet;
 
-final class Synapse {
-    final Neuron target;
-    final boolean feedback;
-    final Weight weight = new Weight();
-    long lastStep = 0;
+public final class Synapse {
+    private final Neuron target;
+    private final Weight weight;
+    private final boolean feedback;
+    private long lastStep;
 
-    Synapse(Neuron target, boolean feedback) {
+    public Synapse(Neuron target, boolean feedback) {
         this.target = target;
         this.feedback = feedback;
+        this.weight  = new Weight();     // fresh edge-compartment
+        this.lastStep = 0L;
     }
+
+    public Neuron getTarget() { return target; }
+    public Weight getWeight() { return weight; }
+    public boolean isFeedback() { return feedback; }
+
+    public long getLastStep() { return lastStep; }
+    public void setLastStep(long step) { this.lastStep = step; }
 }
