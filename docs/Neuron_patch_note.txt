@@ -1,0 +1,15 @@
+// Neuron.h — minimal additions expected by SlotEngine
+// 1) Ensure this file includes "SlotEngine.h"
+// 2) Expose the following tiny accessors if they don't already exist:
+//
+//     bool hasLastInput() const { return haveLastInput; }
+//     double getLastInputValue() const { return lastInputValue; }
+//     std::unordered_map<int, Weight>& getSlots() { return slots; }
+//     virtual void endTick() {}   // allows OutputNeuron::endTick() to 'override'
+//
+// 3) Field order should include: SlotEngine slotEngine; initialized in the ctor:
+//    Neuron(std::string id, LateralBus& sharedBus, const SlotConfig& cfg, int limit=-1)
+//        : neuronId(std::move(id)), bus(&sharedBus), slotEngine(cfg), slotLimit(limit) {}
+//
+// 4) If SlotEngine was previously a 'struct' inside another header, remove that
+//    duplicate and keep the class defined in SlotEngine.h/.cpp to avoid ODR issues.

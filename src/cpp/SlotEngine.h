@@ -1,23 +1,43 @@
 #pragma once
-#include <unordered_map>
+#include <cmath>
 #include "SlotConfig.h"
 #include "Weight.h"
 
 namespace grownet {
 
-class Neuron; // forward decl
+class Neuron;
 
 class SlotEngine {
 public:
-    explicit SlotEngine(SlotConfig cfg = {}) : config(std::move(cfg)) {}
+    explicit SlotEngine(const SlotConfig& c) : cfg(c) {}
 
-    int computeBinForPercentDelta(double deltaPercent,
-                                  const std::unordered_map<int, Weight>& slots) const;
-
-    Weight& selectOrCreateSlot(Neuron& neuron, double inputValue) const;
+    int slotId(double lastInput, double currentInput, int /*knownSlots*/) const {
+        // for now: percent delta bucketing
+        double denom = std::max(1e-9, std::abs(lastInput));
+        double deltaPercent = std::abs(currentInput - lastInput) / denom * 100.0;
+        switch (cfg.policy) {
+            case SlotPolicy::FIXED: {
+                double width = std::max(1e-9, cfg.slotWidthPercent);
+                return static_cast<int>(deltaPercent / width);
+            }
+            case SlotPolicy::NONUNIFORM: {
+                int idx = 0;
+                while (idx < static_cast<int>(cfg.nonuniformEdges.size()) &&
+                       deltaPercent > cfg.nonuniformEdges[idx]) idx++;
+                return idx;
+            }
+            case SlotPolicy::ADAPTIVE: {
+                double width = std::max(1e-9, cfg.slotWidthPercent);
+                return static_cast<int>(deltaPercent / width);
+            }
+        }
+        return 0;
+    }
 
 private:
-    SlotConfig config;
+    SlotConfig cfg;
 };
+
+Weight& selectOrCreateSlot(Neuron& neuron, int slotId);
 
 } // namespace grownet

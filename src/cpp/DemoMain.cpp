@@ -1,30 +1,21 @@
-
 #include <iostream>
 #include "Region.h"
 
 using namespace grownet;
 
 int main() {
-    Region region("vision");
-
-    int l0 = region.addLayer(8, 2, 1);
-    int l1 = region.addLayer(12, 3, 2);
-
-    region.connectLayers(l0, l1, 0.2, false);
+    Region region("demo");
+    int l0 = region.addLayer(10, 0, 0);
+    int l1 = region.addLayer(10, 0, 0);
     region.bindInput("pixels", {l0});
+    region.connectLayers(l0, l1, 0.1, false);
 
-    for (int t = 0; t < 100; ++t) {
-        double value = (t % 10) * 0.1; // simple varying input
-        RegionMetrics m = region.tick("pixels", value);
-        if (t % 10 == 0) {
-            std::cout << "[t=" << t << "] delivered=" << m.deliveredEvents
-                      << " slots=" << m.totalSlots
-                      << " synapses=" << m.totalSynapses << std::endl;
+    for (int step = 0; step < 10; ++step) {
+        auto m = region.tick("pixels", 1.0);
+        if ((step+1) % 2 == 0) {
+            std::cout << "[step " << (step+1) << "] delivered=" << m.deliveredEvents
+                      << " slots=" << m.totalSlots << " syn=" << m.totalSynapses << "\n";
         }
     }
-
-    PruneSummary ps = region.prune();
-    std::cout << "Pruned synapses: " << ps.prunedSynapses
-              << " | pruned edges: " << ps.prunedEdges << std::endl;
     return 0;
 }

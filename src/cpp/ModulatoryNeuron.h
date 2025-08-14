@@ -1,18 +1,25 @@
-
 #pragma once
 #include "Neuron.h"
+#include "LateralBus.h"
+#include "SlotConfig.h"
 
 namespace grownet {
-class ModulatoryNeuron : public Neuron {
+
+// Modulatory neuron: emits a modulation pulse that scales learning.
+class ModulatoryNeuron final : public Neuron {
 public:
-    using Neuron::Neuron;
-    void setKappa(double k) { kappa = k; }
-    void fire(double inputValue) override {
-        if (bus) bus->setModulationFactor(kappa);
-        // Do not propagate further; this is a neuromodulatory pulse
-        (void)inputValue;
+    ModulatoryNeuron(const std::string& id,
+                     LateralBus&        sharedBus,
+                     const SlotConfig&  slotCfg,
+                     int                slotLimit = -1)
+    : Neuron(id, sharedBus, slotCfg, slotLimit) {}
+
+    // Unified contract: subclasses react to successful spike via onOutput(amplitude).
+    // (Older code used a `fire(double)` method—this replaces it.)
+    void onOutput(double amplitude) override {
+        // Interpret amplitude as the instantaneous modulation multiplier.
+        bus->setModulationFactor(amplitude);
     }
-private:
-    double kappa {1.5}; // scales learning step at bus level
 };
+
 } // namespace grownet

@@ -11,6 +11,7 @@ add_library(grownet
         InhibitoryNeuron.cpp
         ModulatoryNeuron.cpp
         Layer.cpp
+        demo/region_demo.cpp
 )
 target_include_directories(grownet PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

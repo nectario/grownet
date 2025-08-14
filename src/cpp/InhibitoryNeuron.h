@@ -1,18 +1,25 @@
-
 #pragma once
 #include "Neuron.h"
+#include "LateralBus.h"
+#include "SlotConfig.h"
 
 namespace grownet {
-class InhibitoryNeuron : public Neuron {
+
+// Inhibitory neuron: emits an inhibition pulse on the shared bus when it fires.
+class InhibitoryNeuron final : public Neuron {
 public:
-    using Neuron::Neuron;
-    void setGamma(double g) { gamma = g; }
-    void fire(double inputValue) override {
-        if (bus) bus->setInhibitionFactor(gamma);
-        // Do not propagate downstream for pure inhibition spike
-        (void)inputValue;
+    InhibitoryNeuron(const std::string& id,
+                     LateralBus&        sharedBus,
+                     const SlotConfig&  slotCfg,
+                     int                slotLimit = -1)
+    : Neuron(id, sharedBus, slotCfg, slotLimit) {}
+
+    // New unified contract: subclasses react to successful spike via onOutput(amplitude).
+    // (Older code used a `fire(double)` method—this replaces it.)
+    void onOutput(double amplitude) override {
+        // Interpret amplitude as the instantaneous inhibition factor [0..1].
+        bus->setInhibitionFactor(amplitude);
     }
-private:
-    double gamma {0.7}; // multiplicative damping applied at bus level
 };
+
 } // namespace grownet

@@ -1,3 +1,2 @@
-
 #include "ModulatoryNeuron.h"
-namespace grownet { /* no-op */ }
+// Definition is header-only; file provided for build systems that expect a .cpp.

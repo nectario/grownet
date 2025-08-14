@@ -1,39 +1,34 @@
 #pragma once
 #include "Neuron.h"
-#include "Weight.h"
-#include "LateralBus.h"
 
 namespace grownet {
 
 class InputNeuron : public Neuron {
 public:
-    InputNeuron(const std::string& name, double gain = 1.0, double epsilonFire = 0.01)
-        : Neuron(name), gain(gain), epsilonFire(epsilonFire) { slots()[0]; }
+    InputNeuron(const std::string& name, LateralBus& bus, double gain, double epsilonFire)
+        : Neuron(name, bus, SlotConfig::singleSlot(), 1), gain(gain), epsilonFire(epsilonFire) {
+        // Ensure slot zero exists for the input neuron policy.
+        auto& m = getSlots();
+        if (m.find(0) == m.end()) m.emplace(0, Weight{});
+    }
 
-    bool onInput(double value, const LateralBus& bus) {
-        auto clamp01 = [](double x) { return x < 0 ? 0 : (x > 1 ? 1 : x); };
-        double stimulus  = clamp01(value * gain);
-        double effective = clamp01(stimulus * bus.getModulationFactor() * bus.getInhibitionFactor());
-
-        Weight& slot = slots()[0];
-        if (!slot.isFirstSeen()) {
-            slot.setThresholdValue(std::max(0.0, effective * (1.0 - epsilonFire)));
-            slot.setFirstSeen(true);
-        }
-        slot.setStrengthValue(effective);
-
-        bool fired = slot.updateThreshold(effective);
-        setFiredLast(fired);
-        setLastInputValue(effective);
-        if (fired) fire(effective);
+    bool onInput(double value) override {
+        double amplified = gain * value;
+        Weight& slot = getSlots()[0];
+        slot.reinforce(getBus().getModulationFactor());
+        bool fired = slot.updateThreshold(amplified);
+        if (fired) onOutput(amplified);
+        // keep contract
         return fired;
     }
 
-    void onOutput(double /*amplitude*/) override { /* sensors do not write */ }
+    void onOutput(double amplitude) override { outputValue = amplitude; }
+    double getOutputValue() const { return outputValue; }
 
 private:
-    double gain;
-    double epsilonFire;
+    double gain {1.0};
+    double epsilonFire {0.01};
+    double outputValue {0.0};
 };
 
 } // namespace grownet

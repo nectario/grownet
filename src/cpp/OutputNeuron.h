@@ -1,45 +1,32 @@
 #pragma once
 #include "Neuron.h"
-#include "Weight.h"
-#include "LateralBus.h"
 
 namespace grownet {
 
 class OutputNeuron : public Neuron {
 public:
-    explicit OutputNeuron(const std::string& name, double smoothing = 0.2)
-        : Neuron(name), smoothing(smoothing) { slots()[0]; }
+    OutputNeuron(const std::string& name, LateralBus& bus, double smoothing)
+        : Neuron(name, bus, SlotConfig::singleSlot(), 1), smoothing(smoothing) {
+        // Ensure slot zero exists
+        auto& m = getSlots();
+        if (m.find(0) == m.end()) m.emplace(0, Weight{});
+    }
 
-    bool onInput(double value, const LateralBus& bus) {
-        Weight& slot = slots()[0];
-        slot.reinforce(bus.getModulationFactor(), bus.getInhibitionFactor());
+    bool onInput(double value) override {
+        Weight& slot = getSlots()[0];
+        slot.reinforce(getBus().getModulationFactor());
         bool fired = slot.updateThreshold(value);
-        setFiredLast(fired);
-        setLastInputValue(value);
+        if (fired) onOutput(value);
         return fired;
     }
 
-    void onOutput(double amplitude) override {
-        accumulatedSum  += amplitude;
-        accumulatedCount += 1;
-    }
-
-    void endTick() {
-        if (accumulatedCount > 0) {
-            double mean = accumulatedSum / static_cast<double>(accumulatedCount);
-            outputValue = (1.0 - smoothing) * outputValue + smoothing * mean;
-        }
-        accumulatedSum = 0.0;
-        accumulatedCount = 0;
-    }
-
-    double getOutputValue() const { return outputValue; }
+    void onOutput(double amplitude) override { lastEmitted = amplitude; }
+    void endTick() override { lastEmitted *= (1.0 - smoothing); } // simple decay
+    double getOutputValue() const { return lastEmitted; }
 
 private:
-    double smoothing;
-    double accumulatedSum {0.0};
-    int    accumulatedCount {0};
-    double outputValue {0.0};
+    double smoothing {0.2};
+    double lastEmitted {0.0};
 };
 
 } // namespace grownet

@@ -1,48 +1,59 @@
-
 #pragma once
-#include <memory>
 #include <vector>
-#include "RegionBus.h"
+#include <queue>
+#include <random>
+#include <memory>
+
 #include "Layer.h"
-#include "Synapse.h"
+#include "RegionBus.h"
+#include "Neuron.h"
 
 namespace grownet {
 
-// Minimal tract: wires neurons across layers using the existing immediate propagation path.
-// flush() currently returns 0 because spikes propagate immediately via Neuron::fire.
 class Tract {
 public:
-    Tract(std::shared_ptr<Layer> src,
-          std::shared_ptr<Layer> dst,
-          RegionBus& regionBusRef,
-          bool isFeedback = false)
-        : source(std::move(src)), dest(std::move(dst)), regionBus(regionBusRef), feedback(isFeedback) {}
-
-    void wireDenseRandom(double probability) {
-        if (!source || !dest || probability <= 0.0) return;
-        auto& srcNeurons = source->getNeurons();
-        auto& dstNeurons = dest->getNeurons();
-        std::mt19937_64 rng{std::random_device{}()};
-        std::uniform_real_distribution<double> U(0.0, 1.0);
-        for (auto& s : srcNeurons) {
-            for (auto& d : dstNeurons) {
-                if (U(rng) < probability) {
-                    Synapse* syn = feedback ? d->connect(s.get(), true)
-                                            : s->connect(d.get(), false);
-                    (void)syn; // stored implicitly in neurons
-                }
-            }
+    Tract(Layer& src, Layer& dst, RegionBus& bus, bool fb)
+        : source(&src), destination(&dst), regionBus(&bus), feedback(fb) {
+        // Register hooks on already-existing source neurons
+        for (auto& nPtr : source->getNeurons()) {
+            nPtr->registerFireHook([this](Neuron* who, double value) {
+                this->onSourceFired(who, value);
+            });
         }
     }
 
-    int flush() { return 0; } // immediate propagation already performed
-    int pruneEdges(std::int64_t /*staleWindow*/, double /*minStrength*/) { return 0; }
+    // Random wiring (dense; demo-friendly)
+    void wireDenseRandom(double probability);
+
+    // Flush queued events; return number delivered
+    int flush();
 
 private:
-    std::shared_ptr<Layer> source;
-    std::shared_ptr<Layer> dest;
-    RegionBus& regionBus;
-    bool feedback {false};
+    struct Edge {
+        Neuron* sourceNeuron { nullptr };
+        Neuron* targetNeuron { nullptr };
+        Weight  weight;
+        long long lastStep {0};
+
+        Edge(Neuron* s, Neuron* t) : sourceNeuron(s), targetNeuron(t) {}
+    };
+
+    void onSourceFired(Neuron* who, double amplitude);
+
+private:
+    Layer*    source { nullptr };
+    Layer*    destination { nullptr };
+    RegionBus* regionBus { nullptr };
+    bool      feedback { false };
+
+    std::vector<Edge> edges;
+
+    struct Event {
+        Neuron* target { nullptr };
+        double amplitude { 0.0 };
+        Event(Neuron* t, double a) : target(t), amplitude(a) {}
+    };
+    std::queue<Event> queue;
 };
 
 } // namespace grownet

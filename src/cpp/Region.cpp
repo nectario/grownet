@@ -1,71 +1,46 @@
-
 #include "Region.h"
 
 namespace grownet {
 
-Region::Region(std::string regionName) : name(std::move(regionName)) {}
-
-int Region::addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
-    auto layer = std::make_shared<Layer>(excitatoryCount, inhibitoryCount, modulatoryCount);
-    layers.push_back(layer);
-    return static_cast<int>(layers.size()) - 1;
-}
-
 Tract& Region::connectLayers(int sourceIndex, int destIndex, double probability, bool feedback) {
-    auto src = layers.at(sourceIndex);
-    auto dst = layers.at(destIndex);
-    auto tract = std::make_unique<Tract>(src, dst, bus, feedback);
-    tract->wireDenseRandom(probability);
-    tracts.push_back(std::move(tract));
-    return *tracts.back();
-}
+    if (sourceIndex < 0 || sourceIndex >= static_cast<int>(layers.size()))
+        throw std::out_of_range("sourceIndex out of range");
+    if (destIndex < 0 || destIndex >= static_cast<int>(layers.size()))
+        throw std::out_of_range("destIndex out of range");
 
-void Region::bindInput(const std::string& port, const std::vector<int>& layerIndices) {
-    inputPorts[port] = layerIndices;
-}
-
-void Region::bindOutput(const std::string& port, const std::vector<int>& layerIndices) {
-    outputPorts[port] = layerIndices;
+    auto& src = *layers[sourceIndex];
+    auto& dst = *layers[destIndex];
+    tracts.push_back(std::make_unique<Tract>(src, dst, bus, feedback));
+    auto& t = *tracts.back();
+    t.wireDenseRandom(probability);
+    return t;
 }
 
 RegionMetrics Region::tick(const std::string& port, double value) {
+    RegionMetrics m;
+
     auto it = inputPorts.find(port);
     if (it != inputPorts.end()) {
-        for (int idx : it->second) {
-            layers.at(idx)->forward(value);
+        for (int layerIdx : it->second) {
+            layers[layerIdx]->forward(value);
+            m.deliveredEvents += 1; // lightweight placeholder
         }
     }
 
-    int delivered = 0;
-    for (auto& t : tracts) delivered += t->flush();
+    // Flush tracts
+    for (auto& t : tracts) m.deliveredEvents += t->flush();
 
-    for (auto& l : layers) l->getBus().decay();
-    bus.decay();
+    // end-of-tick housekeeping for all layers
+    for (auto& layer : layers) layer->endTick();
 
-    int totalSlots = 0;
-    int totalSynapses = 0;
-    for (auto& l : layers) {
-        for (const auto& n : l->getNeurons()) {
-            totalSlots    += static_cast<int>(n->getSlots().size());
-            totalSynapses += static_cast<int>(n->getOutgoing().size());
+    // simple aggregate metrics for dashboards
+    for (auto& layer : layers) {
+        for (auto& n : layer->getNeurons()) {
+            m.totalSlots    += static_cast<int>(n->getSlots().size());
+            m.totalSynapses += static_cast<int>(n->getOutgoing().size());
         }
     }
-    return RegionMetrics{delivered, totalSlots, totalSynapses};
-}
-
-PruneSummary Region::prune(std::int64_t synapseStaleWindow, double synapseMinStrength,
-                           std::int64_t tractStaleWindow,   double tractMinStrength) {
-    int prunedSyn = 0;
-    for (auto& l : layers) {
-        for (const auto& n : l->getNeurons()) {
-            int before = static_cast<int>(n->getOutgoing().size());
-            n->pruneSynapses(bus.getCurrentStep(), synapseStaleWindow, synapseMinStrength);
-            prunedSyn += before - static_cast<int>(n->getOutgoing().size());
-        }
-    }
-    int prunedEdges = 0;
-    for (auto& t : tracts) prunedEdges += t->pruneEdges(tractStaleWindow, tractMinStrength);
-    return PruneSummary{prunedSyn, prunedEdges};
+    return m;
 }
 
 } // namespace grownet

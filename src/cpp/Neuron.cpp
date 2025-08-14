@@ -1,32 +1,35 @@
 #include "Neuron.h"
-#include <cmath>
+#include "SlotEngine.h"
+#include "LateralBus.h"
+#include <algorithm>
 
 namespace grownet {
 
-Neuron::Neuron(std::string id, const SlotConfig& cfg, RegionBus* sharedBus)
-: neuronId(std::move(id))
-, bus(sharedBus ? *sharedBus : RegionBus{})
-, slotEngine(cfg) {}
-
 bool Neuron::onInput(double value) {
-    Weight& slot = slotEngine.selectOrCreateSlot(*this, value);
+    // Determine or create the bin/slot for this input sample.
+    int slotIdValue = 0;
+    if (haveLastInput) {
+        slotIdValue = slotEngine.slotId(lastInputValue, value,
+                                        static_cast<int>(slots.size()));
+    }
 
-    slot.reinforce(bus.getModulationFactor(), bus.getInhibitionFactor());
+    // Create-on-first-use semantics for the weight/compartment.
+    Weight& slot = slots[slotIdValue];
+
+    // Local learning: reinforcement scaled by neuromodulation on the bus.
+    slot.reinforce(bus->getModulationFactor());
+
+    // Update the adaptive threshold and check if we spiked.
     bool fired = slot.updateThreshold(value);
+    if (fired) {
+        onOutput(value);
+    }
 
-    if (fired) fire(value);
-
-    haveLastInput = true;
+    // Book-keeping for next tick.
+    firedLast      = fired;
+    haveLastInput  = true;
     lastInputValue = value;
     return fired;
-}
-
-void Neuron::fire(double inputValue) {
-    for (auto& syn : outgoing) {
-        if (syn.deliver(inputValue)) {
-            syn.getTarget().onInput(inputValue);
-        }
-    }
 }
 
 } // namespace grownet
