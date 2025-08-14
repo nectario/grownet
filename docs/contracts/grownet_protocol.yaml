@@ -1,312 +1,210 @@
-protocol: grownet
-version: 0.5
-last_updated: 2025-08-14
-
-conventions:
-  naming:
-    canonical: snake_case                # on_input, on_output, end_tick, etc.
-    language_mapping:
-      python:   snake_case               # on_input
-      mojo:     snake_case               # fn on_input(self, ...)
-      java:     camelCase                # onInput
-      cpp:      camelCase                # onInput
-  scalar_type:
-    python: float
-    mojo:   F64
-    java:   double
-    cpp:    double
-  id_fields:
-    neuron: id                           # note: Python may expose neuron_id; see attr_map below
-    layer:  name
-    region: name
-
-enums:
-  SlotPolicy:
-    - fixed_width        # slot id = ceil(|Δ|% / slot_width_percent), 1-based
-    - non_uniform        # edges[] define bin right-edges in %, ascending
-    - grow_on_demand     # start with fixed_width; if occupied, open next free bucket
-
-tick_lifecycle:
-  description: >
-    Single-region, single-tick evaluation. Region selects entry layers bound
-    to an input port, drives them with a scalar, lets neurons route spikes,
-    then layers perform bus decay/end-of-tick housekeeping.
-  phases:
-    - drive_entry_layers: |
-        for each entry layer L bound to `port`:
-          for neuron n in L.neurons:
-            fired = n.on_input(value)
-            if fired:
-              n.on_output(value)  # no-op except for OutputNeuron/dashboard hooks
-    - layer_end_tick: |
-        for each layer L:
-          L.end_tick()            # bus.decay(), transient resets
-    - metrics_aggregation: |
-        RegionMetrics: delivered_events (best-effort), total_slots, total_synapses
+version: 0.4
+language_conventions:
+  java:    camelCase
+  python:  snake_case
+  mojo:    snake_case
+  cpp:     camelCase # follow current Region.h style
 
 types:
+  Strength: float
+  Step:     long
+  SlotId:   int
 
-  Weight:
-    fields:
-      step_value:        {type: scalar, default: 0.001, note: "base reinforcement increment"}
-      strength_value:    {type: scalar, default: 0.0,   range: [-1.0, +1.0]}
-      reinforcement_count: {type: int, default: 0}
-      threshold_value:   {type: scalar, default: 0.0}
-      ema_rate:          {type: scalar, default: 0.0, note: "firing EMA"}
-      first_seen:        {type: bool,   default: false}
-    const:
-      hit_saturation:    {type: int,    default: 10000}
-      eps:               {type: scalar, default: 0.02}
-      beta:              {type: scalar, default: 0.01}
-      eta:               {type: scalar, default: 0.02}
-      r_star:            {type: scalar, default: 0.05}
-    methods:
-      reinforce:
-        args: [ {modulation_factor: scalar} ]
-        returns: void
-        semantics: >
-          strength_value += clamp(step_value * modulation_factor, -1, +1);
-          smooth clamp to [-1, +1]; stop when reinforcement_count >= hit_saturation.
-      update_threshold:
-        args: [ {input_value: scalar} ]
-        returns: bool
-        semantics: >
-          If first_seen==false: threshold_value = |input|*(1+eps); first_seen=true.
-          fired = (strength_value > threshold_value).
-          ema_rate = (1-beta)*ema_rate + beta*(fired?1:0).
-          threshold_value += eta * (ema_rate - r_star).
-          Return fired.
+classes:
 
   SlotConfig:
+    enum Policy: [FIXED, NONUNIFORM, ADAPTIVE]
     fields:
-      policy:              {type: SlotPolicy, default: fixed_width}
-      slot_width_percent:  {type: scalar, default: 10.0, range: (0,100], when: policy==fixed_width or grow_on_demand}
-      nonuniform_edges:    {type: list[scalar], default: [], note: "ascending right-edges in percent; when: policy==non_uniform"}
-      reuse_when_full:     {type: bool, default: true, note: "if capacity reached, reuse first slot (FIFO) for now"}
-    methods: {}
+      policy: Policy
+      slotWidthPercent: float         # seed width for FIXED/ADAPTIVE
+      nonuniformEdges: float[]        # ascending, for NONUNIFORM
+      maxSlots: int                   # -1 = unbounded
+    factories:
+      fixed(widthPercent: float) -> SlotConfig
+      nonuniform(edgesAsc: float[]) -> SlotConfig
+      adaptive(seedWidthPercent: float, maxSlots: int) -> SlotConfig
+      singleSlot() -> SlotConfig
 
   SlotEngine:
     methods:
-      slot_id:
-        args:
-          - {last_input: scalar | null}
-          - {new_input:  scalar}
-          - {current_slots: int}
-          - {cfg: SlotConfig}
-        returns: int
-        semantics: >
-          Policy-driven slot selection. For fixed_width: k = ceil( (|Δ%|) / slot_width_percent ),
-          k>=1. For non_uniform: first index i s.t. Δ% <= edges[i]; else last bucket. For
-          grow_on_demand: start with fixed_width; if chosen bucket occupied, return next free id.
+      slotId(lastInput: float, input: float, currentSlotCount: int, cfg: SlotConfig) -> SlotId
 
-  Synapse:
+  Weight:
     fields:
-      target:        {type: NeuronRef}
-      is_feedback:   {type: bool, default: false}
-      last_step:     {type: long, default: 0, note: "tick when last delivery occurred"}
-      delivered_count: {type: long, default: 0}
-    methods: {}
+      stepValue: float
+      strengthValue: Strength
+      reinforcementCount: int
+      thresholdValue: float
+      emaRate: float
+      firstSeen: bool
+    methods:
+      reinforce(modulationFactor: float) -> void
+      updateThreshold(inputValue: float) -> bool  # returns fired
+      getStrengthValue() -> Strength
+      getThresholdValue() -> float
+      getEmaRate() -> float
 
   LateralBus:
     fields:
-      inhibition_factor: {type: scalar, default: 0.0, range: [0,1]}
-      modulation_factor: {type: scalar, default: 1.0, range: [0.0, +∞)}
+      inhibitionFactor: float
+      modulationFactor: float
+      currentStep: Step
     methods:
-      set_inhibition:   {args: [ {factor: scalar} ], returns: void}
-      set_modulation:   {args: [ {factor: scalar} ], returns: void}
-      decay:
-        args: []
-        returns: void
-        semantics: "inhibition_factor := 0.0; modulation_factor := 1.0"
+      setInhibitionFactor(f: float) -> void
+      setModulationFactor(f: float) -> void
+      decay() -> void
+      getCurrentStep() -> Step
+
+  RegionBus:
+    # same shape as LateralBus
+    alias_of: LateralBus
+
+  Synapse:
+    fields:
+      target: Neuron
+      weight: Weight
+      isFeedback: bool
+      lastStep: Step
+
+  FireHook:
+    signature: (amplitude: float, who: Neuron) -> void
 
   Neuron:
-    attr_map:
-      python: {id: neuron_id}      # accessors can expose id() uniformly if desired
-      java:   {}
-      cpp:    {}
-      mojo:   {}
+    ctor:
+      - (id: string, bus: LateralBus, slotConfig: SlotConfig, slotLimit: int)
     fields:
-      id:             {type: string}
-      slots:          {type: dict[int, Weight], default: {}}
-      outgoing:       {type: list[Synapse], default: []}
-      slot_engine:    {type: SlotEngine}
-      slot_limit:     {type: int, default: -1, note: "-1 means unlimited"}
-      have_last_input:{type: bool, default: false}
-      last_input_value:{type: scalar, default: 0.0}
-      bus:            {type: LateralBus}
+      slots: Map<SlotId, Weight>
+      outgoing: Synapse[]
+      slotLimit: int
+      lastInputValue: float
     methods:
-      connect:
-        args: [ {target: NeuronRef}, {feedback: bool=false} ]
-        returns: Synapse
-        semantics: "Create synapse to target; mark feedback flag; append to outgoing."
-      on_input:
-        args: [ {value: scalar} ]
-        returns: bool
-        semantics: >
-          Select/create slot via SlotEngine; slot.reinforce(bus.modulation_factor).
-          fired = slot.update_threshold(value). If fired: fire(value).
-          Update have_last_input/last_input_value. Return fired.
-      on_output:
-        args: [ {amplitude: scalar} ]
-        returns: void
-        semantics: "Default no-op; OutputNeuron overrides to expose value externally."
-      fire:
-        args: [ {input_value: scalar} ]
-        returns: void
-        semantics: >
-          Default excitatory behaviour: for each synapse s in outgoing:
-            s.last_step = current_step; s.delivered_count += 1; s.target.on_input(input_value).
-          Subclasses may override (see inhibitory/modulatory).
-      prune_synapses:
-        args:
-          - {current_step: long}
-          - {stale_window: long}
-        returns: int
-        semantics: >
-          Remove s from outgoing where (current_step - s.last_step) > stale_window.
-          Return number removed.
-      neuron_value:
-        args: [ {mode: string="readiness"} ]
-        returns: scalar
-        semantics: |
-          readiness  -> max_{w in slots} (w.strength_value - w.threshold_value)
-          firing_rate-> mean_{w in slots} (w.ema_rate)
-          memory     -> sum_{w in slots} |w.strength_value|
-
-  ExcitatoryNeuron:
-    extends: Neuron
-    methods:
-      fire: {inherits: Neuron.fire, note: "propagate spikes (default)"}
-
-  InhibitoryNeuron:
-    extends: Neuron
-    fields:
-      inhibition_gamma: {type: scalar, default: 0.7}
-    methods:
-      fire:
-        args: [ {input_value: scalar} ]
-        returns: void
-        semantics: "bus.set_inhibition(inhibition_gamma)"
-
-  ModulatoryNeuron:
-    extends: Neuron
-    fields:
-      modulation_kappa: {type: scalar, default: 1.5}
-    methods:
-      fire:
-        args: [ {input_value: scalar} ]
-        returns: void
-        semantics: "bus.set_modulation(modulation_kappa)"
+      connect(target: Neuron, feedback: bool=false) -> Synapse
+      onInput(value: float) -> bool
+      onOutput(amplitude: float) -> void
+      fire(inputValue: float) -> void          # protected/override
+      pruneSynapses(currentStep: Step, staleWindow: Step, minStrength: float) -> int
+      registerFireHook(hook: FireHook) -> void
+      neuronValue(mode: string="readiness") -> float
+    accessors:
+      id() -> string
+      getSlots() -> Map<SlotId, Weight>
+      getOutgoing() -> Synapse[]
+      getBus() -> LateralBus
+      getLastInputValue() -> float
 
   InputNeuron:
-    extends: Neuron
+    base: Neuron
     fields:
-      gain:        {type: scalar, default: 1.0}
-      epsilon_fire:{type: scalar, default: 0.01}
+      gain: float
+      epsilonFire: float
+      outputValue: float
     methods:
-      on_input:
-        args: [ {value: scalar} ]
-        returns: bool
-        semantics: >
-          Treat as single-slot (slot_id=0). Effective input := gain * value.
-          Enforce tiny minimum epsilon_fire to avoid permanent silence at start.
-          Otherwise identical to Neuron.on_input.
+      onInput(value: float) -> bool        # amplifies by gain, floors by epsilonFire
+      onOutput(amplitude: float) -> void   # records outputValue
+      getOutputValue() -> float
+      endTick() -> void                    # usually no-op
 
   OutputNeuron:
-    extends: Neuron
+    base: Neuron
     fields:
-      output_value: {type: scalar, default: 0.0}
-      smoothing:    {type: scalar, default: 0.2, note: "EMA smoothing of output_value"}
+      smoothing: float
+      outputValue: float
     methods:
-      on_output:
-        args: [ {amplitude: scalar} ]
-        returns: void
-        semantics: "output_value := (1-smoothing)*output_value + smoothing*amplitude"
+      onInput(value: float) -> bool        # treat as single-slot sink
+      onOutput(amplitude: float) -> void   # records outputValue
+      endTick() -> void                    # apply EMA smoothing to outputValue
+      getOutputValue() -> float
 
   Layer:
     fields:
-      neurons: {type: list[Neuron], default: []}
-      bus:     {type: LateralBus}
-      rng_seed:{type: long, default: 1234}
+      neurons: Neuron[]
+      bus: LateralBus
+    ctor:
+      - (excitatoryCount: int, inhibitoryCount: int, modulatoryCount: int)
     methods:
-      wire_random_feedforward:
-        args: [ {probability: scalar} ]
-        returns: void
-        semantics: "Randomly connect a -> b for all pairs within this layer (feedforward flag=false)."
-      wire_random_feedback:
-        args: [ {probability: scalar} ]
-        returns: void
-        semantics: "Randomly connect a -> b with feedback flag=true."
-      forward:
-        args: [ {value: scalar} ]
-        returns: void
-        semantics: "Drive every neuron: fired = n.on_input(value); if fired: n.on_output(value)."
-      end_tick:
-        args: []
-        returns: void
-        semantics: "bus.decay(); reset any per-tick transients."
+      wireRandomFeedforward(probability: float) -> void
+      wireRandomFeedback(probability: float) -> void
+      forward(value: float) -> void
+      propagateFrom(sourceIndex: int, value: float) -> void
+      endTick() -> void
+    accessors:
+      getNeurons() -> Neuron[]
+      getBus() -> LateralBus
+
+  InputLayer2D:
+    base: Layer
+    fields:
+      height: int
+      width: int
+    ctor:
+      - (height: int, width: int, gain: float=1.0, epsilonFire: float=0.01)
+    methods:
+      index(y: int, x: int) -> int
+      forwardImage(image: float[height][width]) -> void
+      getFrame() -> float[height][width]
+      propagateFrom(sourceIndex: int, value: float) -> void  # no-op
+
+  OutputLayer2D:
+    base: Layer
+    fields:
+      height: int
+      width: int
+      frame: float[height][width]
+    ctor:
+      - (height: int, width: int, smoothing: float=0.2)
+    methods:
+      index(y: int, x: int) -> int
+      propagateFrom(sourceIndex: int, value: float) -> void  # routes by index
+      endTick() -> void                                      # fill frame from neurons
+      getFrame() -> float[height][width]
+
+  Tract:
+    fields:
+      source: Layer
+      destination: Layer
+      bus: RegionBus
+      feedback: bool
+    ctor:
+      - (source: Layer, destination: Layer, bus: RegionBus, feedback: bool=false)
+    methods:
+      wireDenseRandom(probability: float) -> int         # returns edges created
+      flush() -> int                                     # delivered events
+      pruneEdges(staleWindow: Step, minStrength: float) -> int
 
   Region:
     fields:
-      name:    {type: string}
-      layers:  {type: list[Layer]}
-      input_ports:  {type: dict[string, list[int]], default: {}}
-      output_ports: {type: dict[string, list[int]], default: {}}
-      step_counter: {type: long, default: 0}
-    records:
-      RegionMetrics: {delivered_events: int, total_slots: int, total_synapses: int}
-      PruneSummary:  {pruned_synapses: int, pruned_edges: int}
+      name: string
+      layers: Layer[]
+      tracts: Tract[]
+      bus: RegionBus
+      inputPorts: Map<string, int[]>
+      outputPorts: Map<string, int[]>
+    ctor:
+      - (name: string)
     methods:
-      add_layer:
-        args:
-          - {excitatory_count: int}
-          - {inhibitory_count: int}
-          - {modulatory_count: int}
-        returns: int
-        semantics: "Create Layer; return its index."
-      connect_layers:
-        args:
-          - {source_index: int}
-          - {dest_index: int}
-          - {probability: scalar}
-          - {feedback: bool=false}
-        returns: int
-        semantics: "Randomly connect every neuron in source to neurons in dest with probability; return edges created."
-      bind_input:
-        args: [ {port: string}, {layer_indices: list[int]} ]
-        returns: void
-      bind_output:
-        args: [ {port: string}, {layer_indices: list[int]} ]
-        returns: void
-      tick:
-        args: [ {port: string}, {value: scalar} ]
-        returns: RegionMetrics
-        semantics: "Execute tick_lifecycle for bound entry layers; accumulate metrics."
-      prune:
-        args:
-          - {synapse_stale_window: long, default: 10000}
-          - {synapse_min_strength: scalar, default: 0.05}
-          - {tract_stale_window: long, default: 10000, optional: true}
-          - {tract_min_strength: scalar, default: 0.05, optional: true}
-        returns: PruneSummary
-        semantics: >
-          Per-layer: n.prune_synapses(current_step, synapse_stale_window).
-          If the implementation tracks inter-layer tracts/edges, prune them using the optional
-          tract thresholds; otherwise pruned_edges may remain 0.
+      addLayer(excitatoryCount: int, inhibitoryCount: int, modulatoryCount: int) -> int
+      addInputLayer2D(height: int, width: int, gain: float=1.0, epsilonFire: float=0.01) -> int
+      addOutputLayer2D(height: int, width: int, smoothing: float=0.2) -> int
+      connectLayers(sourceIndex: int, destIndex: int, probability: float, feedback: bool=false) -> Tract
+      bindInput(port: string, layerIndices: int[]) -> void
+      bindOutput(port: string, layerIndices: int[]) -> void
+      tick(port: string, value: float) -> Metrics
+      tickImage(port: string, frame: float[...][...]) -> Metrics
+      prune(synapseStaleWindow: Step=10000, synapseMinStrength: float=0.05) -> PruneSummary
+      pulseInhibition(factor: float) -> void   # optional, keep in C++ & expose in others
+      pulseModulation(factor: float) -> void
+    accessors:
+      getName() -> string
+      getLayers() -> Layer[]
+      getBus() -> RegionBus
 
-compatibility_notes:
-  cplusplus:
-    region_bus: "C++ uses RegionBus/Tract to model inter-layer edges explicitly; API mirrors 'connectLayers', 'tick', and 2-arg prune, with optional 4-arg variant for tracts."  # see repo header
-  python_mojo:
-    bus_scope: "Bus is layer-scoped (LateralBus)."
-  java:
-    accessors: "Expose getters (id(), slots(), outgoing(), bus(), neurons(), layers()); onInput/onOutput signatures return boolean/void."
+  Metrics:
+    fields:
+      deliveredEvents: int
+      totalSlots: int
+      totalSynapses: int
 
-validation:
-  invariants:
-    - "Weight.strength_value ∈ [-1,1]"
-    - "slot_id ≥ 0 (0 for InputNeuron) or ≥ 1 for general policy"
-    - "Layer.end_tick resets bus to inhibition=0, modulation=1"
-    - "Neuron.on_input returns True iff Weight.update_threshold returned True"
-  test_hooks:
-    - "Neuron.neuron_value('readiness'|'firing_rate'|'memory') MUST exist in all languages for logging"
+  PruneSummary:
+    fields:
+      prunedSynapses: int
+      prunedEdges: int
