@@ -153,4 +153,8 @@ public final class Region {
         // ps.prunedEdges stays zero until you track inter‑layer tracts explicitly
         return ps;
     }
+
+    public PruneSummary prune() {
+        return prune(10_000L, 0.05);
+    }
 }

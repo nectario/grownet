@@ -11,7 +11,7 @@ public class InputLayer2D extends Layer {
         super(0, 0, 0);
         this.height = height;
         this.width  = width;
-        List<Neuron> list = getNeurons();
+        List<Neuron> list = neurons();
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 list.add(new InputNeuron("IN[" + y + "," + x + "]", gain, epsilonFire));

@@ -86,6 +86,12 @@ public class Neuron {
         return fired;
     }
 
+    public double getLastInputValue() {
+        return lastInputValue;
+    }
+
+
+
     /**
      * Default no‑op; OutputNeuron overrides to expose values to the outside world.
      */

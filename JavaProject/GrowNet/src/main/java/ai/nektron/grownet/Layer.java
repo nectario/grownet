@@ -13,7 +13,7 @@ public class Layer {
 
     public Layer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
         // Default slot policy for this demo layer.
-        SlotConfig cfg = SlotConfig.fixedPercent(10.0);  // 10% Δ bins
+        SlotConfig cfg = SlotConfig.fixed(10.0);  // 10% Δ bins
         int slotLimit = -1;                               // unlimited
 
         for (int i = 0; i < excitatoryCount; ++i) {
