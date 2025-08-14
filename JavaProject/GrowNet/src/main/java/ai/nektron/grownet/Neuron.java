@@ -4,68 +4,65 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+
+import static java.lang.Math.abs;
 
 /**
- * Base neuron with slot logic and unified onInput/onOutput hooks.
- * Subclasses override fire() for excitatory/inhibitory/modulatory behavior.
+ * Base neuron with slot logic and unified onInput/onOutput contract.
+ * Subclasses override fire(...) for excitatory / inhibitory / modulatory behaviour.
  */
 public class Neuron {
 
-    // ----------------------------- state -----------------------------
-
+    // -------- state --------
     protected final String neuronId;
     protected final LateralBus bus;
 
-    // slotId -> Weight
+    // slot memory: key = slot id, val = weight
     protected final Map<Integer, Weight> slots = new HashMap<>();
 
-    // outgoing synapses (fan‑out is owned here; fan‑in owned by target)
+    // explicit synapses (kept for future, even if Tract handles layer–layer routing)
     protected final List<Synapse> outgoing = new ArrayList<>();
 
-    // slot selection policy
+    // slot policy + optional cap
     protected final SlotEngine slotEngine;
-    protected final int slotLimit;   // -1 => unlimited
+    protected final int       slotLimit;   // -1 = unbounded
 
-    // last‑input bookkeeping (for %‑delta based slotting)
+    // last input (for %delta binning)
     protected boolean haveLastInput = false;
     protected double  lastInputValue = 0.0;
 
-    // --------------------------- lifecycle ---------------------------
+    // NEW: hooks notified whenever this neuron fires
+    private final List<BiConsumer<Double, Neuron>> fireHooks = new ArrayList<>();
 
-    public Neuron(String neuronId,
-                  LateralBus bus,
-                  SlotConfig slotConfig,
-                  int slotLimit) {
+    // -------- construction --------
+    public Neuron(String neuronId, LateralBus bus, SlotConfig slotConfig, int slotLimit) {
         this.neuronId   = neuronId;
         this.bus        = bus;
         this.slotEngine = new SlotEngine(slotConfig);
         this.slotLimit  = slotLimit;
     }
 
-    // ----------------------------- wiring ----------------------------
-
-    /** Create an outgoing synapse to a target neuron. */
+    // -------- wiring (optional, still useful for unit tests) --------
     public Synapse connect(Neuron target, boolean feedback) {
         Synapse s = new Synapse(target, feedback);
         outgoing.add(s);
         return s;
     }
 
-    // ------------------------------ I/O ------------------------------
-
+    // -------- IO --------
     /**
-     * Route to a slot, learn locally, maybe fire. Returns true if fired.
+     * Route a scalar in, learn locally, maybe fire. Returns true if fired.
      */
     public boolean onInput(double value) {
-        // pick/create a slot keyed by percent‑delta of current vs last input
-        int slotId = haveLastInput
+        // choose / create slot
+        final int slotId = haveLastInput
                 ? slotEngine.slotId(lastInputValue, value, slots.size())
-                : 0;  // imprint into slot 0 if this is the first input
-
+                : 0; // imprint
         Weight slot = slots.get(slotId);
         if (slot == null) {
-            // capacity cap (very simple policy: reuse the first slot)
             if (slotLimit >= 0 && slots.size() >= slotLimit) {
+                // simple reuse policy: recycle the first slot
                 int first = slots.keySet().iterator().next();
                 slot = slots.get(first);
             } else {
@@ -74,67 +71,57 @@ public class Neuron {
             }
         }
 
-        // local learning on the chosen slot; scale by neuromodulation
+        // learn under neuromodulation
         slot.reinforce(bus.getModulationFactor());
 
-        // adaptive threshold update; decide whether we fired
+        // update the adaptive threshold and decide
         boolean fired = slot.updateThreshold(value);
-        if (fired) fire(value);
+        if (fired) {
+            fire(value);                // subtype behaviour
+            notifyFireHooks(value);     // <— Tract listens here
+        }
 
-        haveLastInput = true;
+        haveLastInput  = true;
         lastInputValue = value;
         return fired;
     }
 
-    public double getLastInputValue() {
-        return lastInputValue;
-    }
-
-
+    /**
+     * Default no‑op; OutputNeuron overrides to expose values externally.
+     */
+    public void onOutput(double amplitude) { /* no‑op by default */ }
 
     /**
-     * Default no‑op; OutputNeuron overrides to expose values to the outside world.
+     * Subclasses override to implement excitatory / inhibitory / modulatory semantics.
+     * Base keeps the unified signature but does not enforce behaviour.
      */
-    public void onOutput(double amplitude) {
-        // no‑op by default
-    }
+    protected void fire(double inputValue) { /* handled by subclasses */ }
 
-    // ------------------------- spike semantics -----------------------
-
-    /**
-     * Default spike behavior is handled in subclasses (Excitatory, Inhibitory, Modulatory).
-     * Base class only keeps the unified API coherent.
-     */
-    protected void fire(double inputValue) {
-        // override in subclasses
-    }
-
-    // ---------------------------- logging ----------------------------
-
-    /**
-     * Small scalar summaries, useful for dashboards.
-     * mode ∈ { "readiness", "firing_rate", "memory" }
-     */
+    // -------- small introspection used by demos --------
     public double neuronValue(String mode) {
         if (slots.isEmpty()) return 0.0;
 
         switch (mode) {
             case "readiness": {
                 double best = -1e300;
-                for (Weight w : slots.values()) {
-                    double margin = w.strengthValue - w.thresholdValue;
+                for (Weight weight : slots.values()) {
+                    double margin = weight.getStrengthValue() - weight.getThresholdValue();
                     if (margin > best) best = margin;
                 }
                 return best;
             }
             case "firing_rate": {
                 double sum = 0.0;
-                for (Weight w : slots.values()) sum += w.emaRate;
+                for (Weight weight : slots.values()) {
+                    sum += weight.getEmaRate();
+                }
                 return sum / slots.size();
             }
             case "memory": {
                 double acc = 0.0;
-                for (Weight w : slots.values()) acc += Math.abs(w.strengthValue);
+                for (Weight weight : slots.values()) {
+                    acc += Math.abs(weight.getStrengthValue());
+                }
                 return acc;
             }
             default:
@@ -142,55 +129,31 @@ public class Neuron {
         }
     }
 
-    // --------------------------- accessors ---------------------------
+    // -------- hooks API (used by Tract) --------
 
-    /** Preferred accessor used by new code. */
-    public Map<Integer, Weight> slots() { return slots; }
+    /** Register a hook (value, who) called every time this neuron fires. */
+    public void registerFireHook(BiConsumer<Double, Neuron> hook) {
+        if (hook != null) fireHooks.add(hook);
+    }
 
-    /** Preferred accessor used by new code. */
-    public List<Synapse> outgoing() { return outgoing; }
+    /** Bridge if you kept a custom functional interface FireHook. */
+    public void registerFireHook(FireHook hook) {
+        if (hook != null) fireHooks.add((v, who) -> hook.onFire(v, who));
+    }
 
-    public LateralBus bus() { return bus; }
-
-    public String id() { return neuronId; }
-
-    // --------- compatibility shims for Region/Demo/older callers -----
-
-    /** Alias for Region/Demo code that expects getSlots(). */
-    public Map<Integer, Weight> getSlots() { return slots(); }
-
-    /** Alias for Region/Demo code that expects getOutgoing(). */
-    public List<Synapse> getOutgoing() { return outgoing(); }
-
-    // --------------------------- maintenance -------------------------
-
-    /**
-     * Remove weak (and, in the future, stale) outgoing synapses.
-     * @param synapseStaleWindow   reserved; staleness will be used when Synapse exposes lastStep
-     * @param synapseMinStrength   edges with weight.strengthValue below this are pruned
-     * @return number of synapses removed
-     */
-    public int pruneSynapses(long synapseStaleWindow, double synapseMinStrength) {
-        int removed = 0;
-        List<Synapse> keep = new ArrayList<>(outgoing.size());
-        for (Synapse s : outgoing) {
-            boolean weak = (s.getWeight() != null) && (s.getWeight().strengthValue < synapseMinStrength);
-
-            // TODO: when Synapse exposes lastStep and LateralBus exposes currentStep,
-            //       also consider staleness: now - s.lastStep > synapseStaleWindow.
-            boolean stale = false;
-
-            if (weak && stale) {
-                removed++;
-            } else if (weak) {
-                // If you prefer to prune on weakness alone (current default), keep stale==false
-                removed++;
-            } else {
-                keep.add(s);
-            }
+    private void notifyFireHooks(double amplitude) {
+        for (BiConsumer<Double, Neuron> h : fireHooks) {
+            try { h.accept(amplitude, this); } catch (Exception ignored) { }
         }
-        outgoing.clear();
-        outgoing.addAll(keep);
-        return removed;
+    }
+
+    // -------- getters --------
+    public Map<Integer, Weight> getSlots()   { return slots; }
+    public List<Synapse>        getOutgoing(){ return outgoing; }
+    public LateralBus           getBus()     { return bus; }
+    public String               id()         { return neuronId; }
+
+    public double getLastInputValue() {
+        return lastInputValue;
     }
 }
