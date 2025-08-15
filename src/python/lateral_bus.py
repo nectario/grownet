@@ -1,27 +1,21 @@
-from dataclasses import dataclass
-
-@dataclass
 class LateralBus:
-    inhibition_factor: float = 1.0    # < 1.0 means inhibition is active
-    modulation_factor: float = 1.0    # scales learning step
-    current_step: int = 0
+    def __init__(self):
+        self._inhibition_factor = 1.0  # multiplicative (<=1 reduces)
+        self._modulation_factor = 1.0  # scales learning (+/-)
 
-    inhibition_recovery: float = 0.25  # how fast inhibition returns toward 1.0 per tick
-    modulation_decay: float = 1.0      # reset multiplier per tick (1.0 -> reset to 1.0)
+    def get_inhibition_factor(self):
+        return self._inhibition_factor
 
-    def pulse_inhibition(self, factor: float) -> None:
-        # Apply the strongest inhibition this tick
-        if factor < self.inhibition_factor:
-            self.inhibition_factor = factor
+    def set_inhibition_factor(self, v):
+        self._inhibition_factor = float(v)
 
-    def pulse_modulation(self, factor: float) -> None:
-        self.modulation_factor *= factor
+    def get_modulation_factor(self):
+        return self._modulation_factor
 
-    def decay(self) -> None:
-        # inhibition recovers toward 1.0
-        self.inhibition_factor += (1.0 - self.inhibition_factor) * self.inhibition_recovery
-        if self.inhibition_factor > 0.999:
-            self.inhibition_factor = 1.0
-        # modulation returns toward 1.0 (simple reset here)
-        self.modulation_factor = 1.0 if self.modulation_decay >= 1.0 else 1.0 + (self.modulation_factor - 1.0) * self.modulation_decay
-        self.current_step += 1
+    def set_modulation_factor(self, v):
+        self._modulation_factor = float(v)
+
+    def decay(self, alpha=0.5):
+        # move both factors halfway to neutral each tick
+        self._inhibition_factor = 1.0 + alpha * (self._inhibition_factor - 1.0)
+        self._modulation_factor = 1.0 + alpha * (self._modulation_factor - 1.0)

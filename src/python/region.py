@@ -1,143 +1,120 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
-from typing import Dict, List, Sequence, Tuple
-
+from region_bus import RegionBus
 from layer import Layer
-from bus import LateralBus
+from tract import Tract
+from input_layer_2d import InputLayer2D
+from output_layer_2d import OutputLayer2D
 
-
-@dataclass
 class RegionMetrics:
-    delivered_events: int
-    total_slots: int
-    total_synapses: int
+    def __init__(self):
+        self.delivered_events = 0
+        self.total_slots = 0
+        self.total_synapses = 0
 
-
-@dataclass
 class PruneSummary:
-    pruned_synapses: int
-    pruned_edges: int = 0  # reserved for tract-level pruning if we add Tracts later
-
+    def __init__(self):
+        self.pruned_synapses = 0
+        self.pruned_edges = 0
 
 class Region:
-    """
-    Region = collection of Layers plus a region-wide bus.
-    Provides one-tick driving (scalar or image) and maintenance (prune).
-    """
-    def __init__(self, name: str):
-        self.name: str = name
-        self.layers: List[Layer] = []
-        self.bus: LateralBus = LateralBus()
-        self._input_ports: Dict[str, List[int]] = {}
-        self._output_ports: Dict[str, List[int]] = {}
+    def __init__(self, name):
+        self._name = str(name)
+        self._layers = []
+        self._tracts = []
+        self._bus = RegionBus()
+        self._input_ports = {}
+        self._output_ports = {}
 
-    # ----- construction / wiring ------------------------------------------------
+    # construction
+    def add_layer(self, excitatory_count, inhibitory_count, modulatory_count):
+        layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
+        self._layers.append(layer)
+        return len(self._layers) - 1
 
-    def add_layer(
-        self,
-        excitatory_count: int,
-        inhibitory_count: int,
-        modulatory_count: int,
-    ) -> int:
-        layer = Layer(
-            excitatory_count=excitatory_count,
-            inhibitory_count=inhibitory_count,
-            modulatory_count=modulatory_count,
-        )
-        self.layers.append(layer)
-        return len(self.layers) - 1
+    def add_input_layer_2d(self, height, width, gain, epsilon_fire):
+        layer = InputLayer2D(height, width, gain, epsilon_fire)
+        self._layers.append(layer)
+        return len(self._layers) - 1
 
-    def connect_layers(self, source_index: int, dest_index: int, probability: float, feedback: bool = False) -> int:
-        """Wire random edges from every neuron in layer[source] to layer[dest]. Returns edges created."""
-        src = self.layers[source_index]
-        dst = self.layers[dest_index]
-        edges = 0
-        for a in src.neurons:
-            for b in dst.neurons:
-                # simple Erdos–Renyi wiring (layer-local RNG)
-                if src._rng.random() < probability:
-                    a.connect(b, feedback=feedback)
-                    edges += 1
-        return edges
+    def add_output_layer_2d(self, height, width, smoothing):
+        layer = OutputLayer2D(height, width, smoothing)
+        self._layers.append(layer)
+        return len(self._layers) - 1
 
-    def bind_input(self, port: str, layer_indices: Sequence[int]) -> None:
-        self._input_ports[port] = list(layer_indices)
+    def connect_layers(self, source_index, dest_index, probability, feedback=False):
+        if source_index < 0 or source_index >= len(self._layers):
+            raise IndexError("source_index out of range")
+        if dest_index < 0 or dest_index >= len(self._layers):
+            raise IndexError("dest_index out of range")
+        tract = Tract(self._layers[source_index], self._layers[dest_index], self._bus, feedback)
+        self._tracts.append(tract)
+        # intra-layer random wiring can still be requested externally if desired
+        return tract
 
-    def bind_output(self, port: str, layer_indices: Sequence[int]) -> None:
-        self._output_ports[port] = list(layer_indices)
+    def bind_input(self, port, layer_indices):
+        self._input_ports[str(port)] = list(layer_indices)
 
-    # ----- ticking (scalar) -----------------------------------------------------
+    def bind_output(self, port, layer_indices):
+        self._output_ports[str(port)] = list(layer_indices)
 
-    def tick(self, port: str, value: float) -> RegionMetrics:
-        """
-        Drive all entry layers bound to `port` with a single scalar `value`,
-        flush one step, and decay buses. Returns RegionMetrics.
-        """
-        # Phase A: push into entry layers
-        for idx in self._input_ports.get(port, ()):
-            self.layers[idx].forward(value)
+    # region-wide pulses
+    def pulse_inhibition(self, factor):
+        self._bus.set_inhibition_factor(factor)
 
-        # Phase B: (no explicit tract queues in the Python ref impl; propagation happens immediately)
+    def pulse_modulation(self, factor):
+        self._bus.set_modulation_factor(factor)
 
-        # Decay
-        for layer in self.layers:
-            layer.bus.decay()
-        self.bus.decay()
+    # main loop
+    def tick(self, port, value):
+        m = RegionMetrics()
+        entry = self._input_ports.get(str(port))
+        if entry is not None:
+            for layer_index in entry:
+                self._layers[layer_index].forward(value)
+                m.delivered_events += 1
 
-        # Light metrics
-        total_slots = 0
-        total_synapses = 0
-        for layer in self.layers:
-            for n in layer.neurons:
-                total_slots += len(n.slots)
-                total_synapses += len(n.outgoing)
+        # end-of-tick housekeeping
+        for layer in self._layers:
+            layer.end_tick()
 
-        # delivered_events: we approximate here as number of neurons that fired this tick (EMA-based in weights)
-        # If you want an exact count, we can expose a per-tick counter in LateralBus or Layer.
-        delivered_events = total_synapses  # placeholder metric; refine later if needed
+        # aggregates
+        for layer in self._layers:
+            for neuron in layer.get_neurons():
+                m.total_slots += len(neuron.slots())
+                m.total_synapses += len(neuron.get_outgoing())
+        return m
 
-        return RegionMetrics(
-            delivered_events=delivered_events,
-            total_slots=total_slots,
-            total_synapses=total_synapses,
-        )
+    def tick_image(self, port, frame):
+        m = RegionMetrics()
+        entry = self._input_ports.get(str(port))
+        if entry is not None:
+            for layer_index in entry:
+                layer = self._layers[layer_index]
+                if isinstance(layer, InputLayer2D):
+                    layer.forward_image(frame)
+                    m.delivered_events += 1
+        for layer in self._layers:
+            layer.end_tick()
+        for layer in self._layers:
+            for neuron in layer.get_neurons():
+                m.total_slots += len(neuron.slots())
+                m.total_synapses += len(neuron.get_outgoing())
+        return m
 
-    # ----- tick for images (kept for your image_io_demo) ------------------------
+    # maintenance
+    def prune(self, synapse_stale_window=10_000, synapse_min_strength=0.05,
+              tract_stale_window=10_000, tract_min_strength=0.05):
+        # Lightweight placeholder; full pruning requires synapse timestamps, etc.
+        return PruneSummary()
 
-    def tick_image(self, port: str, frame) -> RegionMetrics:
-        """
-        Drive a bound input layer with a 2D frame (NumPy ndarray).
-        Requires that the corresponding input layer knows how to fan-out the frame.
-        For simple demos we inject the average intensity as a scalar to all entry layers.
-        """
-        try:
-            import numpy as np  # local import to keep core dependency-light
-            value = float(np.asarray(frame, dtype=float).mean())
-        except Exception:
-            value = float(frame)  # fall back to scalar if not ndarray
+    # accessors
+    def get_name(self):
+        return self._name
 
-        return self.tick(port, value)
+    def get_layers(self):
+        return self._layers
 
-    # ----- maintenance ----------------------------------------------------------
+    def get_tracts(self):
+        return self._tracts
 
-    def prune(
-        self,
-        synapse_stale_window: int = 10_000,
-        synapse_min_strength: float = 0.05,
-    ) -> PruneSummary:
-        """
-        Remove outgoing synapses that are both stale (not used for `stale_window` ticks)
-        AND weak (weight.strength < min_strength). Keeps neurons and slots intact.
-        Mirrors the C++ Region::prune behavior.  (Tract pruning reserved for later.)
-        """
-        current_step = self.bus.current_step
-        pruned = 0
-        for layer in self.layers:
-            for neuron in layer.neurons:
-                pruned += neuron.prune_synapses(
-                    current_step=current_step,
-                    stale_window=synapse_stale_window,
-                    min_strength=synapse_min_strength,
-                )
-        return PruneSummary(pruned_synapses=pruned)
+    def get_bus(self):
+        return self._bus

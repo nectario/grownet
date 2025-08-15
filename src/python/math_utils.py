@@ -1,12 +1,20 @@
-from __future__ import annotations
+import math
 
-def smooth_clamp(x: float, low: float, high: float) -> float:
-    if x < low:
+def clamp(value, low, high):
+    if value < low:
         return low
-    if x > high:
+    if value > high:
         return high
-    return x
+    return value
 
-def round_one_decimal(x: float) -> float:
-    # e.g., 0.27 -> 0.3; 0.24 -> 0.2
-    return round(x * 10.0) / 10.0
+def smooth_clamp(value, low, high, k=0.5):
+    # simple smooth step toward bounds; k in (0,1]
+    value = clamp(value, low - 1e6, high + 1e6)
+    span = high - low
+    if span <= 0:
+        return low
+    t = (value - low) / span
+    t = clamp(t, 0.0, 1.0)
+    # cubic smoothstep
+    t = t * t * (3.0 - 2.0 * t)
+    return low + t * span

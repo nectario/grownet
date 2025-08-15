@@ -1,126 +1,44 @@
-grownet:
-  version: 0.3.0
-  naming:
-    fields: camelCase   # Python may expose snake_case aliases
-    methods: lowerCamel
-    events: lowerCamel
-  enums:
-    SlotPolicy: [FIXED, NONUNIFORM, ADAPTIVE]
-  types:
-    Weight:
-      fields:
-        strength: double          # [-1, +1], clamped smoothly
-        hitCount: int             # saturates (e.g., 10_000)
-        theta: double             # adaptive threshold
-        emaRate: double           # recent spike rate (EMA)
-        seenFirst: boolean        # T0 imprint executed?
-      methods:
-        reinforce(modulationFactor: double): void
-        updateThreshold(inputValue: double): boolean  # returns "fired"
-    LateralBus:
-      fields:
-        inhibitionFactor: double  # decays to 0 each tick
-        modulationFactor: double  # resets toward 1.0 each tick
-      methods:
-        setInhibitionFactor(f: double): void
-        setModulationFactor(f: double): void
-        decay(): void
-    Synapse:
-      fields:
-        targetId: string
-        feedback: boolean
-        weight: Weight
-        lastUsedTick: long
-      methods:
-        deliver(amplitude: double): void
-    SlotConfig:
-      fields:
-        policy: SlotPolicy
-        fixedPercentDelta: double   # for FIXED policy (default 10.0)
-    SlotEngine:
-      methods:
-        slotId(lastInput: double, currentInput: double, knownSlots: int): int
-        computeBinForPercentDelta(deltaPercent: double, existing: map<int,Weight>): int
-        selectOrCreateSlot(neuronId: string, slots: map<int,Weight>, inputValue: double): (slotId:int, weight:Weight)
-    Neuron:
-      fields:
-        id: string
-        haveLastInput: boolean
-        lastInputValue: double
-        slots: map<int, Weight>
-        outgoing: list<Synapse>
-      methods:
-        onInput(value: double): boolean
-        onOutput(amplitude: double): void
-        fire(inputValue: double): void
-        connect(target: Neuron, feedback: boolean = false): Synapse
-        endTick(): void
-        pruneSynapses(staleWindow: long, minStrength: double): int
-        getLastInputValue(): double
-        registerFireHook(callback: function(Neuron,double)): void
-    ExcitatoryNeuron:
-      base: Neuron
-    InhibitoryNeuron:
-      base: Neuron
-    ModulatoryNeuron:
-      base: Neuron
-    Layer:
-      fields:
-        bus: LateralBus
-        neurons: list<Neuron>
-      ctor:
-        (excitatoryCount:int, inhibitoryCount:int, modulatoryCount:int)
-      methods:
-        wireRandomFeedforward(probability: double): void
-        wireRandomFeedback(probability: double): void
-        forward(value: double): void
-        endTick(): void
-        propagateFrom(sourceIndex: int, amplitude: double): void  # default: no-op
-    InputLayer2D:
-      base: Layer
-      ctor: (height:int, width:int, gain:double, epsilonFire:double)
-      methods:
-        forwardImage(frame: double[height][width]): void
-        propagateFrom(sourceIndex: int, amplitude: double): void  # default: no-op
-    OutputLayer2D:
-      base: Layer
-      ctor: (height:int, width:int, smoothing:double)
-      methods:
-        propagateFrom(sourceIndex: int, amplitude: double): void
-        endTick(): void
-        getFrame(): double[height][width]
-    RegionMetrics:
-      fields:
-        deliveredEvents: int
-        totalSlots: int
-        totalSynapses: int
-    PruneSummary:
-      fields:
-        prunedSynapses: int
-        prunedEdges: int
-    RegionBus: {}
-    Tract:
-      fields:
-        source: Layer
-        dest: Layer
-        feedback: boolean
-      methods:
-        onSourceFired(sourceNeuronIndex: int, amplitude: double): void
-    Region:
-      ctor: (name:string)
-      methods:
-        addLayer(excitatoryCount:int, inhibitoryCount:int, modulatoryCount:int): int
-        addInputLayer2D(height:int, width:int, gain:double, epsilonFire:double): int
-        addOutputLayer2D(height:int, width:int, smoothing:double): int
-        connectLayers(sourceIndex:int, destIndex:int, probability:double, feedback:boolean=false): Tract
-        bindInput(port:string, layerIndices:list<int>): void
-        bindOutput(port:string, layerIndices:list<int>): void
-        pulseInhibition(factor: double): void
-        pulseModulation(factor: double): void
-        tick(port:string, value:double): RegionMetrics
-        tickImage(port:string, frame:double[H][W]): RegionMetrics
-        prune(synapseStaleWindow:long, synapseMinStrength:double, tractStaleWindow:long, tractMinStrength:double): PruneSummary
-        getName(): string
-        getLayers(): list<Layer>
-        getTracts(): list<Tract>
-        getBus(): RegionBus
+# GrowNet Protocol (Python/ Mojo API surface · 2025-08-15T00:22:00.313713Z)
+# Snake_case method/function naming; mirrors Region / Layer / Neuron surface
+
+region:
+  metrics_fields: [delivered_events, total_slots, total_synapses]
+  methods:
+    - add_layer(excitatory_count, inhibitory_count, modulatory_count)
+    - add_input_layer_2d(height, width, gain, epsilon_fire)
+    - add_output_layer_2d(height, width, smoothing)
+    - connect_layers(source_index, dest_index, probability, feedback=False)
+    - bind_input(port, layer_indices)
+    - bind_output(port, layer_indices)
+    - pulse_inhibition(factor)
+    - pulse_modulation(factor)
+    - tick(port, value)
+    - tick_image(port, frame)
+
+layer:
+  methods:
+    - wire_random_feedforward(probability)
+    - wire_random_feedback(probability)
+    - forward(value)
+    - propagate_from(source_index, value)
+    - end_tick()
+
+neurons:
+  common_methods:
+    - on_input(value)
+    - on_output(amplitude)
+    - fire(input_value)
+    - end_tick()
+    - connect(target, feedback=False)
+    - register_fire_hook(callback)
+    - slots()
+
+  excitatory: neuron_excitatory.ExcitatoryNeuron
+  inhibitory: neuron_inhibitory.InhibitoryNeuron
+  modulatory: neuron_modulatory.ModulatoryNeuron
+  input: input_neuron.InputNeuron
+  output: output_neuron.OutputNeuron
+
+io_layers:
+  input_layer_2d: input_layer_2d.InputLayer2D
+  output_layer_2d: output_layer_2d.OutputLayer2D

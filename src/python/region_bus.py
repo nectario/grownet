@@ -1,11 +1,20 @@
-from dataclasses import dataclass
-
-@dataclass
 class RegionBus:
-    inhibition_factor: float = 1.0
-    modulation_factor: float = 1.0
-    current_step: int = 0
+    def __init__(self):
+        self._inhibition_factor = 1.0
+        self._modulation_factor = 1.0
 
-    def set_inhibition_factor(self, value: float): self.inhibition_factor = value
-    def set_modulation_factor(self, value: float): self.modulation_factor = value
-    def tick(self): self.current_step += 1
+    def get_inhibition_factor(self):
+        return self._inhibition_factor
+
+    def set_inhibition_factor(self, v):
+        self._inhibition_factor = float(v)
+
+    def get_modulation_factor(self):
+        return self._modulation_factor
+
+    def set_modulation_factor(self, v):
+        self._modulation_factor = float(v)
+
+    def reset(self):
+        self._inhibition_factor = 1.0
+        self._modulation_factor = 1.0

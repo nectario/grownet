@@ -1,17 +1,13 @@
-from dataclasses import dataclass, field
-from typing import Optional
-from neuron import Neuron
-from .weight import Weight
 
-@dataclass
 class Synapse:
-    source_id: str
-    target: Optional['Neuron']  # forward reference
-    weight: Weight = field(default_factory=Weight)
-    is_feedback: bool = False
-    last_step: int = 0
+    def __init__(self, source, target, feedback=False):
+        self.source = source
+        self.target = target
+        self.feedback = bool(feedback)
+        self._strength = 1.0  # placeholder for future use
+        self._last_seen_tick = 0
 
-    def deliver(self, value: float) -> None:
-        if self.target is not None:
-            self.target.on_input(value)
-
+    def getStrengthValue(self): return self._strength
+    def setStrengthValue(self, v): self._strength = float(v)
+    def getLastSeenTick(self): return self._last_seen_tick
+    def setLastSeenTick(self, t): self._last_seen_tick = int(t)

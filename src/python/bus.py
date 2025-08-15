@@ -1,17 +1,38 @@
+
 class LateralBus:
-    """
-    Shared per-layer bus for simple, time-local signals.
-      - inhibition_factor: 0..1 scales down strength after reinforcement
-      - modulation_factor: scales learning rate (step_value)
-      - current_step: monotonic tick so synapses can record 'last used'
-    """
     def __init__(self):
-        self.inhibition_factor = 1.0
-        self.modulation_factor = 1.0
-        self.current_step = 0
+        self._inhibition_factor = 0.0  # decays toward 0 each tick
+        self._modulation_factor = 1.0  # resets to 1.0 each tick
+
+    # getters / setters
+    def getInhibitionFactor(self): return self._inhibition_factor
+    def get_inhibition_factor(self): return self._inhibition_factor
+    def setInhibitionFactor(self, v): self._inhibition_factor = float(v)
+    def set_inhibition_factor(self, v): self._inhibition_factor = float(v)
+
+    def getModulationFactor(self): return self._modulation_factor
+    def get_modulation_factor(self): return self._modulation_factor
+    def setModulationFactor(self, v): self._modulation_factor = float(v)
+    def set_modulation_factor(self, v): self._modulation_factor = float(v)
 
     def decay(self):
-        # Reset to neutral each tick (later: add decay constants if needed)
-        self.inhibition_factor = 1.0
-        self.modulation_factor = 1.0
-        self.current_step += 1
+        # inhibition decays, modulation resets
+        self._inhibition_factor *= 0.85
+        self._modulation_factor = 1.0
+
+
+class RegionBus:
+    def __init__(self):
+        self._inhibition_factor = 0.0
+        self._modulation_factor = 1.0
+
+    def getInhibitionFactor(self): return self._inhibition_factor
+    def setInhibitionFactor(self, v): self._inhibition_factor = float(v)
+    def getModulationFactor(self): return self._modulation_factor
+    def setModulationFactor(self, v): self._modulation_factor = float(v)
+
+    # aliases
+    get_inhibition_factor = getInhibitionFactor
+    set_inhibition_factor = setInhibitionFactor
+    get_modulation_factor = getModulationFactor
+    set_modulation_factor = setModulationFactor

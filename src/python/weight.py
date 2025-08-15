@@ -1,41 +1,63 @@
-from __future__ import annotations
-from dataclasses import dataclass
-from math_utils import smooth_clamp
+from math_utils import clamp, smooth_clamp
 
-@dataclass
 class Weight:
-    # Learning parameters
-    step_value: float = 0.001
-    strength_value: float = 0.0
-    reinforcement_count: int = 0
+    def __init__(self):
+        self._strength = 0.0
+        self._hit_count = 0
+        self._theta = 0.0
+        self._ema_rate = 0.0
+        self._seen_first = False
+        self._last_touched = 0
 
-    # Adaptive threshold state (hybrid T0+T2)
-    threshold_value: float = 0.0
-    ema_rate: float = 0.0
-    first_seen: bool = False
+    # --- getters/setters to mirror other langs ---
+    def get_strength_value(self):
+        return self._strength
 
-    # Constants (can be exposed via config if needed)
-    HIT_SATURATION: int = 10_000
-    EPS: float = 0.02
-    BETA: float = 0.01
-    ETA: float = 0.02
-    R_STAR: float = 0.05
+    def set_strength_value(self, v):
+        self._strength = clamp(v, -1.0, 1.0)
 
-    def reinforce(self, modulation_factor: float, inhibition_factor: float) -> None:
-        if self.reinforcement_count >= self.HIT_SATURATION:
-            return
-        effective_step = self.step_value * modulation_factor
-        self.strength_value = smooth_clamp(self.strength_value + effective_step, -1.0, 1.0)
-        # simple multiplicative inhibition on the edge
-        if inhibition_factor > 0.0:
-            self.strength_value *= (1.0 - inhibition_factor)
-        self.reinforcement_count += 1
+    def get_threshold_value(self):
+        return self._theta
 
-    def update_threshold(self, input_value: float) -> bool:
-        if not self.first_seen:
-            self.threshold_value = abs(input_value) * (1.0 + self.EPS)
-            self.first_seen = True
-        fired = self.strength_value > self.threshold_value
-        self.ema_rate = (1.0 - self.BETA) * self.ema_rate + self.BETA * (1.0 if fired else 0.0)
-        self.threshold_value += self.ETA * (self.ema_rate - self.R_STAR)
+    def set_threshold_value(self, v):
+        self._theta = float(v)
+
+    def is_first_seen(self):
+        return bool(self._seen_first)
+
+    def set_first_seen(self, flag):
+        self._seen_first = bool(flag)
+
+    def get_hit_count(self):
+        return self._hit_count
+
+    def set_hit_count(self, v):
+        self._hit_count = int(max(0, v))
+
+    def mark_touched(self, tick):
+        self._last_touched = int(tick)
+
+    def get_last_touched(self):
+        return self._last_touched
+
+    # --- learning helpers ---
+    def reinforce(self, modulation_factor):
+        # scaled step; keep conservative default
+        step = 0.02 * float(modulation_factor)
+        if self._hit_count < 10000:
+            self._strength = smooth_clamp(self._strength + step, -1.0, 1.0)
+            self._hit_count += 1
+
+    def update_threshold(self, input_value, beta=0.05, eta=0.01, r_star=0.1, eps=1e-3):
+        # First observation "imprint"
+        v = float(input_value)
+        if not self._seen_first:
+            self._theta = abs(v) * (1.0 + eps)
+            self._seen_first = True
+
+        fired = (abs(v) > self._theta) or (self._strength > self._theta)
+        # EMA of recent fires (treat True as 1.0, False as 0.0)
+        self._ema_rate = (1.0 - beta) * self._ema_rate + beta * (1.0 if fired else 0.0)
+        # drift threshold toward target spike rate
+        self._theta += eta * (self._ema_rate - r_star)
         return fired

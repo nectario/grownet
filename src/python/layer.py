@@ -1,87 +1,65 @@
-# layer.py
-# A mixed-type neuron layer with a local LateralBus and simple wiring helpers.
-
-from typing import List
 import random
-
-from bus import LateralBus
-from neuron import Neuron
 from neuron_excitatory import ExcitatoryNeuron
 from neuron_inhibitory import InhibitoryNeuron
 from neuron_modulatory import ModulatoryNeuron
-
+from lateral_bus import LateralBus
 
 class Layer:
-    """
-    A collection of neurons that share a LateralBus (inhibition/modulation),
-    plus convenience helpers to create random intra-layer fan-out.
+    def __init__(self, excitatory_count, inhibitory_count, modulatory_count):
+        self._bus = LateralBus()
+        self._rng = random.Random(1234)
+        self._neurons = []
+        # default slot policy baked into Neuron base
+        slot_limit = -1
+        for i in range(int(excitatory_count)):
+            n = ExcitatoryNeuron(f"E{i}")
+            n.set_bus(self._bus)
+            self._neurons.append(n)
+        for i in range(int(inhibitory_count)):
+            n = InhibitoryNeuron(f"I{i}")
+            n.set_bus(self._bus)
+            self._neurons.append(n)
+        for i in range(int(modulatory_count)):
+            n = ModulatoryNeuron(f"M{i}")
+            n.set_bus(self._bus)
+            self._neurons.append(n)
 
-    __init__ accepts both the long argument names (excitatory_count, etc.)
-    and the short aliases (size_exc, size_inhib, size_mod) used by some demos.
-    """
+    def get_neurons(self):
+        return self._neurons
 
-    def __init__(
-        self,
-        excitatory_count: int | None = None,
-        inhibitory_count: int | None = None,
-        modulatory_count: int | None = None,
-        **kwargs,
-    ) -> None:
-        # Support short aliases used by train_omniglot.py
-        if excitatory_count is None:
-            excitatory_count = int(kwargs.get("size_exc", 0))
-        if inhibitory_count is None:
-            inhibitory_count = int(kwargs.get("size_inhib", 0))
-        if modulatory_count is None:
-            modulatory_count = int(kwargs.get("size_mod", 0))
+    def get_bus(self):
+        return self._bus
 
-        self.bus: LateralBus = LateralBus()
-        self.neurons: List[Neuron] = []
-        self.random_generator: random.Random = random.Random(1234)
-
-        # Instantiate the requested neuron population.
-        # NOTE: use neuron_id=... (not name=...) to match the Neuron API.
-        for i in range(excitatory_count):
-            n = ExcitatoryNeuron(neuron_id=f"E{i}", bus=self.bus)
-            self.neurons.append(n)
-
-        for i in range(inhibitory_count):
-            n = InhibitoryNeuron(neuron_id=f"I{i}", bus=self.bus)
-            self.neurons.append(n)
-
-        for i in range(modulatory_count):
-            n = ModulatoryNeuron(neuron_id=f"M{i}", bus=self.bus)
-            self.neurons.append(n)
-
-    # --- wiring helpers (unchanged public API expected by demos) ----------------
-
-    def wire_random_feedforward(self, probability: float) -> None:
-        """Create random forward edges inside this layer (demo-only)."""
-        for source in self.neurons:
-            for target in self.neurons:
-                if source is target:
+    # wiring
+    def wire_random_feedforward(self, probability):
+        for a in self._neurons:
+            for b in self._neurons:
+                if a is b:
                     continue
-                if self.random_generator.random() < probability:
-                    source.connect(target, is_feedback=False)
+                if self._rng.random() < probability:
+                    a.connect(b, feedback=False)
 
-    def wire_random_feedback(self, probability: float) -> None:
-        """Create random feedback edges inside this layer (demo-only)."""
-        for source in self.neurons:
-            for target in self.neurons:
-                if source is target:
+    def wire_random_feedback(self, probability):
+        for a in self._neurons:
+            for b in self._neurons:
+                if a is b:
                     continue
-                if self.random_generator.random() < probability:
-                    source.connect(target, is_feedback=True)
+                if self._rng.random() < probability:
+                    a.connect(b, feedback=True)
 
-    # --- drive all neurons with the same scalar (used by Region.tick) ----------
-
-    def forward(self, value: float) -> None:
-        """Feed a scalar to all neurons in the layer for one tick."""
-        for neuron in self.neurons:
-            fired = neuron.on_input(value)
+    # main drive
+    def forward(self, value):
+        for n in self._neurons:
+            fired = n.on_input(value)
             if fired:
-                neuron.on_output(value)
+                n.on_output(value)
 
-    # Convenience accessors used by Region metrics/maintenance
-    def get_bus(self) -> LateralBus:
-        return self.bus
+    def propagate_from(self, source_index, value):
+        # default: treat like uniform drive from external source
+        self.forward(value)
+
+    def end_tick(self):
+        # decay the bus; give neurons a chance to do housekeeping
+        for n in self._neurons:
+            n.end_tick()
+        self._bus.decay()

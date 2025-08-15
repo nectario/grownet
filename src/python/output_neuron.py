@@ -1,26 +1,33 @@
-from __future__ import annotations
-
-from neuron import Neuron
-
+from neuron_base import Neuron
+from weight import Weight
 
 class OutputNeuron(Neuron):
-    """
-    Motor/actuator neuron: single-slot; exposes smoothed `output_value`.
-    `on_output(amplitude)` records a pending value; `end_tick()` applies smoothing.
-    """
-    def __init__(self, name: str, smoothing: float = 0.2) -> None:
-        super().__init__(name)
-        self.smoothing: float = float(smoothing)
-        self.output_value: float = 0.0
-        self._pending_output: float = 0.0
+    def __init__(self, neuron_id, smoothing=0.2):
+        super().__init__(neuron_id, bus=None, slot_cfg=None, slot_limit=1)  # one slot
+        self._smoothing = float(smoothing)
+        self._last_emitted = 0.0
+        self.slots()[0] = Weight()
 
-    def compute_slot_id(self, input_value: float) -> int:
-        return 0
+    def on_input(self, value):
+        slot = self.slots()[0]
+        # scale reinforcement by modulation and inhibition if provided
+        mod = 1.0
+        if self.get_bus() is not None:
+            mod = self.get_bus().get_modulation_factor()
+        slot.reinforce(mod)
+        fired = slot.update_threshold(value)
+        self.set_fired_last(fired)
+        self.set_last_input_value(value)
+        if fired:
+            self.on_output(value)
+        return fired
 
-    def on_output(self, amplitude: float) -> None:
-        self._pending_output = float(amplitude)
+    def on_output(self, amplitude):
+        self._last_emitted = float(amplitude)
 
-    def end_tick(self) -> None:
-        alpha = self.smoothing
-        self.output_value = (1.0 - alpha) * self.output_value + alpha * self._pending_output
-        # carry over last amplitude unless overwritten on the next tick
+    def end_tick(self):
+        # decay toward 0
+        self._last_emitted *= (1.0 - self._smoothing)
+
+    def get_output_value(self):
+        return self._last_emitted

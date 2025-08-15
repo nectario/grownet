@@ -1,47 +1,35 @@
-from __future__ import annotations
-
-from typing import List, Dict
-import numpy as np
-
-from bus import LateralBus
 from input_neuron import InputNeuron
+from layer import Layer
 
+class InputLayer2D(Layer):
+    def __init__(self, height, width, gain, epsilon_fire):
+        # create empty layer (no default neurons)
+        self._bus = super().get_bus() if hasattr(self, "_bus") else None  # placeholder
+        # we cannot call super().__init__ because it would create mixed neurons;
+        # instead, initialize skeleton fields as in Layer
+        Layer.__init__(self, 0, 0, 0)
+        self._height = int(height)
+        self._width = int(width)
+        # fill grid with InputNeurons
+        for y in range(self._height):
+            for x in range(self._width):
+                n = InputNeuron(f"IN[{y},{x}]", gain=gain, epsilon_fire=epsilon_fire)
+                n.set_bus(self.get_bus())
+                self.get_neurons().append(n)
 
-class InputLayer2D:
-    """Shape-aware sensory layer (e.g., grayscale image) using unified on_input/on_output."""
+    def index(self, y, x):
+        return int(y) * self._width + int(x)
 
-    def __init__(self, height: int, width: int, *, gain: float = 1.0, epsilon_fire: float = 0.01) -> None:
-        self.height = height
-        self.width = width
-        self.bus = LateralBus()
-        self.neurons: List[InputNeuron] = []
-        for y in range(height):
-            for x in range(width):
-                n = InputNeuron(name=f"IN[{y},{x}]", gain=gain, epsilon_fire=epsilon_fire)
-                n.bus = self.bus
-                self.neurons.append(n)
-
-        # Optional: a place where external code can track wiring from this layer.
-        self.adjacency: Dict[int, list[int]] = {}
-
-    def index(self, y: int, x: int) -> int:
-        return y * self.width + x
-
-    def forward_image(self, image: np.ndarray) -> int:
-        """Drive the layer with a 2‑D numpy array in [0,1]. Returns # of spikes emitted."""
-        assert image.shape == (self.height, self.width)
-        fired_count = 0
-        for y in range(self.height):
-            for x in range(self.width):
+    def forward_image(self, frame_2d):
+        # frame_2d: iterable of rows
+        h = min(self._height, len(frame_2d))
+        for y in range(h):
+            row = frame_2d[y]
+            w = min(self._width, len(row))
+            for x in range(w):
                 idx = self.index(y, x)
-                value = float(image[y, x])
-                fired = self.neurons[idx].on_input(value)
-                if fired:
-                    # no-op for InputNeuron but keeps the on_output contract consistent
-                    self.neurons[idx].on_output(value)
-                    fired_count += 1
-        return fired_count
+                self.get_neurons()[idx].on_input(row[x])
 
-    # Optional symmetry with other layer types
-    def end_tick(self) -> None:
+    def propagate_from(self, source_index, value):
+        # Inputs are sinks; nothing to do.
         pass
