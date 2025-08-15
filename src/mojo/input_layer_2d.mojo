@@ -1,29 +1,32 @@
-from layer import Layer, FireEvent
-from neuron import Neuron, NeuronType
+from layer import Layer
 
 struct InputLayer2D:
-    var base: Layer
-    var height: Int64
-    var width: Int64
-    var gain: Float64
+    var height: Int
+    var width: Int
+    var core: Layer
 
-    fn __init__(h: Int64, w: Int64, gain: Float64 = 1.0) -> Self:
-        var layer = Layer()
-        # one Input neuron per pixel
-        for _ in range(h * w):
-            layer.add_neuron(Neuron(NeuronType.INPUT, layer.bus))
-        return Self(base = layer, height = h, width = w, gain = gain)
+    fn init(inout self, height: Int, width: Int, gain: Float64, epsilon_fire: Float64) -> None:
+        self.height = height
+        self.width = width
+        # Map each pixel to one excitatory neuron; no inhib/mod in this input shim.
+        self.core = Layer(height * width, 0, 0)
 
-    fn forward_image(mut self , image: Array[Array[Float64]]):
-        self.base.local_fires.clear()
-        var idx: Int64 = 0
-        for y in range(self.height):
-            for x in range(self.width):
-                let v = image[Int(y)][Int(x)] * self.gain
-                var neu = self.base.neurons[idx]
-                let fired = neu.on_input(v)
-                if fired:
-                    neu.on_output(v)
-                    self.base.local_fires.append(FireEvent(idx, v))
-                self.base.neurons[idx] = neu
-                idx += 1
+    fn index(self, y: Int, x: Int) -> Int:
+        return y * self.width + x
+
+    fn forward_image(inout self, frame: list[list[Float64]]) -> list[Spike]:
+        # Fan out each pixel into the corresponding excit neuron.
+        var spikes = []
+        var y = 0
+        while y < self.height:
+            var x = 0
+            while x < self.width:
+                let v = frame[y][x]
+                let sub = self.core.forward(v)
+                # Offset not tracked (flat mapping); keep amplitudes only.
+                for s in sub:
+                    spikes.append(s)
+                x += 1
+            y += 1
+        self.core.end_tick()
+        return spikes

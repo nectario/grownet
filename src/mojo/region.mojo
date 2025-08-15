@@ -1,57 +1,69 @@
-# region.mojo — add layers, bind inputs, tick, prune summary
-
-from bus   import LateralBus
-from layer import Layer
+from region_bus import RegionBus
+from layer import Layer, Spike
+from input_layer_2d import InputLayer2D
+from output_layer_2d import OutputLayer2D
+from tract import Tract
 
 struct RegionMetrics:
-    var delivered_events: Int64
-    var total_slots:      Int64
-    var total_synapses:   Int64
+    var delivered_events: Int = 0
+    var total_slots: Int = 0
+    var total_synapses: Int = 0
 
 struct PruneSummary:
-    var pruned_synapses: Int64
-    var pruned_edges:    Int64
+    var pruned_synapses: Int = 0
+    var pruned_edges: Int = 0
 
 struct Region:
-    var name:   String
-    var layers: List[Layer]
-    var bus:    LateralBus
-    var input_ports:  Dict[String, List[Int64]]  # name → layer indices
+    var name: String
+    var layers: list[Layer]
+    var tracts: list[Tract]
+    var bus: RegionBus
+    var input_ports: dict[String, list[Int]]
+    var output_ports: dict[String, list[Int]]
 
-    fn init(name: String) -> None:
-        self.name  = name
+    fn init(inout self, name: String) -> None:
+        self.name = name
         self.layers = []
-        self.bus    = LateralBus()
-        self.input_ports = {}
+        self.tracts = []
+        self.bus = RegionBus()
+        self.input_ports = dict[String, list[Int]]()
+        self.output_ports = dict[String, list[Int]]()
 
-    fn add_layer(self, excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> Int64:
-        let l = Layer(excitatory_count, inhibitory_count, modulatory_count)
-        self.layers.append(l)
-        return Int64(self.layers.len) - 1
+    fn add_layer(inout self, excitatory_count: Int, inhibitory_count: Int, modulatory_count: Int) -> Int:
+        let idx = Int(self.layers.size())
+        self.layers.append(Layer(excitatory_count, inhibitory_count, modulatory_count))
+        return idx
 
-    fn bind_input(self, port: String, layer_indices: List[Int64]) -> None:
+    fn connect_layers(inout self, source_index: Int, dest_index: Int, probability: Float64, feedback: Bool = False) -> Tract:
+        # For now we only record the connection. The demo uses fan-out probability at creation time.
+        let t = Tract(source_index, dest_index, feedback)
+        self.tracts.append(t)
+        return t
+
+    fn bind_input(inout self, port: String, layer_indices: list[Int]) -> None:
         self.input_ports[port] = layer_indices
 
-    fn tick(self, port: String, value: F64) -> RegionMetrics:
-        # A: drive entry layers
-        let found = self.input_ports.get(port)
-        if found is List[Int64]:
-            for idx in found:
-                self.layers[Int64(idx)].forward(value)
+    fn bind_output(inout self, port: String, layer_indices: list[Int]) -> None:
+        self.output_ports[port] = layer_indices
 
-        # B: decay buses (simple demo)
-        for l in self.layers:
-            l.decay()
-        self.bus.decay()
-
-        # C: light metrics
-        var total_slots: Int64 = 0
-        for l in self.layers:
-            for n in l.neurons:
-                total_slots = total_slots + Int64(n.slots.len)
-
-        return RegionMetrics(delivered_events=0, total_slots=total_slots, total_synapses=0)
-
-    fn prune(self) -> PruneSummary:
-        # placeholder: wiring-level pruning lives in Tract/Graph; keep API
-        return PruneSummary(pruned_synapses=0, pruned_edges=0)
+    fn tick(inout self, port: String, value: Float64) -> RegionMetrics:
+        var m = RegionMetrics()
+        if self.input_ports.contains(port):
+            for li in self.input_ports[port]:
+                let spikes = self.layers[li].forward(value)
+                m.delivered_events += 1
+                # route through tracts originating at li
+                for t in self.tracts:
+                    if t.source_index == li:
+                        for s in spikes:
+                            # Currently assume 1:1 mapping of neuron index across layers
+                            # and numeric dest index.
+                            let dest_idx = t.dest_index
+                            # Only OutputLayer2D has propagate_from in this minimal port; for other layers,
+                            # you can route into .forward(value) similarly.
+                            # Here we do nothing, since generic Layer doesn't have propagate_from.
+                            pass
+        # End-of-tick
+        for L in self.layers:
+            L.end_tick()
+        return m

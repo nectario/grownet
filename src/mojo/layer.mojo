@@ -1,27 +1,65 @@
-# layer.mojo — keep it minimal; wiring helpers + forward
+from neuron_excitatory import ExcitatoryNeuron
+from neuron_inhibitory import InhibitoryNeuron
+from neuron_modulatory import ModulatoryNeuron
+from lateral_bus import LateralBus
 
-from bus                 import LateralBus
-from neuron_excitatory   import ExcitatoryNeuron
-from neuron_inhibitory   import InhibitoryNeuron
-from neuron_modulatory   import ModulatoryNeuron
+struct Spike:
+    var neuron_index: Int
+    var amplitude: Float64
 
 struct Layer:
-    var bus:      LateralBus
-    var neurons:  List[Neuron]
+    var neurons_exc: list[ExcitatoryNeuron]
+    var neurons_inh: list[InhibitoryNeuron]
+    var neurons_mod: list[ModulatoryNeuron]
+    var bus: LateralBus
 
-    fn init(excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> None:
+    fn init(inout self, excitatory_count: Int, inhibitory_count: Int, modulatory_count: Int) -> None:
+        self.neurons_exc = []
+        self.neurons_inh = []
+        self.neurons_mod = []
         self.bus = LateralBus()
-        self.neurons = []
-        for i in range(excitatory_count):
-            self.neurons.append(ExcitatoryNeuron(neuron_id=f"E{i}", bus=self.bus))
-        for i in range(inhibitory_count):
-            self.neurons.append(InhibitoryNeuron(neuron_id=f"I{i}", bus=self.bus))
-        for i in range(modulatory_count):
-            self.neurons.append(ModulatoryNeuron(neuron_id=f"M{i}", bus=self.bus))
+        var i = 0
+        while i < excitatory_count:
+            self.neurons_exc.append(ExcitatoryNeuron("E" + String(i)))
+            i += 1
+        i = 0
+        while i < inhibitory_count:
+            self.neurons_inh.append(InhibitoryNeuron("I" + String(i)))
+            i += 1
+        i = 0
+        while i < modulatory_count:
+            self.neurons_mod.append(ModulatoryNeuron("M" + String(i)))
+            i += 1
 
-    fn forward(self, value: F64) -> None:
-        for n in self.neurons:
-            let _ = n.on_input(value)
+    fn forward(inout self, value: Float64) -> list[Spike]:
+        var spikes = []
+        # Modulation factor read once per neuron evaluate.
+        let mod_factor = self.bus.modulation_factor
 
-    fn decay(self) -> None:
+        var idx = 0
+        for n in self.neurons_inh:
+            if n.on_input(value, mod_factor):
+                # emit inhibition
+                self.bus.set_inhibition_factor(0.7)
+                n.on_output(value)
+            idx += 1
+
+        idx = 0
+        for n in self.neurons_mod:
+            if n.on_input(value, mod_factor):
+                self.bus.set_modulation_factor(1.5)
+                n.on_output(value)
+            idx += 1
+
+        # Excitatory last: they actually propagate.
+        idx = 0
+        for n in self.neurons_exc:
+            if n.on_input(value, mod_factor):
+                n.on_output(value)
+                spikes.append(Spike(idx, value))
+            idx += 1
+
+        return spikes
+
+    fn end_tick(inout self) -> None:
         self.bus.decay()

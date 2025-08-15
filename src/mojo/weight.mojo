@@ -1,40 +1,36 @@
-# weight.mojo — slot state: strength + adaptive threshold
-
-from math_utils import smooth_clamp, abs_val
+from math_utils import MathUtils
 
 struct Weight:
-    # learning
-    var step_value:        F64  = 0.001
-    var strength_value:    F64  = 0.0
-    var reinforcement_count: Int64 = 0
+    var strength: Float64 = 0.0
+    var hit_count: Int = 0
+    # Adaptive-threshold state
+    var theta: Float64 = 0.0
+    var ema_rate: Float64 = 0.0
+    var seen_first: Bool = False
 
-    # adaptive-threshold
-    var threshold_value:   F64 = 0.0
-    var ema_rate:          F64 = 0.0
-    var first_seen:        Bool = False
+    # Learning hyper-params (kept local for stability)
+    var step_val: Float64 = 0.01
+    var ema_beta: Float64 = 0.10
+    var eta: Float64 = 0.005
+    var r_star: Float64 = 0.02
+    var epsilon_fire: Float64 = 0.01
 
-    # knobs (kept local for simplicity; can be injected later)
-    alias HIT_SATURATION:  Int64 = 10_000
-    alias EPS:             F64 = 0.02
-    alias BETA:            F64 = 0.01
-    alias ETA:             F64 = 0.02
-    alias R_STAR:          F64 = 0.05
-
-    fn reinforce(self, modulation: F64) -> None:
-        if self.reinforcement_count >= self.HIT_SATURATION:
+    fn reinforce(inout self, modulation_factor: Float64) -> None:
+        if self.hit_count >= 10000:
             return
-        let step = self.step_value * modulation
-        self.strength_value = smooth_clamp(self.strength_value + step, -1.0, 1.0)
-        self.reinforcement_count = self.reinforcement_count + 1
+        var effective = self.step_val * modulation_factor
+        self.strength = MathUtils.smooth_clamp(self.strength + effective, -1.0, 1.0)
+        self.hit_count += 1
 
-    fn update_threshold(self, input_value: F64) -> Bool:
-        if not self.first_seen:
-            self.threshold_value = abs_val(input_value) * (1.0 + self.EPS)
-            self.first_seen = True
-
-        let fired = self.strength_value > self.threshold_value
-        let fired_f = 1.0 if fired else 0.0
-
-        self.ema_rate = (1.0 - self.BETA) * self.ema_rate + self.BETA * fired_f
-        self.threshold_value = self.threshold_value + self.ETA * (self.ema_rate - self.R_STAR)
+    fn update_threshold(inout self, input_value: Float64) -> Bool:
+        # T0: imprint
+        if not self.seen_first:
+            let mag = MathUtils.abs_f64(input_value)
+            self.theta = mag * (1.0 + self.epsilon_fire)
+            self.seen_first = True
+        # Fire decision
+        let fired = self.strength > self.theta
+        # EMA + adaptive theta
+        self.ema_rate = (1.0 - self.ema_beta) * self.ema_rate + self.ema_beta * (1.0 if fired else 0.0)
+        self.theta = self.theta + self.eta * (self.ema_rate - self.r_star)
         return fired
