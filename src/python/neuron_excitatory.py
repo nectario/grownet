@@ -1,4 +1,4 @@
-from neuron_base import Neuron
+from neuron import Neuron
 
 class ExcitatoryNeuron(Neuron):
     # Inherit default fire: propagate to downstream

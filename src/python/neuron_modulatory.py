@@ -1,4 +1,4 @@
-from neuron_base import Neuron
+from neuron import Neuron
 
 class ModulatoryNeuron(Neuron):
     def fire(self, input_value):

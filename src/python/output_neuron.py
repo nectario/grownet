@@ -1,4 +1,4 @@
-from neuron_base import Neuron
+from neuron import Neuron
 from weight import Weight
 
 class OutputNeuron(Neuron):
