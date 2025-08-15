@@ -1,44 +1,218 @@
-# Edit the commands below to match your project.
-# The orchestrator substitutes {scenario}, {runs}, {warmup} placeholders.
+# GrowNet cross-language benchmark configuration
+# This file is generated to match the current project layout used in our recent work.
+# Tweak paths/targets as needed if your repo differs.
 
-runs: 5          # measured runs per scenario
-warmup: 2        # warmup runs not recorded
+version: 1
 
-scenarios:
-  scalar_small:
-    description: "Single mixed layer; scalar tick; 50k ticks"
+project:
+  name: GrowNet
+  description: Cross-language benchmarking for Region/Layer/Neuron pipeline across Java, C++, Python, and Mojo.
+  maintainers:
+    - handle: "nektron"
+    - handle: "gpt-5-pro"
+
+defaults:
+  warmup_iterations: 1        # number of warmup runs not recorded
+  iterations: 5               # number of measured runs per matrix entry
+  timeout_seconds: 120        # hard timeout per run
+  build_type: Release         # used by CMake-based builds
+  capture_memory: true        # attempt to collect max RSS (where available)
+  capture_cpu_time: true
+  env: {}                     # extra environment variables to set for all runs
+
+# ---------------------------------------------------------------------------- #
+# Workloads describe the input size/shape and general scenario. Your demos may
+# not currently accept CLI args; that's okay — the harness can still run them.
+# These parameters document intent and can be wired in later as needed.
+# ---------------------------------------------------------------------------- #
+workloads:
+  image_io_28x28:
+    description: Random sparse 28x28 frames for 20 steps (seeded for repeatability).
     params:
-      ticks: 50000
-      excitatory: 512
-      inhibitory: 64
-      modulatory: 16
-      input_value: 0.42
-      input_port: "analog"
-  image_64x64:
-    description: "InputLayer2D -> mixed Layer -> OutputLayer2D; 100 frames"
-    params:
-      frames: 100
-      height: 64
-      width: 64
-      excitatory: 512
-      inhibitory: 64
-      modulatory: 16
-      input_port: "pixels"
+      height: 28
+      width: 28
+      steps: 20
+      seed: 42
+      sparsity: 0.05
 
-language_targets:
+  region_scalar_pulse:
+    description: Scalar drive pulses to entry layers for 200 ticks.
+    params:
+      ticks: 200
+      value: 1.0
+      seed: 1234
+
+# ---------------------------------------------------------------------------- #
+# Per-language configuration. Adjust paths if your repo differs.
+# ---------------------------------------------------------------------------- #
+languages:
+
+  java:
+    enabled: true
+    runtime:
+      executable: "java"
+      version_flag: "-version"
+    build:
+      system: "auto"          # tries maven then falls back to direct javac
+      maven:
+        pom_path: "java/pom.xml"        # if you add Maven later
+        goals: ["-q", "-DskipTests", "package"]
+        classpath: "target/classes"
+      javac:
+        src_dir: "src/java"             # root that contains ai/nektron/grownet/*.java
+        out_dir: "build/java-classes"
+        include_globs: ["**/*.java"]
+    targets:
+      region_demo:
+        description: Region connectivity + tick pipeline smoke test
+        entrypoint: "ai.nektron.grownet.RegionDemo"
+        args_from_workload: "region_scalar_pulse"
+        args: []              # keep empty unless you wire CLI parsing
+      image_io_demo:
+        description: 28x28 image I/O pipeline
+        entrypoint: "ai.nektron.grownet.ImageIODemo"
+        args_from_workload: "image_io_28x28"
+        args: []
+    parse_stdout:
+      # Lines like: [05] delivered=123 out_mean=0.012 out_nonzero=7
+      - name: delivered_events
+        regex: "delivered=(\d+)"
+        type: int
+      - name: out_mean
+        regex: "out_mean=([0-9.]+)"
+        type: float
+      - name: out_nonzero
+        regex: "out_nonzero=(\d+)"
+        type: int
+
+  cpp:
+    enabled: true
+    runtime:
+      executable: ""          # not used; direct exec of produced binaries
+    build:
+      system: "cmake"
+      cmake:
+        source_dir: "src/cpp"
+        build_dir: "cmake-build-release"
+        config: "Release"
+        # List both if they exist in your CMakeLists.txt; harmless if one is missing.
+        targets: ["region_demo", "image_io_demo"]
+    targets:
+      region_demo:
+        description: Region connectivity + tick pipeline smoke test
+        exe_path:
+          windows: "cmake-build-release/region_demo.exe"
+          linux: "cmake-build-release/region_demo"
+          mac: "cmake-build-release/region_demo"
+        args_from_workload: "region_scalar_pulse"
+        args: []
+      image_io_demo:
+        description: 28x28 image I/O pipeline
+        exe_path:
+          windows: "cmake-build-release/image_io_demo.exe"
+          linux: "cmake-build-release/image_io_demo"
+          mac: "cmake-build-release/image_io_demo"
+        args_from_workload: "image_io_28x28"
+        args: []
+    parse_stdout:
+      - name: delivered_events
+        regex: "delivered=(\d+)"
+        type: int
+      - name: out_mean
+        regex: "out_mean=([0-9.]+)"
+        type: float
+      - name: out_nonzero
+        regex: "out_nonzero=(\d+)"
+        type: int
+
   python:
     enabled: true
-    command: "python bench/py/bench_py.py --scenario {scenario} --json --params '{params_json}'"
-    cwd: "."
-  cpp:
-    enabled: false
-    command: "./cmake-build-release/bench_grownet --scenario {scenario} --json --params '{params_json}'"
-    cwd: "."
-  java:
-    enabled: false
-    command: "java -cp build/classes/java/main ai.nektron.grownet.bench.BenchJava --scenario {scenario} --json --params '{params_json}'"
-    cwd: "."
+    runtime:
+      executable: "python"
+      version_flag: "--version"
+    build:
+      system: "none"          # Python scripts do not need a build step
+    targets:
+      region_demo:
+        script: "python/region_demo.py"
+        args_from_workload: "region_scalar_pulse"
+        args: []
+      image_io_demo:
+        script: "python/image_io_demo.py"
+        args_from_workload: "image_io_28x28"
+        args: []
+    parse_stdout:
+      - name: delivered_events
+        regex: "delivered=(\d+)"
+        type: int
+      - name: out_mean
+        regex: "out_mean=([0-9.]+)"
+        type: float
+      - name: out_nonzero
+        regex: "out_nonzero=(\d+)"
+        type: int
+
   mojo:
-    enabled: false
-    command: "mojo run bench/templates/mojo/bench_mojo.mojo --scenario {scenario} --json --params '{params_json}'"
-    cwd: "."
+    enabled: false            # flip to true if Mojo toolchain is installed
+    runtime:
+      executable: "mojo"
+      version_flag: "--version"
+    build:
+      system: "none"
+    targets:
+      region_demo:
+        script: "mojo/region_demo.mojo"
+        args_from_workload: "region_scalar_pulse"
+        args: []
+      image_io_demo:
+        script: "mojo/image_io_demo.mojo"
+        args_from_workload: "image_io_28x28"
+        args: []
+    parse_stdout:
+      - name: delivered_events
+        regex: "delivered=(\d+)"
+        type: int
+      - name: out_mean
+        regex: "out_mean=([0-9.]+)"
+        type: float
+      - name: out_nonzero
+        regex: "out_nonzero=(\d+)"
+        type: int
+
+# ---------------------------------------------------------------------------- #
+# Metrics the harness should collect for each run, in addition to any parsed
+# values above. If a metric is unsupported on the platform, it is skipped.
+# ---------------------------------------------------------------------------- #
+global_metrics:
+  wall_clock_ms: true
+  cpu_time_ms: true
+  max_rss_mb: true
+
+# ---------------------------------------------------------------------------- #
+# The run matrix determines what combinations to execute.
+# ---------------------------------------------------------------------------- #
+run_matrix:
+  - language: "java"
+    target: "image_io_demo"
+    workload: "image_io_28x28"
+  - language: "cpp"
+    target: "image_io_demo"
+    workload: "image_io_28x28"
+  - language: "python"
+    target: "image_io_demo"
+    workload: "image_io_28x28"
+  - language: "mojo"
+    target: "image_io_demo"
+    workload: "image_io_28x28"
+  - language: "java"
+    target: "region_demo"
+    workload: "region_scalar_pulse"
+  - language: "cpp"
+    target: "region_demo"
+    workload: "region_scalar_pulse"
+  - language: "python"
+    target: "region_demo"
+    workload: "region_scalar_pulse"
+  - language: "mojo"
+    target: "region_demo"
+    workload: "region_scalar_pulse"
