@@ -8,6 +8,6 @@ int main_demo() {
     region.bindInput("u", { l1 });
     region.connectLayers(l1, l2, 0.2, false);
     auto m = region.tick("u", 1.0);
-    std::cout << "delivered=" << m.deliveredEvents << "\n";
+    std::cout << "delivered=" << m.getDeliveredEvents() << "\n";
     return 0;
 }

@@ -44,7 +44,7 @@ int main() {
                 }
             }
             double mean = sum / (h * w);
-            std::cout << "[" << (step + 1) << "] delivered=" << m.deliveredEvents
+            std::cout << "[" << (step + 1) << "] delivered=" << m.getDeliveredEvents()
                       << " out_mean=" << mean << " out_nonzero=" << nonZero << "\n";
         }
     }

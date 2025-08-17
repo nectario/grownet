@@ -23,9 +23,9 @@ int main() {
         double value = uniform01(rng);
         RegionMetrics metrics = region.tick("pixels", value);  // per Region.h
         if (step % 100 == 0) {
-            std::cout << "[step " << step << "] delivered=" << metrics.deliveredEvents
-                      << " slots=" << metrics.totalSlots
-                      << " syn=" << metrics.totalSynapses << std::endl;
+            std::cout << "[step " << step << "] delivered=" << metrics.getDeliveredEvents()
+                      << " slots=" << metrics.getTotalSlots()
+                      << " syn=" << metrics.getTotalSynapses() << std::endl;
         }
     }
 

@@ -39,25 +39,34 @@ void Region::bindOutput(const std::string& port, const std::vector<int>& layerIn
     outputPorts[port] = layerIndices;
 }
 
-RegionMetrics Region::tick(const std::string& port, double value) {
-    RegionMetrics metrics;
+
+RegionMetrics Region::tick(const std::string &port, double value) {
+    RegionMetrics m;
+
     auto it = inputPorts.find(port);
     if (it != inputPorts.end()) {
-        for (int layerIndex : it->second) {
-            layers[layerIndex]->forward(value);
-            metrics.deliveredEvents += 1;
-            metrics.delivered_events += 1; // legacy alias
+        const std::vector<int> &entry = it->second;
+        for (int idx: entry) {
+            layers.at(idx)->forward(value);
+            m.incDeliveredEvents(); // best‑effort placeholder per entry-layer activation
         }
     }
-    for (auto& layer : layers) layer->endTick();
-    for (auto& layer : layers) {
-        for (auto& neuron : layer->getNeurons()) {
-            metrics.totalSlots    += static_cast<int>(neuron->getSlots().size());
-            metrics.totalSynapses += static_cast<int>(neuron->getOutgoing().size());
+
+    // End-of-tick housekeeping
+    for (auto &layer: layers) {
+        layer->endTick();
+    }
+
+    // Aggregate visibility counts
+    for (const auto &layer: layers) {
+        for (const auto &neuronPtr: layer->getNeurons()) {
+            m.addSlots(static_cast<long long>(neuronPtr->getSlots().size()));
+            m.addSynapses(static_cast<long long>(neuronPtr->getOutgoing().size()));
         }
     }
-    return metrics;
+    return m;
 }
+
 
 RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::vector<double>>& frame) {
     RegionMetrics metrics;
@@ -68,16 +77,16 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
             auto inputLayer = std::dynamic_pointer_cast<InputLayer2D>(layerPtr);
             if (inputLayer) {
                 inputLayer->forwardImage(frame);
-                metrics.deliveredEvents += 1;
-                metrics.delivered_events += 1;
+                metrics.incDeliveredEvents();
+
             }
         }
     }
     for (auto& layer : layers) layer->endTick();
     for (auto& layer : layers) {
         for (auto& neuron : layer->getNeurons()) {
-            metrics.totalSlots    += static_cast<int>(neuron->getSlots().size());
-            metrics.totalSynapses += static_cast<int>(neuron->getOutgoing().size());
+            metrics.addSlots(neuron->getSlots().size());
+            metrics.addSynapses(getOutgoing().size());
         }
     }
     return metrics;

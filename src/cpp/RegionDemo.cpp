@@ -10,7 +10,7 @@ int main_region_demo() {
 
     for (int t = 0; t < 5; ++t) {
         auto m = region.tick("in", (t % 2 == 0) ? 1.0 : 0.0);
-        std::cout << "[t=" << t << "] delivered=" << m.deliveredEvents << "\n";
+        std::cout << "[t=" << t << "] delivered=" << m.getDeliveredEvents() << "\n";
     }
     auto ps = region.prune(10000, 0.05);
     std::cout << "pruned synapses=" << ps.prunedSynapses << "\n";

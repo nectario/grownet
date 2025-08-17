@@ -10,15 +10,11 @@
 #include "Neuron.h"
 #include "InputLayer2D.h"
 #include "OutputLayer2D.h"
+#include "RegionMetrics.h"
+
 
 namespace grownet {
 
-    struct RegionMetrics {
-        int deliveredEvents {0};
-        int delivered_events {0}; // legacy alias for demos
-        int totalSlots      {0};
-        int totalSynapses   {0};
-    };
 
     struct PruneSummary {
         int prunedSynapses {0};
