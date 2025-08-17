@@ -1,5 +1,6 @@
 package ai.nektron.grownet;
 
+import ai.nektron.grownet.metrics.RegionMetrics;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -24,7 +25,7 @@ final class RegionSmokeTests {
         region.connectLayers(l1, l0, 0.01, /*feedback=*/true);
 
         Random rng = new Random(1234);
-        Region.Metrics last = null;
+        RegionMetrics last = null;
         for (int step = 0; step < 200; ++step) {
             last = region.tick("pixels", rng.nextDouble());
         }

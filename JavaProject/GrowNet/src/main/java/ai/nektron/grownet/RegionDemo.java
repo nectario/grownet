@@ -1,5 +1,7 @@
 package ai.nektron.grownet;
 
+import ai.nektron.grownet.metrics.RegionMetrics;
+
 import java.util.List;
 import java.util.Random;
 
@@ -22,12 +24,12 @@ public final class RegionDemo {
         // Drive with a scalar stream and print metrics
         Random rng = new Random(1234);
         for (int step = 1; step <= 2000; step++) {
-            Region.Metrics m = region.tick("pixels", rng.nextDouble());  // <-- fixed call
+            RegionMetrics m = region.tick("pixels", rng.nextDouble());  // <-- fixed call
 
             if (step % 200 == 0) {
                 System.out.printf(
                         "[step %d] delivered=%d slots=%d syn=%d%n",
-                        step, m.deliveredEvents, m.totalSlots, m.totalSynapses
+                        step, m.getDeliveredEvents(), m.getTotalSlots(), m.getTotalSynapses()
                 );
             }
         }

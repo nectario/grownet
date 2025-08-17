@@ -1,5 +1,7 @@
 package ai.nektron.grownet;
 
+import ai.nektron.grownet.metrics.RegionMetrics;
+
 import java.util.List;
 import java.util.Random;
 
@@ -26,7 +28,7 @@ public class ImageIODemo {
                 }
             }
 
-            Region.Metrics m = region.tickImage("pixels", frame);
+            RegionMetrics m = region.tickImage("pixels", frame);
 
             if ((step + 1) % 5 == 0) {
                 OutputLayer2D out = (OutputLayer2D) region.getLayers().get(outputLayerIndex);
@@ -43,7 +45,7 @@ public class ImageIODemo {
                 double mean = sum / (height * width);
                 System.out.printf("[%02d] delivered=%d out_mean=%.3f out_nonzero=%d%n",
                         step + 1,
-                        m.deliveredEvents,
+                        m.getDeliveredEvents(),
                         mean,
                         nonZero
                 );

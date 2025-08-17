@@ -1,7 +1,7 @@
 package ai.nektron.grownet;
 
 import java.util.Arrays;
-import ai.nektron.grownet.Region.Metrics;
+import ai.nektron.grownet.metrics.RegionMetrics;
 
 /**
  * Simple demo wiring and tick loop.
@@ -32,12 +32,12 @@ public final class DemoMain {
         // Drive a simple ramp signal and print metrics
         for (int step = 0; step < 50; step++) {
             double value = (step % 10) * 0.1;   // toy input signal in [0.0, 0.9]
-            Metrics m = region.tick("vision", value);
+            RegionMetrics m = region.tick("vision", value);
 
             if ((step % 10) == 0) {
                 System.out.printf(
                         "step=%02d  delivered=%d  slots=%d  synapses=%d%n",
-                        step, m.deliveredEvents, m.totalSlots, m.totalSynapses
+                        step, m.getDeliveredEvents(), m.getTotalSlots(), m.getTotalSynapses()
                 );
             }
         }

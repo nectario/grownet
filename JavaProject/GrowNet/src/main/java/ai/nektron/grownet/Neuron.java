@@ -184,7 +184,7 @@ public class Neuron {
     public Map<Integer, Weight> getSlots()   { return slots; }
     public List<Synapse>        getOutgoing(){ return outgoing; }
     public LateralBus           getBus()     { return bus; }
-    public String               id()         { return neuronId; }
+    public String getId()         { return neuronId; }
 
     public double getLastInputValue() {
         return lastInputValue;
