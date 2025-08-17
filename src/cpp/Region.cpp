@@ -86,7 +86,7 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
     for (auto& layer : layers) {
         for (auto& neuron : layer->getNeurons()) {
             metrics.addSlots(neuron->getSlots().size());
-            metrics.addSynapses(getOutgoing().size());
+            metrics.addSynapses( neuron->getOutgoing().size() );
         }
     }
     return metrics;
