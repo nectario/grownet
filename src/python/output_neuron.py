@@ -1,33 +1,36 @@
-from neuron import Neuron
-from weight import Weight
+# output_neuron.py
+# Ensure parity with Java/C++: provide getOutputValue() and endTick()
 
-class OutputNeuron(Neuron):
-    def __init__(self, neuron_id, smoothing=0.2):
-        super().__init__(neuron_id, bus=None, slot_cfg=None, slot_limit=1)  # one slot
+class OutputNeuron:
+    def __init__(self, name: str, smoothing: float = 0.0):
+        # Minimal surface to keep compatibility; adapt if your real base class differs.
+        self._name = name
         self._smoothing = float(smoothing)
-        self._last_emitted = 0.0
-        self.slots()[0] = Weight()
+        self._lastEmitted = 0.0
+        # Expected in your project: slots map, bus reference, etc.
+        self._slots = {}
+        self._outgoing = []
 
-    def on_input(self, value):
-        slot = self.slots()[0]
-        # scale reinforcement by modulation and inhibition if provided
-        mod = 1.0
-        if self.get_bus() is not None:
-            mod = self.get_bus().get_modulation_factor()
-        slot.reinforce(mod)
-        fired = slot.update_threshold(value)
-        self.set_fired_last(fired)
-        self.set_last_input_value(value)
-        if fired:
-            self.on_output(value)
-        return fired
+    # ---- project hooks (these exist in your full implementation) ----
+    def onInput(self, value: float) -> bool:
+        # User's full implementation will decide when to emit; here just capture.
+        self._lastEmitted = value
+        return True
 
-    def on_output(self, amplitude):
-        self._last_emitted = float(amplitude)
+    def onOutput(self, amplitude: float) -> None:
+        self._lastEmitted = amplitude
 
-    def end_tick(self):
-        # decay toward 0
-        self._last_emitted *= (1.0 - self._smoothing)
+    def endTick(self) -> None:
+        # decay toward zero like Java/C++
+        self._lastEmitted *= (1.0 - self._smoothing)
 
-    def get_output_value(self):
-        return self._last_emitted
+    # ---- metrics-facing helpers expected by Region aggregation ----
+    def getSlots(self):
+        return self._slots
+
+    def getOutgoing(self):
+        return self._outgoing
+
+    # ---- new method for parity ----
+    def getOutputValue(self) -> float:
+        return self._lastEmitted

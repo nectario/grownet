@@ -4,7 +4,7 @@
 
 def log_fire(who, value: float):
     # Set a breakpoint here, or keep as a "tracepoint" style print
-    print(f"FIRE {who._name}  value={value:.4f}  layer={who._layer._name}")
+    print(f"FIRE {who.name}  value={value:.4f}  layer={who._layer.name}")
 
 def main():
     region = Region("dbg")
@@ -16,9 +16,9 @@ def main():
     region._connect_layers(L0, L1, 1.0, False)
 
     # Register hooks (adjust to your API; many projects expose layer._neurons)
-    for n in region._layers[L0]._neurons:
+    for n in region.layers[L0]._neurons:
         n._register_fire_hook(log_fire)
-    for n in region._layers[L1]._neurons:
+    for n in region.layers[L1]._neurons:
         n._register_fire_hook(log_fire)
 
     # Breakpoints to set:

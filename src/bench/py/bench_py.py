@@ -126,9 +126,9 @@ def bench_e2e(mods, scenario: str, params: dict) -> dict:
 
     # If Region exposes addLayer / bindInput / bindOutput
     try:
-        idx_in = r.add_layer(0, 0, 0) if hasattr(r, "add_layer") else r.addLayer(0, 0, 0)
-        idx_mid = r.add_layer(excit, inhib, mod) if hasattr(r, "add_layer") else r.addLayer(excit, inhib, mod)
-        idx_out = r.add_layer(0, 0, 0) if hasattr(r, "add_layer") else r.addLayer(0, 0, 0)
+        idx_in = r.add_layer(0, 0, 0) if hasattr(r, "add_layer") else r.add_layer(0, 0, 0)
+        idx_mid = r.add_layer(excit, inhib, mod) if hasattr(r, "add_layer") else r.add_layer(excit, inhib, mod)
+        idx_out = r.add_layer(0, 0, 0) if hasattr(r, "add_layer") else r.add_layer(0, 0, 0)
     except Exception:
         # Fall back: if Region manages layers internally, skip explicit adds
         pass
@@ -139,8 +139,8 @@ def bench_e2e(mods, scenario: str, params: dict) -> dict:
             r.bind_input("pixels", [0])
             r.bind_output("pixels_out", [2])
         elif hasattr(r, "bindInput"):
-            r.bindInput("pixels", [0])
-            r.bindOutput("pixels_out", [2])
+            r.bind_input("pixels", [0])
+            r.bind_output("pixels_out", [2])
     except Exception:
         pass
 
@@ -154,7 +154,7 @@ def bench_e2e(mods, scenario: str, params: dict) -> dict:
         try:
             m = r.tick_image("pixels", frame)
         except Exception:
-            m = r.tickImage("pixels", frame)  # type: ignore
+            m = r.tick_image("pixels", frame)  # type: ignore
         delivered += (m.delivered_events if hasattr(m, "delivered_events") else getattr(m, "deliveredEvents", 0))
     t1 = _ns()
 

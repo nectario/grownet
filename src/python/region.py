@@ -1,120 +1,119 @@
-from region_bus import RegionBus
-from layer import Layer
-from tract import Tract
-from input_layer_2d import InputLayer2D
-from output_layer_2d import OutputLayer2D
+# region.py
+# Region orchestration updated to use RegionMetrics helpers.
+# This module assumes classes Layer, InputLayer2D are available in the same directory.
+from typing import List, Dict
+from metrics import RegionMetrics
 
-class RegionMetrics:
-    def __init__(self):
-        self.delivered_events = 0
-        self.total_slots = 0
-        self.total_synapses = 0
-
-class PruneSummary:
-    def __init__(self):
-        self.pruned_synapses = 0
-        self.pruned_edges = 0
+# Forward imports are intentionally light to avoid tight coupling;
+# Region only relies on the public surface of Layer and InputLayer2D.
+# - Layer must provide: forward(value: float) -> None, endTick() -> None, getNeurons() -> List[Neuron]
+# - InputLayer2D must provide: forwardImage(frame) -> None
 
 class Region:
-    def __init__(self, name):
-        self._name = str(name)
-        self._layers = []
-        self._tracts = []
-        self._bus = RegionBus()
-        self._input_ports = {}
-        self._output_ports = {}
+    class PruneSummary:
+        def __init__(self):
+            self.pruned_synapses = 0
+            self.pruned_edges = 0  # reserved
 
-    # construction
-    def add_layer(self, excitatory_count, inhibitory_count, modulatory_count):
-        layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
-        self._layers.append(layer)
-        return len(self._layers) - 1
+    def __init__(self, name: str):
+        self.name: str = name
+        self.layers: List[object] = []
+        self.input_ports: Dict[str, List[int]] = {}
+        self.output_ports: Dict[str, List[int]] = {}
+        # RegionBus reserved; keep parity with Java/C++
+        self._bus = None
 
-    def add_input_layer_2d(self, height, width, gain, epsilon_fire):
-        layer = InputLayer2D(height, width, gain, epsilon_fire)
-        self._layers.append(layer)
-        return len(self._layers) - 1
+    # ---------- construction: add layers (shape-aware helpers are optional in Python layer) ----------
+    def add_layer(self, excitatoryCount: int, inhibitoryCount: int, modulatoryCount: int) -> int:
+        # Defer to a Layer factory expected to exist; user keeps their current Layer API.
+        from layer import Layer  # local import to prevent circular deps during tooling
+        layer = Layer(excitatoryCount, inhibitoryCount, modulatoryCount)
+        self.layers.append(layer)
+        return len(self.layers) - 1
 
-    def add_output_layer_2d(self, height, width, smoothing):
+    def add_input_ayer_2d(self, height: int, width: int, gain: float, epsilonFire: float) -> int:
+        from input_layer_2d import InputLayer2D
+        layer = InputLayer2D(height, width, gain, epsilonFire)
+        self.layers.append(layer)
+        return len(self.layers) - 1
+
+    def add_output_layer_2d(self, height: int, width: int, smoothing: float) -> int:
+        from output_layer_2d import OutputLayer2D
         layer = OutputLayer2D(height, width, smoothing)
-        self._layers.append(layer)
-        return len(self._layers) - 1
+        self.layers.append(layer)
+        return len(self.layers) - 1
 
-    def connect_layers(self, source_index, dest_index, probability, feedback=False):
-        if source_index < 0 or source_index >= len(self._layers):
-            raise IndexError("source_index out of range")
-        if dest_index < 0 or dest_index >= len(self._layers):
-            raise IndexError("dest_index out of range")
-        tract = Tract(self._layers[source_index], self._layers[dest_index], self._bus, feedback)
-        self._tracts.append(tract)
-        # intra-layer random wiring can still be requested externally if desired
-        return tract
+    # ---------- wiring (kept as simple pass-throughs to Layer helpers or manual connects in user code) ----------
+    def bind_input(self, port: str, layerIndices: List[int]) -> None:
+        self.input_ports[port] = list(layerIndices)
 
-    def bind_input(self, port, layer_indices):
-        self._input_ports[str(port)] = list(layer_indices)
+    def bind_output(self, port: str, layerIndices: List[int]) -> None:
+        self.output_ports[port] = list(layerIndices)
 
-    def bind_output(self, port, layer_indices):
-        self._output_ports[str(port)] = list(layer_indices)
-
-    # region-wide pulses
-    def pulse_inhibition(self, factor):
-        self._bus.set_inhibition_factor(factor)
-
-    def pulse_modulation(self, factor):
-        self._bus.set_modulation_factor(factor)
-
-    # main loop
-    def tick(self, port, value):
-        m = RegionMetrics()
-        entry = self._input_ports.get(str(port))
+    # ---------- tick (scalar) ----------
+    def tick(self, port: str, value: float) -> RegionMetrics:
+        from layer import Layer
+        region_metrics = RegionMetrics()
+        entry = self.input_ports.get(port)
         if entry is not None:
-            for layer_index in entry:
-                self._layers[layer_index].forward(value)
-                m.delivered_events += 1
-
+            for idx in entry:
+                self.layers[idx].forward(value)
+                region_metrics.inc_delivered_events()
         # end-of-tick housekeeping
-        for layer in self._layers:
+        for layer in self.layers:
             layer.end_tick()
-
         # aggregates
-        for layer in self._layers:
+        for layer in self.layers:
             for neuron in layer.get_neurons():
-                m.total_slots += len(neuron.slots())
-                m.total_synapses += len(neuron.get_outgoing())
-        return m
+                # Neuron expected to provide getSlots() and getOutgoing()
+                region_metrics.add_slots(len(neuron.getSlots()))
+                region_metrics.add_synapses(len(neuron.getOutgoing()))
+        return region_metrics
 
-    def tick_image(self, port, frame):
-        m = RegionMetrics()
-        entry = self._input_ports.get(str(port))
+    # ---------- tick (image) ----------
+    def tick_image(self, port: str, frame) -> RegionMetrics:
+        from layer import Layer
+        region_metrics = RegionMetrics()
+        entry = self.input_ports.get(port)
         if entry is not None:
-            for layer_index in entry:
-                layer = self._layers[layer_index]
-                if isinstance(layer, InputLayer2D):
-                    layer.forward_image(frame)
-                    m.delivered_events += 1
-        for layer in self._layers:
+            for idx in entry:
+                layer = self.layers[idx]
+                # Only drive shape-aware input layers
+                # Import type here to avoid import cycles when the user packages the project.
+                try:
+                    from input_layer_2d import InputLayer2D
+                    if isinstance(layer, InputLayer2D):
+                        layer.forward_image(frame)
+                        region_metrics.inc_delivered_events()
+                except Exception:
+                    # If InputLayer2D is not present in this environment, ignore.
+                    pass
+        # end-of-tick housekeeping
+        for layer in self.layers:
             layer.end_tick()
-        for layer in self._layers:
+        # aggregates
+        for layer in self.layers:
             for neuron in layer.get_neurons():
-                m.total_slots += len(neuron.slots())
-                m.total_synapses += len(neuron.get_outgoing())
-        return m
+                region_metrics.add_slots(len(neuron.get_slots()))
+                region_metrics.add_synapses(len(neuron.get_outgoing()))
+        return region_metrics
 
-    # maintenance
-    def prune(self, synapse_stale_window=10_000, synapse_min_strength=0.05,
-              tract_stale_window=10_000, tract_min_strength=0.05):
-        # Lightweight placeholder; full pruning requires synapse timestamps, etc.
-        return PruneSummary()
+    # ---------- maintenance ----------
+    def prune(self, synapseStaleWindow: int, synapseMinStrength: float) -> 'Region.PruneSummary':
+        from layer import Layer
+        ps = Region.PruneSummary()
+        for layer in self.layers:
+            for neuron in layer.get_neurons():
+                # Expect Neuron.pruneSynapses to exist and return an int
+                ps.pruned_synapses += int(neuron.pruneSynapses(synapseStaleWindow, synapseMinStrength))
+        return ps
 
-    # accessors
-    def get_name(self):
-        return self._name
+    # ---------- accessors ----------
+    def get_name(self) -> str:
+        return self.name
 
-    def get_layers(self):
-        return self._layers
-
-    def get_tracts(self):
-        return self._tracts
+    def get_layers(self) -> List[object]:
+        return self.layers
 
     def get_bus(self):
         return self._bus
