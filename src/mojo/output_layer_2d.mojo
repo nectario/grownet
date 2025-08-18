@@ -11,7 +11,7 @@ struct OutputLayer2D:
     var smoothing: Float64
     var states: list[OutputNeuronState]
 
-    fn init(inout self, height: Int, width: Int, smoothing: Float64) -> None:
+    fn init(mut self, height: Int, width: Int, smoothing: Float64) -> None:
         self.height = height
         self.width = width
         self.smoothing = smoothing
@@ -35,7 +35,7 @@ struct OutputLayer2D:
     fn index(self, y: Int, x: Int) -> Int:
         return y * self.width + x
 
-    fn propagate_from(inout self, source_index: Int, value: Float64) -> None:
+    fn propagate_from(mut self, source_index: Int, value: Float64) -> None:
         # Sinks are passive; we merely record output activity.
         let y = source_index / self.width
         let x = source_index % self.width
@@ -44,7 +44,7 @@ struct OutputLayer2D:
         self.states[source_index] = s
         self.pixels[y][x] = value
 
-    fn end_tick(inout self) -> None:
+    fn end_tick(mut self) -> None:
         # Simple exponential decay on pixel values to simulate persistence.
         var i = 0
         while i < self.height * self.width:

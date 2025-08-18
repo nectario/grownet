@@ -15,14 +15,14 @@ struct Weight:
     var r_star: Float64 = 0.02
     var epsilon_fire: Float64 = 0.01
 
-    fn reinforce(inout self, modulation_factor: Float64) -> None:
+    fn reinforce(mut self, modulation_factor: Float64) -> None:
         if self.hit_count >= 10000:
             return
         var effective = self.step_val * modulation_factor
         self.strength = MathUtils.smooth_clamp(self.strength + effective, -1.0, 1.0)
         self.hit_count += 1
 
-    fn update_threshold(inout self, input_value: Float64) -> Bool:
+    fn update_threshold(mut self, input_value: Float64) -> Bool:
         # T0: imprint
         if not self.seen_first:
             let mag = MathUtils.abs_f64(input_value)

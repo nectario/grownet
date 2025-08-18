@@ -5,7 +5,7 @@ struct InputLayer2D:
     var width: Int
     var core: Layer
 
-    fn init(inout self, height: Int, width: Int, gain: Float64, epsilon_fire: Float64) -> None:
+    fn init(mut self, height: Int, width: Int, gain: Float64, epsilon_fire: Float64) -> None:
         self.height = height
         self.width = width
         # Map each pixel to one excitatory neuron; no inhib/mod in this input shim.
@@ -14,7 +14,7 @@ struct InputLayer2D:
     fn index(self, y: Int, x: Int) -> Int:
         return y * self.width + x
 
-    fn forward_image(inout self, frame: list[list[Float64]]) -> list[Spike]:
+    fn forward_image(mut self, frame: list[list[Float64]]) -> list[Spike]:
         # Fan out each pixel into the corresponding excit neuron.
         var spikes = []
         var y = 0

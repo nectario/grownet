@@ -11,19 +11,19 @@ struct Neuron:
     var last_input_value: Float64 = 0.0
     var last_fired: Bool = False
 
-    fn init(inout self, neuron_id: String, slot_limit: Int = -1) -> None:
+    fn init(mut self, neuron_id: String, slot_limit: Int = -1) -> None:
         self.neuron_id = neuron_id
         self.slot_engine = SlotEngine()
         self.slot_limit = slot_limit
         self.slots = dict[Int, Weight]()
         self.outgoing = []
 
-    fn connect(inout self, target_index: Int, feedback: Bool = False) -> None:
+    fn connect(mut self, target_index: Int, feedback: Bool = False) -> None:
         from synapse import Synapse
         let s = Synapse(target_index, feedback)
         self.outgoing.append(s)
 
-    fn on_input(inout self, value: Float64, modulation_factor: Float64) -> Bool:
+    fn on_input(mut self, value: Float64, modulation_factor: Float64) -> Bool:
         # Pick/select slot by percent delta.
         var slot_id: Int = 0
         if self.have_last_input:
@@ -47,6 +47,6 @@ struct Neuron:
         self.slots[slot_id] = slot  # writeback
         return fired
 
-    fn on_output(inout self, amplitude: Float64) -> None:
+    fn on_output(mut self, amplitude: Float64) -> None:
         # Base neuron: no-op; subclasses override.
         pass

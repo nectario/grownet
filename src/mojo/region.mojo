@@ -1,79 +1,71 @@
-# region.mojo
-# Region orchestration updated to use RegionMetrics helpers.
-from metrics import RegionMetrics
-
-# Minimal protocol types; in your codebase these should be real classes:
-# - Layer with fn forward(value: Float64) and fn endTick() and fn getNeurons() -> List[Any]
-# - InputLayer2D with fn forwardImage(frame: Any)
-# Here we declare 'opaque' types and use duck typing at runtime; adjust as needed in your project.
+from region_bus import RegionBus
+from layer import Layer, Spike
+from input_layer_2d import InputLayer2D
+from output_layer_2d import OutputLayer2D
+from tract import Tract
+from region_metrics import RegionMetrics
 
 struct PruneSummary:
-    var prunedSynapses: Int64
-    var prunedEdges: Int64
-    fn __init__() -> Self:
-        return Self(prunedSynapses=0, prunedEdges=0)
+    var pruned_synapses: Int = 0
+    var pruned_edges: Int = 0
 
 struct Region:
-    var _name: String
-    var _layers: List[Any]
-    var _inputPorts: Dict[String, List[Int32]]
-    var _outputPorts: Dict[String, List[Int32]]
+    var name: String
+    var layers: list[Layer]
+    var tracts: list[Tract]
+    var bus: RegionBus
+    var input_ports: dict[String, list[Int]]
+    var output_ports: dict[String, list[Int]]
 
-    fn __init__(name: String) -> Self:
-        return Self(_name=name, _layers=List[Any](), _inputPorts=Dict[String, List[Int32]](), _outputPorts=Dict[String, List[Int32]]())
+    fn init(mut self, name: String) -> None:
+        self.name = name
+        self.layers = []
+        self.tracts = []
+        self.bus = RegionBus()
+        self.input_ports = dict[String, list[Int]]()
+        self.output_ports = dict[String, list[Int]]()
 
-    fn addLayer(inout self, excitatoryCount: Int32, inhibitoryCount: Int32, modulatoryCount: Int32) -> Int32:
-        # In your real code, import the concrete Layer and construct it.
-        # Here we error at runtime if not wired by the integrator.
-        raise "Region.addLayer requires Layer factory in Mojo environment"
+    fn add_layer(mut self, excitatory_count: Int, inhibitory_count: Int, modulatory_count: Int) -> Int:
+        let idx = Int(self.layers.size())
+        self.layers.append(Layer(excitatory_count, inhibitory_count, modulatory_count))
+        return idx
 
-    fn addInputLayer2D(inout self, height: Int32, width: Int32, gain: Float64, epsilonFire: Float64) -> Int32:
-        raise "Region.addInputLayer2D requires InputLayer2D factory in Mojo environment"
+    fn connect_layers(mut self, source_index: Int, dest_index: Int, probability: Float64, feedback: Bool = False) -> Tract:
+        # For now we only record the connection. The demo uses fan-out probability at creation time.
+        let t = Tract(source_index, dest_index, feedback)
+        self.tracts.append(t)
+        return t
 
-    fn addOutputLayer2D(inout self, height: Int32, width: Int32, smoothing: Float64) -> Int32:
-        raise "Region.addOutputLayer2D requires OutputLayer2D factory in Mojo environment"
+    fn bind_input(mut self, port: String, layer_indices: list[Int]) -> None:
+        self.input_ports[port] = layer_indices
 
-    fn bindInput(inout self, port: String, layerIndices: List[Int32]) -> None:
-        self._inputPorts[port] = layerIndices
+    fn bind_output(mut self, port: String, layer_indices: list[Int]) -> None:
+        self.output_ports[port] = layer_indices
 
-    fn bindOutput(inout self, port: String, layerIndices: List[Int32]) -> None:
-        self._outputPorts[port] = layerIndices
-
-    fn tick(self, port: String, value: Float64) -> RegionMetrics:
+    fn tick(mut self, port: String, value: Float64) -> RegionMetrics:
         var m = RegionMetrics()
-        if let entry = self._inputPorts.get(port):
-            for idx in entry:
-                let layer = self._layers[idx]
-                layer.forward(value)     # expects Layer API
-                m.incDeliveredEvents(1)
-        # end-of-tick housekeeping
-        for layer in self._layers:
-            layer.endTick()
-        # aggregates
-        for layer in self._layers:
-            for neuron in layer.getNeurons():
-                m.addSlots(neuron.getSlots().len().to_int64())
-                m.addSynapses(neuron.getOutgoing().len().to_int64())
+        if self.input_ports.contains(port):
+            for li in self.input_ports[port]:
+                let spikes = self.layers[li].forward(value)
+                m.delivered_events += 1
+                # route through tracts originating at li
+                for t in self.tracts:
+                    if t.source_index == li:
+                        for s in spikes:
+                            # Currently assume 1:1 mapping of neuron index across layers
+                            # and numeric dest index.
+                            let dest_idx = t.dest_index
+                            # Only OutputLayer2D has propagate_from in this minimal port; for other layers,
+                            # you can route into .forward(value) similarly.
+                            # Here we do nothing, since generic Layer doesn't have propagate_from.
+                            pass
+        # End-of-tick
+        for L in self.layers:
+            L.end_tick()
         return m
 
-    fn tickImage(self, port: String, frame: Any) -> RegionMetrics:
-        var m = RegionMetrics()
-        if let entry = self._inputPorts.get(port):
-            for idx in entry:
-                let layer = self._layers[idx]
-                if layer.isInputLayer2D():
-                    layer.forwardImage(frame)
-                    m.incDeliveredEvents(1)
-        for layer in self._layers:
-            layer.endTick()
-        for layer in self._layers:
-            for neuron in layer.getNeurons():
-                m.addSlots(neuron.getSlots().len().to_int64())
-                m.addSynapses(neuron.getOutgoing().len().to_int64())
-        return m
+    fn get_name(self) -> String:
+        return self.name
 
-    fn getName(self) -> String:
-        return self._name
-
-    fn getLayers(self) -> List[Any]:
-        return self._layers
+    fn get_layers(self) -> List[Any]:
+        return self.layers

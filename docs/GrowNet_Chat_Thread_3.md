@@ -3037,7 +3037,7 @@ struct Weight:
             hit_count = 0
         )
 
-    fn reinforce(inout self, modulation_factor: Float64, inhibition_factor: Float64):
+    fn reinforce(mut self, modulation_factor: Float64, inhibition_factor: Float64):
         if self.hit_count >= SLOT_HIT_SATURATION:
             return
         let step = BASE_STEP * modulation_factor * inhibition_factor
@@ -3045,7 +3045,7 @@ struct Weight:
         self.hit_count += 1
 
     # effective = stimulus we gate against (caller decides); returns fired
-    fn update_threshold(inout self, effective: Float64) -> Bool:
+    fn update_threshold(mut self, effective: Float64) -> Bool:
         if not self.first_seen:
             # T0 imprint: set theta slightly below effective to re-fire on the same stimulus
             self.threshold_value = effective * (1.0 - EPSILON_FIRE)
@@ -3130,13 +3130,13 @@ struct Neuron:
         let width = if slot_width_percent < 1e-9: 1e-9 else slot_width_percent
         return Int64(pct / width)
 
-    fn ensure_slot(inout self, id: Int64) -> ^Weight:
+    fn ensure_slot(mut self, id: Int64) -> ^Weight:
         if not self.slots.has(id):
             self.slots[id] = Weight()
         return &self.slots[id]
 
     # Snake_case is canonical in Mojo/Python-style code
-    fn on_input(inout self, value: Float64) -> Bool:
+    fn on_input(mut self, value: Float64) -> Bool:
         let slot_id = self.slot_id_for(value)
         let slot_ptr = self.ensure_slot(slot_id)
         # local reinforcement (bus factors are one-tick)
@@ -3150,7 +3150,7 @@ struct Neuron:
         self.last_input_value = value
         return fired
 
-    fn on_output(inout self, amplitude: Float64):
+    fn on_output(mut self, amplitude: Float64):
         if not self.fired_last:
             return
         if self.neuron_type == NeuronType.INHIBITORY:
@@ -3173,9 +3173,9 @@ struct Neuron:
         self.accumulated_count = 0
 
     # --- Optional compatibility shims (delete if undesired) ---
-    fn onInput(inout self, value: Float64) -> Bool:
+    fn onInput(mut self, value: Float64) -> Bool:
         return self.on_input(value)
-    fn onOutput(inout self, amplitude: Float64):
+    fn onOutput(mut self, amplitude: Float64):
         self.on_output(amplitude)
 ```
 
@@ -3251,16 +3251,16 @@ struct Layer:
             local_fires = Array[(Int64, Float64)]()
         )
 
-    fn add_neuron(inout self, neuron: Neuron) -> Int64:
+    fn add_neuron(mut self, neuron: Neuron) -> Int64:
         self.neurons.append(neuron)
         return Int64(self.neurons.size - 1)
 
-    fn connect_intra(inout self, src: Int64, dst: Int64):
+    fn connect_intra(mut self, src: Int64, dst: Int64):
         if not self.adjacency.has(src):
             self.adjacency[src] = Array[Int64]()
         self.adjacency[src].append(dst)
 
-    fn forward(inout self, value: Float64):
+    fn forward(mut self, value: Float64):
         self.local_fires.clear()
         for i in range(Int64(self.neurons.size)):
             let fired = self.neurons[i].on_input(value)
@@ -3269,7 +3269,7 @@ struct Layer:
                 self.local_fires.append((i, value))
                 self._propagate_from(i, value)                 # intra-layer only
 
-    fn _propagate_from(inout self, source_index: Int64, value: Float64):
+    fn _propagate_from(mut self, source_index: Int64, value: Float64):
         if not self.adjacency.has(source_index):
             return
         for dst in self.adjacency[source_index]:
@@ -3278,7 +3278,7 @@ struct Layer:
                 self.neurons[Int64(dst)].on_output(value)
                 self.local_fires.append((Int64(dst), value))
 
-    fn receive_from_tract(inout self, target_index: Int64, value: Float64):
+    fn receive_from_tract(mut self, target_index: Int64, value: Float64):
         # Called by Region Phase B: NO intra-layer propagation here
         let fired = self.neurons[target_index].on_input(value)
         if fired:
@@ -3311,7 +3311,7 @@ struct InputLayer2D:
             layer.add_neuron(make_input_neuron(layer.bus))
         return Self(base = layer, height = h, width = w, gain = gain)
 
-    fn forward_image(inout self, image: Array[Array[Float64]]):
+    fn forward_image(mut self, image: Array[Array[Float64]]):
         self.base.local_fires.clear()
         var idx: Int64 = 0
         for y in range(self.height):
@@ -3379,7 +3379,7 @@ struct Tract:
         return Self(src_index = src_index, dst_index = dst_index,
                     edges = Dict[Int64, Array[Int64]](), probability = probability)
 
-    fn wire_dense_deterministic(inout self, src_count: Int64, dst_count: Int64):
+    fn wire_dense_deterministic(mut self, src_count: Int64, dst_count: Int64):
         if self.probability <= 0.0: return
         let threshold = Int64(self.probability * 10000.0)
         for s in range(src_count):
@@ -3393,7 +3393,7 @@ struct Tract:
             if fan.size > 0:
                 self.edges[s_key] = fan
 
-    fn flush(inout self, inout region: Region) -> Int64:
+    fn flush(mut self, inout region: Region) -> Int64:
         var delivered: Int64 = 0
         let src_layer = region.layers[self.src_index]
         let dst_layer = region.layers[self.dst_index]
@@ -3422,7 +3422,7 @@ struct Region:
             tracts = Array[Tract]()
         )
 
-    fn add_layer(inout self, excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> Int64:
+    fn add_layer(mut self, excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> Int64:
         var layer = Layer()
         for _ in range(excitatory_count):
             # excitatory neurons share the same bus per layer
@@ -3434,7 +3434,7 @@ struct Region:
         self.layers.append(layer)
         return Int64(self.layers.size - 1)
 
-    fn add_input_layer_2d(inout self, h: Int64, w: Int64, gain: Float64 = 1.0, epsilon_fire_unused: Float64 = 0.01) -> Int64:
+    fn add_input_layer_2d(mut self, h: Int64, w: Int64, gain: Float64 = 1.0, epsilon_fire_unused: Float64 = 0.01) -> Int64:
         var wrapper = InputLayer2D(h, w, gain)
         # expose the underlying Layer instance in self.layers
         self.layers.append(wrapper.base)
@@ -3442,24 +3442,24 @@ struct Region:
         self.input_2d[idx] = wrapper
         return idx
 
-    fn add_output_layer_2d(inout self, h: Int64, w: Int64, smoothing: Float64 = 0.20) -> Int64:
+    fn add_output_layer_2d(mut self, h: Int64, w: Int64, smoothing: Float64 = 0.20) -> Int64:
         var wrapper = OutputLayer2D(h, w, smoothing)
         self.layers.append(wrapper.base)
         let idx = Int64(self.layers.size - 1)
         self.output_2d[idx] = wrapper
         return idx
 
-    fn bind_input(inout self, port: String, layer_indexes: Array[Int64]):
+    fn bind_input(mut self, port: String, layer_indexes: Array[Int64]):
         self.input_ports[port] = layer_indexes
 
-    fn connect_layers(inout self, src_index: Int64, dst_index: Int64, probability: Float64, feedback: Bool = False) -> Tract:
+    fn connect_layers(mut self, src_index: Int64, dst_index: Int64, probability: Float64, feedback: Bool = False) -> Tract:
         var t = Tract(src_index, dst_index, probability)
         t.wire_dense_deterministic(Int64(self.layers[src_index].neurons.size),
                                    Int64(self.layers[dst_index].neurons.size))
         self.tracts.append(t)
         return t
 
-    fn tick_image(inout self, port: String, image: Array[Array[Float64]]) -> Dict[String, Float64]:
+    fn tick_image(mut self, port: String, image: Array[Array[Float64]]) -> Dict[String, Float64]:
         # Phase A: drive bound input-2D layers
         if self.input_ports.has(port):
             for idx in self.input_ports[port]:
@@ -3614,7 +3614,7 @@ struct Weight:
     fn __init__() -> Self:
         return Self(0.0, 0.0, 0.0, False, 0)
 
-    fn reinforce(inout self, modulation_factor: Float64, inhibition_factor: Float64):
+    fn reinforce(mut self, modulation_factor: Float64, inhibition_factor: Float64):
         if self.hit_count >= HIT_SAT:
             return
         let base_step: Float64 = 0.01
@@ -3622,7 +3622,7 @@ struct Weight:
         self.strength_value = clamp01(self.strength_value + step)
         self.hit_count += 1
 
-    fn update_threshold(inout self, input_value: Float64) -> Bool:
+    fn update_threshold(mut self, input_value: Float64) -> Bool:
         # Couple amplitude with strength for an “effective drive”
         let effective = absf(input_value) * (1.0 + self.strength_value)
 
@@ -3702,7 +3702,7 @@ struct Neuron:
         let width = (slot_width_percent if slot_width_percent > 1e-9 else 1e-9)
         return Int64(pct / width)
 
-    fn on_input(inout self, value: Float64) -> Bool:
+    fn on_input(mut self, value: Float64) -> Bool:
         var id = self.slot_id_for(value, 10.0)
         var slot = self.slots.get(id)
         if slot is None:
@@ -3716,7 +3716,7 @@ struct Neuron:
         self.last_input_value = value
         return fired
 
-    fn on_output(inout self, amplitude: Float64):
+    fn on_output(mut self, amplitude: Float64):
         # Unified hook:
         if self.neuron_type == NeuronType.OUTPUT:
             self.accumulated_sum += amplitude
@@ -3768,18 +3768,18 @@ struct Layer:
             local_fires = Array[FireEvent]()
         )
 
-    fn add_neuron(inout self, neuron: Neuron) -> Int64:
+    fn add_neuron(mut self, neuron: Neuron) -> Int64:
         self.neurons.append(neuron)
         return Int64(self.neurons.size) - 1
 
-    fn connect_intra(inout self, src: Int64, dst: Int64):
+    fn connect_intra(mut self, src: Int64, dst: Int64):
         var lst = self.adjacency.get(src)
         if lst is None:
             lst = Array[Int64]()
         lst.append(dst)
         self.adjacency[src] = lst
 
-    fn forward(inout self, value: Float64):
+    fn forward(mut self, value: Float64):
         self.local_fires.clear()
         let n = Int64(self.neurons.size)
         for i in range(n):
@@ -3790,7 +3790,7 @@ struct Layer:
                 self.local_fires.append(FireEvent(i, value))
             self.neurons[i] = neu
 
-    fn propagate_from(inout self, source_index: Int64, value: Float64):
+    fn propagate_from(mut self, source_index: Int64, value: Float64):
         let neigh_opt = self.adjacency.get(source_index)
         if neigh_opt is None:
             return
@@ -3802,7 +3802,7 @@ struct Layer:
                 dst.on_output(value)
             self.neurons[j] = dst
 
-    fn receive_from_tract(inout self, target_index: Int64, value: Float64):
+    fn receive_from_tract(mut self, target_index: Int64, value: Float64):
         var dst = self.neurons[target_index]
         let fired = dst.on_input(value)
         if fired:
@@ -3834,7 +3834,7 @@ struct InputLayer2D:
             layer.add_neuron(Neuron(NeuronType.INPUT, layer.bus))
         return Self(base = layer, height = h, width = w, gain = gain)
 
-    fn forward_image(inout self, image: Array[Array[Float64]]):
+    fn forward_image(mut self, image: Array[Array[Float64]]):
         self.base.local_fires.clear()
         var idx: Int64 = 0
         for y in range(self.height):
@@ -3905,7 +3905,7 @@ struct Tract:
     fn __init__(src_index: Int64, dst_index: Int64, probability: Float64) -> Self:
         return Self(src_index, dst_index, Dict[Int64, Array[Int64]](), probability)
 
-    fn wire_dense_deterministic(inout self, src_count: Int64, dst_count: Int64):
+    fn wire_dense_deterministic(mut self, src_count: Int64, dst_count: Int64):
         if self.probability <= 0.0: return
         let threshold = Int64(self.probability * 10000.0)
         for s in range(src_count):
@@ -3918,7 +3918,7 @@ struct Tract:
             if fan.size > 0:
                 self.edges[Int64(s)] = fan
 
-    fn flush(inout self, inout region: Region) -> Int64:
+    fn flush(mut self, inout region: Region) -> Int64:
         var delivered: Int64 = 0
         var src_layer = region.layers[self.src_index]
         var dst_layer = region.layers[self.dst_index]
@@ -3953,7 +3953,7 @@ struct Region:
             tracts = Array[Tract]()
         )
 
-    fn add_layer(inout self, excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> Int64:
+    fn add_layer(mut self, excitatory_count: Int64, inhibitory_count: Int64, modulatory_count: Int64) -> Int64:
         var layer = Layer()
         from neuron import Neuron, NeuronType
         for _ in range(excitatory_count): layer.add_neuron(Neuron(NeuronType.EXCITATORY, layer.bus))
@@ -3962,31 +3962,31 @@ struct Region:
         self.layers.append(layer)
         return Int64(self.layers.size) - 1
 
-    fn add_input_layer_2d(inout self, h: Int64, w: Int64, gain: Float64 = 1.0, epsilon_fire_unused: Float64 = 0.01) -> Int64:
+    fn add_input_layer_2d(mut self, h: Int64, w: Int64, gain: Float64 = 1.0, epsilon_fire_unused: Float64 = 0.01) -> Int64:
         var wrapper = InputLayer2D(h, w, gain)
         self.layers.append(wrapper.base)
         let idx = Int64(self.layers.size) - 1
         self.input_2d[idx] = wrapper
         return idx
 
-    fn add_output_layer_2d(inout self, h: Int64, w: Int64, smoothing: Float64 = 0.20) -> Int64:
+    fn add_output_layer_2d(mut self, h: Int64, w: Int64, smoothing: Float64 = 0.20) -> Int64:
         var wrapper = OutputLayer2D(h, w, smoothing)
         self.layers.append(wrapper.base)
         let idx = Int64(self.layers.size) - 1
         self.output_2d[idx] = wrapper
         return idx
 
-    fn bind_input(inout self, port: String, layer_indexes: Array[Int64]):
+    fn bind_input(mut self, port: String, layer_indexes: Array[Int64]):
         self.input_ports[port] = layer_indexes
 
-    fn connect_layers(inout self, src_index: Int64, dst_index: Int64, probability: Float64, feedback: Bool = False) -> Tract:
+    fn connect_layers(mut self, src_index: Int64, dst_index: Int64, probability: Float64, feedback: Bool = False) -> Tract:
         var t = Tract(src_index, dst_index, probability)
         t.wire_dense_deterministic(Int64(self.layers[src_index].neurons.size),
                                    Int64(self.layers[dst_index].neurons.size))
         self.tracts.append(t)
         return t
 
-    fn tick_image(inout self, port: String, image: Array[Array[Float64]]) -> Dict[String, Float64]:
+    fn tick_image(mut self, port: String, image: Array[Array[Float64]]) -> Dict[String, Float64]:
         # Phase A: drive bound input 2D layers
         let bound = self.input_ports.get(port)
         if bound is not None:
@@ -4233,7 +4233,7 @@ Short answer: **don’t switch everything to plain `self`**.
  In Mojo, methods that **modify the instance** must use `inout self`. What’s biting you is the editor/LSP complaining about `inout self: Self`. In current Mojo toolchains the most robust form is simply:
 
 ```mojo
-fn method(inout self, other_args...)
+fn method(mut self, other_args...)
 ```
 
 (no `: Self` after `self`). Use plain `self` **only** for read‑only methods.
@@ -4321,7 +4321,7 @@ fn add_layer(inout self: Self, excitatory_count: Int64, inhibitory_count: Int64,
 After (works):
 
 ```mojo
-fn add_layer(inout self, excitatory_count: Int64, inhibitory_count: Int64,
+fn add_layer(mut self, excitatory_count: Int64, inhibitory_count: Int64,
              modulatory_count: Int64) -> Int64:
 ```
 
@@ -4429,24 +4429,24 @@ Use this to sanity‑scan each file after the search/replace.
 
 ### `neuron.mojo`
 
-- `fn ensure_slot(inout self, id: Int64)` → `fn ensure_slot(mut self, id: Int64)`
-- `fn on_input(inout self, value: Float64) -> Bool` → `fn on_input(mut self, value: Float64) -> Bool`
-- `fn on_output(inout self, amplitude: Float64)` → `fn on_output(mut self, amplitude: Float64)`
+- `fn ensure_slot(mut self, id: Int64)` → `fn ensure_slot(mut self, id: Int64)`
+- `fn on_input(mut self, value: Float64) -> Bool` → `fn on_input(mut self, value: Float64) -> Bool`
+- `fn on_output(mut self, amplitude: Float64)` → `fn on_output(mut self, amplitude: Float64)`
 - If you kept the tiny bridge helpers, update them too, e.g.
    `fn on_output(inout n: Neuron, amplitude: Float64)` → `fn on_output(n: mut Neuron, amplitude: Float64)`
 
 ### `layer.mojo`
 
-- `fn add_neuron(inout self, neuron: Neuron) -> Int64` → `fn add_neuron(mut self, neuron: Neuron) -> Int64`
-- `fn connect_intra(inout self, src: Int64, dst: Int64)` → `fn connect_intra(mut self, src: Int64, dst: Int64)`
-- `fn forward(inout self, value: Float64)` → `fn forward(mut self, value: Float64)`
-- `fn propagate_from(inout self, source_index: Int64, value: Float64)` → `fn propagate_from(mut self, source_index: Int64, value: Float64)`
-- `fn receive_from_tract(inout self, target_index: Int64, value: Float64)` → `fn receive_from_tract(mut self, target_index: Int64, value: Float64)`
+- `fn add_neuron(mut self, neuron: Neuron) -> Int64` → `fn add_neuron(mut self, neuron: Neuron) -> Int64`
+- `fn connect_intra(mut self, src: Int64, dst: Int64)` → `fn connect_intra(mut self, src: Int64, dst: Int64)`
+- `fn forward(mut self, value: Float64)` → `fn forward(mut self, value: Float64)`
+- `fn propagate_from(mut self, source_index: Int64, value: Float64)` → `fn propagate_from(mut self, source_index: Int64, value: Float64)`
+- `fn receive_from_tract(mut self, target_index: Int64, value: Float64)` → `fn receive_from_tract(mut self, target_index: Int64, value: Float64)`
 - `fn decay_bus(inout self)` → `fn decay_bus(mut self)`
 
 ### `input_layer_2d.mojo`
 
-- `fn forward_image(inout self, image: Array[Array[Float64]])` → `fn forward_image(mut self, image: Array[Array[Float64]])`
+- `fn forward_image(mut self, image: Array[Array[Float64]])` → `fn forward_image(mut self, image: Array[Array[Float64]])`
 
 ### `output_layer_2d.mojo`
 
@@ -4455,17 +4455,17 @@ Use this to sanity‑scan each file after the search/replace.
 
 ### `region.mojo`
 
-- `fn add_layer(inout self, ...) -> Int64` → `fn add_layer(mut self, ...) -> Int64`
-- `fn add_input_layer_2d(inout self, ...)` → `fn add_input_layer_2d(mut self, ...)`
-- `fn add_output_layer_2d(inout self, ...)` → `fn add_output_layer_2d(mut self, ...)`
-- `fn bind_input(inout self, ...)` → `fn bind_input(mut self, ...)`
-- `fn connect_layers(inout self, ...)` → `fn connect_layers(mut self, ...)`
-- `fn tick_image(inout self, ...)` → `fn tick_image(mut self, ...)`
+- `fn add_layer(mut self, ...) -> Int64` → `fn add_layer(mut self, ...) -> Int64`
+- `fn add_input_layer_2d(mut self, ...)` → `fn add_input_layer_2d(mut self, ...)`
+- `fn add_output_layer_2d(mut self, ...)` → `fn add_output_layer_2d(mut self, ...)`
+- `fn bind_input(mut self, ...)` → `fn bind_input(mut self, ...)`
+- `fn connect_layers(mut self, ...)` → `fn connect_layers(mut self, ...)`
+- `fn tick_image(mut self, ...)` → `fn tick_image(mut self, ...)`
 
 **Nested `Tract` (inside `region.mojo`):**
 
-- `fn wire_dense_deterministic(inout self, ...)` → `fn wire_dense_deterministic(mut self, ...)`
-- `fn flush(inout self, inout region: Region) -> Int64` →
+- `fn wire_dense_deterministic(mut self, ...)` → `fn wire_dense_deterministic(mut self, ...)`
+- `fn flush(mut self, inout region: Region) -> Int64` →
    `fn flush(mut self, region: mut Region) -> Int64`
    (You mutate destination layers through `region.layers[...]`, so `region` must be `mut`.)
 

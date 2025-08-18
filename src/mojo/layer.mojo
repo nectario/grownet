@@ -13,7 +13,7 @@ struct Layer:
     var neurons_mod: list[ModulatoryNeuron]
     var bus: LateralBus
 
-    fn init(inout self, excitatory_count: Int, inhibitory_count: Int, modulatory_count: Int) -> None:
+    fn init(mut self, excitatory_count: Int, inhibitory_count: Int, modulatory_count: Int) -> None:
         self.neurons_exc = []
         self.neurons_inh = []
         self.neurons_mod = []
@@ -31,7 +31,7 @@ struct Layer:
             self.neurons_mod.append(ModulatoryNeuron("M" + String(i)))
             i += 1
 
-    fn forward(inout self, value: Float64) -> list[Spike]:
+    fn forward(mut self, value: Float64) -> list[Spike]:
         var spikes = []
         # Modulation factor read once per neuron evaluate.
         let mod_factor = self.bus.modulation_factor
@@ -61,5 +61,5 @@ struct Layer:
 
         return spikes
 
-    fn end_tick(inout self) -> None:
+    fn end_tick(mut self) -> None:
         self.bus.decay()
