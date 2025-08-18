@@ -3,6 +3,7 @@ from layer import Layer
 from tract import Tract
 from input_layer_2d import InputLayer2D
 from output_layer_2d import OutputLayer2D
+from region_metrics import RegionMetrics
 
 class RegionMetrics:
     def __init__(self):
@@ -17,88 +18,97 @@ class PruneSummary:
 
 class Region:
     def __init__(self, name):
-        self._name = str(name)
-        self._layers = []
-        self._tracts = []
-        self._bus = RegionBus()
-        self._input_ports = {}
-        self._output_ports = {}
+        self.name = str(name)
+        self.layers = []
+        self.tracts = []
+        self.bus = RegionBus()
+        self.input_ports = {}
+        self.output_ports = {}
 
     # construction
     def add_layer(self, excitatory_count, inhibitory_count, modulatory_count):
         layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
-        self._layers.append(layer)
-        return len(self._layers) - 1
+        self.layers.append(layer)
+        return len(self.layers) - 1
 
     def add_input_layer_2d(self, height, width, gain, epsilon_fire):
         layer = InputLayer2D(height, width, gain, epsilon_fire)
-        self._layers.append(layer)
-        return len(self._layers) - 1
+        self.layers.append(layer)
+        return len(self.layers) - 1
 
     def add_output_layer_2d(self, height, width, smoothing):
         layer = OutputLayer2D(height, width, smoothing)
-        self._layers.append(layer)
-        return len(self._layers) - 1
+        self.layers.append(layer)
+        return len(self.layers) - 1
 
     def connect_layers(self, source_index, dest_index, probability, feedback=False):
-        if source_index < 0 or source_index >= len(self._layers):
+        if source_index < 0 or source_index >= len(self.layers):
             raise IndexError("source_index out of range")
-        if dest_index < 0 or dest_index >= len(self._layers):
+        if dest_index < 0 or dest_index >= len(self.layers):
             raise IndexError("dest_index out of range")
-        tract = Tract(self._layers[source_index], self._layers[dest_index], self._bus, feedback)
-        self._tracts.append(tract)
+        tract = Tract(self.layers[source_index], self.layers[dest_index], self.bus, feedback)
+        self.tracts.append(tract)
         # intra-layer random wiring can still be requested externally if desired
         return tract
 
     def bind_input(self, port, layer_indices):
-        self._input_ports[str(port)] = list(layer_indices)
+        self.input_ports[str(port)] = list(layer_indices)
 
     def bind_output(self, port, layer_indices):
-        self._output_ports[str(port)] = list(layer_indices)
+        self.output_ports[str(port)] = list(layer_indices)
 
     # region-wide pulses
     def pulse_inhibition(self, factor):
-        self._bus.set_inhibition_factor(factor)
+        self.bus.set_inhibition_factor(factor)
 
     def pulse_modulation(self, factor):
-        self._bus.set_modulation_factor(factor)
+        self.bus.set_modulation_factor(factor)
 
-    # main loop
-    def tick(self, port, value):
-        m = RegionMetrics()
-        entry = self._input_ports.get(str(port))
+
+
+    def tick(self, port: str, value: float) -> "RegionMetrics":
+        metrics = RegionMetrics()
+        entry = self.input_ports.get(port)
         if entry is not None:
-            for layer_index in entry:
-                self._layers[layer_index].forward(value)
-                m.delivered_events += 1
+            for idx in entry:
+                self.layers[idx].forward(value)
+                metrics.inc_delivered_events()
 
-        # end-of-tick housekeeping
-        for layer in self._layers:
+        for layer in self.layers:
             layer.end_tick()
 
-        # aggregates
-        for layer in self._layers:
+        for layer in self.layers:
             for neuron in layer.get_neurons():
-                m.total_slots += len(neuron.slots())
-                m.total_synapses += len(neuron.get_outgoing())
-        return m
+                try:    slots = neuron.get_slots()
+                except: slots = getattr(neuron, "slots", [])
+                try:    outgoing = neuron.get_outgoing()
+                except: outgoing = getattr(neuron, "outgoing", [])
+                metrics.add_slots(len(slots))
+                metrics.add_synapses(len(outgoing))
+        return metrics
 
-    def tick_image(self, port, frame):
-        m = RegionMetrics()
-        entry = self._input_ports.get(str(port))
+    def tick_image(self, port: str, frame: "list[list[float]]") -> "RegionMetrics":
+        metrics = RegionMetrics()
+        entry = self.input_ports.get(port)
         if entry is not None:
-            for layer_index in entry:
-                layer = self._layers[layer_index]
-                if isinstance(layer, InputLayer2D):
+            for idx in entry:
+                layer = self.layers[idx]
+                if hasattr(layer, "forward_image"):
                     layer.forward_image(frame)
-                    m.delivered_events += 1
-        for layer in self._layers:
+                    metrics.inc_delivered_events()
+
+        for layer in self.layers:
             layer.end_tick()
-        for layer in self._layers:
+
+        for layer in self.layers:
             for neuron in layer.get_neurons():
-                m.total_slots += len(neuron.slots())
-                m.total_synapses += len(neuron.get_outgoing())
-        return m
+                try:    slots = neuron.get_slots()
+                except: slots = getattr(neuron, "slots", [])
+                try:    outgoing = neuron.get_outgoing()
+                except: outgoing = getattr(neuron, "outgoing", [])
+                metrics.add_slots(len(slots))
+                metrics.add_synapses(len(outgoing))
+        return metrics
 
     # maintenance
     def prune(self, synapse_stale_window=10_000, synapse_min_strength=0.05,
@@ -108,13 +118,13 @@ class Region:
 
     # accessors
     def get_name(self):
-        return self._name
+        return self.name
 
     def get_layers(self):
-        return self._layers
+        return self.layers
 
     def get_tracts(self):
-        return self._tracts
+        return self.tracts
 
     def get_bus(self):
-        return self._bus
+        return self.bus
