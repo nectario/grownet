@@ -16,9 +16,9 @@ def main():
     region._connect_layers(L0, L1, 1.0, False)
 
     # Register hooks (adjust to your API; many projects expose layer._neurons)
-    for n in region.layers[L0]._neurons:
+    for n in region.layers[L0].neurons:
         n._register_fire_hook(log_fire)
-    for n in region.layers[L1]._neurons:
+    for n in region.layers[L1].neurons:
         n._register_fire_hook(log_fire)
 
     # Breakpoints to set:
