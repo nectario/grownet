@@ -1,60 +1,34 @@
-# region.py
-# Region orchestration updated to use RegionMetrics helpers.
-# This module assumes classes Layer, InputLayer2D are available in the same directory.
-from typing import List, Dict
+# region.py — Python Region implementation (clean, parity-focused)
+from typing import List, Dict, Optional
+import random
 from metrics import RegionMetrics
 
-# Forward imports are intentionally light to avoid tight coupling;
-# Region only relies on the public surface of Layer and InputLayer2D.
-# - Layer must provide: forward(value: float) -> None, endTick() -> None, getNeurons() -> List[Neuron]
-# - InputLayer2D must provide: forwardImage(frame) -> None
+# Layer and shape-aware layers are imported lazily to avoid import cycles.
 
 class Region:
-
-    # --- Added for contract parity ---
-    def pulse_inhibition(self, factor: float):
-        """One-shot region-wide inhibition pulse."""
-        try:
-            self.bus.set_inhibition_factor(factor)
-        except Exception:
-            try:
-                self.bus.set_inhibition(factor)
-            except Exception:
-                pass
-
-    def pulse_modulation(self, factor: float):
-        """One-shot region-wide modulation pulse."""
-        try:
-            self.bus.set_modulation_factor(factor)
-        except Exception:
-            try:
-                self.bus.set_modulation(factor)
-            except Exception:
-                pass
     class PruneSummary:
         def __init__(self):
-            self.pruned_synapses = 0
-            self.pruned_edges = 0  # reserved
+            self.prunedSynapses = 0
+            self.prunedEdges = 0  # reserved
 
     def __init__(self, name: str):
         self.name: str = name
         self.layers: List[object] = []
         self.input_ports: Dict[str, List[int]] = {}
         self.output_ports: Dict[str, List[int]] = {}
-        # RegionBus reserved; keep parity with Java/C++
-        self.bus = None
+        self.bus = None   # RegionBus placeholder (future use)
+        self._rng = random.Random(1234)
 
-    # ---------- construction: add layers (shape-aware helpers are optional in Python layer) ----------
-    def add_layer(self, excitatoryCount: int, inhibitoryCount: int, modulatoryCount: int) -> int:
-        # Defer to a Layer factory expected to exist; user keeps their current Layer API.
-        from layer import Layer  # local import to prevent circular deps during tooling
-        layer = Layer(excitatoryCount, inhibitoryCount, modulatoryCount)
+    # ---------------- construction ----------------
+    def add_layer(self, excitatory_count: int, inhibitory_count: int, modulatory_count: int) -> int:
+        from layer import Layer
+        layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
         self.layers.append(layer)
         return len(self.layers) - 1
 
-    def add_input_ayer_2d(self, height: int, width: int, gain: float, epsilonFire: float) -> int:
+    def add_input_layer_2d(self, height: int, width: int, gain: float, epsilon_fire: float) -> int:
         from input_layer_2d import InputLayer2D
-        layer = InputLayer2D(height, width, gain, epsilonFire)
+        layer = InputLayer2D(height, width, gain, epsilon_fire)
         self.layers.append(layer)
         return len(self.layers) - 1
 
@@ -64,72 +38,125 @@ class Region:
         self.layers.append(layer)
         return len(self.layers) - 1
 
-    # ---------- wiring (kept as simple pass-throughs to Layer helpers or manual connects in user code) ----------
-    def bind_input(self, port: str, layerIndices: List[int]) -> None:
-        self.input_ports[port] = list(layerIndices)
+    # ---------------- wiring ----------------
+    def connect_layers(self, source_index: int, dest_index: int, probability: float, feedback: bool = False) -> int:
+        """Create random synapses from every neuron in `source_index` to neurons in `dest_index`.
+        Returns the number of edges created (edge count parity with Java).
+        """
+        if source_index < 0 or source_index >= len(self.layers):
+            raise IndexError(f"source_index out of range: {source_index}")
+        if dest_index < 0 or dest_index >= len(self.layers):
+            raise IndexError(f"dest_index out of range: {dest_index}")
+        p = max(0.0, min(1.0, float(probability)))
+        src_layer = self.layers[source_index]
+        dst_layer = self.layers[dest_index]
+        count = 0
+        for a in src_layer.get_neurons():
+            for b in dst_layer.get_neurons():
+                if self._rng.random() <= p:
+                    try:
+                        a.connect(b, feedback=feedback)
+                        count += 1
+                    except Exception:
+                        # If connect signature differs, attempt positional
+                        a.connect(b)
+                        count += 1
+        return count
 
-    def bind_output(self, port: str, layerIndices: List[int]) -> None:
-        self.output_ports[port] = list(layerIndices)
+    def bind_input(self, port: str, layer_indices: List[int]) -> None:
+        self.input_ports[port] = list(layer_indices)
 
-    # ---------- tick (scalar) ----------
+    def bind_output(self, port: str, layer_indices: List[int]) -> None:
+        self.output_ports[port] = list(layer_indices)
+
+    # ---------------- pulses ----------------
+    def pulse_inhibition(self, factor: float):
+        # forward to RegionBus if present, otherwise try each layer bus
+        if self.bus is not None:
+            setf = getattr(self.bus, "set_inhibition_factor", None) or getattr(self.bus, "set_inhibition", None)
+            if callable(setf):
+                setf(factor)
+                return
+        for layer in self.layers:
+            bus = getattr(layer, "get_bus", lambda: None)()
+            if bus is None: 
+                continue
+            setf = getattr(bus, "set_inhibition_factor", None) or getattr(bus, "set_inhibition", None)
+            if callable(setf):
+                setf(factor)
+
+    def pulse_modulation(self, factor: float):
+        if self.bus is not None:
+            setf = getattr(self.bus, "set_modulation_factor", None) or getattr(self.bus, "set_modulation", None)
+            if callable(setf):
+                setf(factor)
+                return
+        for layer in self.layers:
+            bus = getattr(layer, "get_bus", lambda: None)()
+            if bus is None: 
+                continue
+            setf = getattr(bus, "set_modulation_factor", None) or getattr(bus, "set_modulation", None)
+            if callable(setf):
+                setf(factor)
+
+    # ---------------- ticks ----------------
     def tick(self, port: str, value: float) -> RegionMetrics:
-        from layer import Layer
-        region_metrics = RegionMetrics()
-        entry = self.input_ports.get(port)
-        if entry is not None:
-            for idx in entry:
-                self.layers[idx].forward(value)
-                region_metrics.inc_delivered_events()
-        # end-of-tick housekeeping
+        metrics = RegionMetrics()
+        entry = self.input_ports.get(port, [])
+        for layer_idx in entry:
+            self.layers[layer_idx].forward(value)
+            metrics.inc_delivered_events(1)
+
+        # end-of-tick: per-layer decay and housekeeping
         for layer in self.layers:
             layer.end_tick()
-        # aggregates
+
+        # aggregate structure metrics
         for layer in self.layers:
             for neuron in layer.get_neurons():
-                # Neuron expected to provide getSlots() and getOutgoing()
-                region_metrics.add_slots(len(neuron.getSlots()))
-                region_metrics.add_synapses(len(neuron.getOutgoing()))
-        return region_metrics
+                # neuron API uses slots() and get_outgoing()
+                slots = neuron.slots() if hasattr(neuron, "slots") else []
+                metrics.add_slots(len(slots))
+                outgoing = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+                metrics.add_synapses(len(outgoing))
+        return metrics
 
-    # ---------- tick (image) ----------
     def tick_image(self, port: str, frame) -> RegionMetrics:
-        from layer import Layer
-        region_metrics = RegionMetrics()
-        entry = self.input_ports.get(port)
-        if entry is not None:
-            for idx in entry:
-                layer = self.layers[idx]
-                # Only drive shape-aware input layers
-                # Import type here to avoid import cycles when the user packages the project.
-                try:
-                    from input_layer_2d import InputLayer2D
-                    if isinstance(layer, InputLayer2D):
-                        layer.forward_image(frame)
-                        region_metrics.inc_delivered_events()
-                except Exception:
-                    # If InputLayer2D is not present in this environment, ignore.
-                    pass
-        # end-of-tick housekeeping
+        metrics = RegionMetrics()
+        entry = self.input_ports.get(port, [])
+        for layer_idx in entry:
+            layer = self.layers[layer_idx]
+            # If the layer is shape-aware and exposes forward_image, use it; else fall back to scalar drive
+            if hasattr(layer, "forward_image"):
+                layer.forward_image(frame)
+            else:
+                layer.forward(frame)  # best-effort
+            metrics.inc_delivered_events(1)
         for layer in self.layers:
             layer.end_tick()
-        # aggregates
         for layer in self.layers:
             for neuron in layer.get_neurons():
-                region_metrics.add_slots(len(neuron.get_slots()))
-                region_metrics.add_synapses(len(neuron.get_outgoing()))
-        return region_metrics
+                slots = neuron.slots() if hasattr(neuron, "slots") else []
+                metrics.add_slots(len(slots))
+                outgoing = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+                metrics.add_synapses(len(outgoing))
+        return metrics
 
-    # ---------- maintenance ----------
-    def prune(self, synapseStaleWindow: int, synapseMinStrength: float) -> 'Region.PruneSummary':
-        from layer import Layer
+    # ---------------- maintenance ----------------
+    def prune(self, synapse_stale_window: int = 10000, synapse_min_strength: float = 0.05) -> 'Region.PruneSummary':
         ps = Region.PruneSummary()
+        # If neurons expose prune_synapses(...), call it; otherwise, keep zeros.
         for layer in self.layers:
             for neuron in layer.get_neurons():
-                # Expect Neuron.pruneSynapses to exist and return an int
-                ps.pruned_synapses += int(neuron.pruneSynapses(synapseStaleWindow, synapseMinStrength))
+                fn = getattr(neuron, "prune_synapses", None) or getattr(neuron, "pruneSynapses", None)
+                if callable(fn):
+                    try:
+                        ps.prunedSynapses += int(fn(synapse_stale_window, synapse_min_strength))
+                    except Exception:
+                        pass
         return ps
 
-    # ---------- accessors ----------
+    # ---------------- accessors ----------------
     def get_name(self) -> str:
         return self.name
 
