@@ -17,7 +17,7 @@ class Region:
         self.input_ports: Dict[str, List[int]] = {}
         self.output_ports: Dict[str, List[int]] = {}
         self.bus = None   # RegionBus placeholder (future use)
-        self._rng = random.Random(1234)
+        self.rng = random.Random(1234)
 
     # ---------------- construction ----------------
     def add_layer(self, excitatory_count: int, inhibitory_count: int, modulatory_count: int) -> int:
@@ -53,7 +53,7 @@ class Region:
         count = 0
         for a in src_layer.get_neurons():
             for b in dst_layer.get_neurons():
-                if self._rng.random() <= p:
+                if self.rng.random() <= p:
                     try:
                         a.connect(b, feedback=feedback)
                         count += 1

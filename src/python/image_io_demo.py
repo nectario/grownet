@@ -24,4 +24,4 @@ def run_demo():
             if isinstance(out, OutputLayer2D):
                 img = out.getFrame()
                 s = sum(sum(row) for row in img)
-                print(f"[{step+1:02d}] delivered={m.deliveredEvents} out_mean={s/(h*w):.3f}")
+                print(f"[{step+1:02d}] delivered={m.delivered_events} out_mean={s / (h * w):.3f}")

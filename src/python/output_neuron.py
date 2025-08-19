@@ -1,15 +1,19 @@
 # output_neuron.py
 # Ensure parity with Java/C++: provide get_output_value() and end_tick()
+from neuron import Neuron
+class OutputNeuron(Neuron):
 
-class OutputNeuron:
-    def __init__(self, name: str, smoothing: float = 0.0):
+
+    def __init__(self, neuron_id: str, smoothing: float = 0.0):
+        super().__init__(neuron_id, bus=None, slot_cfg=None, slot_limit=1)  # single-slot sink
         # Minimal surface to keep compatibility; adapt if your real base class differs.
-        self._name = name
-        self._smoothing = float(smoothing)
+        self.name = neuron_id
+        self.smoothing = float(smoothing)
         self.last_emitted = 0.0
         # Expected in your project: slots map, bus reference, etc.
         self.slots = {}
         self.outgoing = []
+
 
     # ---- project hooks (these exist in your full implementation) ----
     def on_input(self, value: float) -> bool:
@@ -22,7 +26,7 @@ class OutputNeuron:
 
     def end_tick(self) -> None:
         # decay toward zero like Java/C++
-        self.last_emitted *= (1.0 - self._smoothing)
+        self.last_emitted *= (1.0 - self.smoothing)
 
     # ---- metrics-facing helpers expected by Region aggregation ----
     def getSlots(self):
