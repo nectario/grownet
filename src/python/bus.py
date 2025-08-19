@@ -1,38 +1,57 @@
-
 class LateralBus:
-    def __init__(self):
-        self._inhibition_factor = 0.0  # decays toward 0 each tick
-        self._modulation_factor = 1.0  # resets to 1.0 each tick
+    """Per-layer bus for inhibition/modulation."""
+    def __init__(self, inhibition_decay: float = 0.9):
+        self.inhibition_factor = 0.0   # decays toward 0.0
+        self.modulation_factor = 1.0   # resets to 1.0 each tick
+        self.inhibition_decay = float(inhibition_decay)
 
-    # getters / setters
-    def getInhibitionFactor(self): return self._inhibition_factor
-    def get_inhibition_factor(self): return self._inhibition_factor
-    def setInhibitionFactor(self, v): self._inhibition_factor = float(v)
-    def set_inhibition_factor(self, v): self._inhibition_factor = float(v)
+    # setters
+    def set_inhibition(self, factor: float):
+        self.inhibition_factor = float(factor)
 
-    def getModulationFactor(self): return self._modulation_factor
-    def get_modulation_factor(self): return self._modulation_factor
-    def setModulationFactor(self, v): self._modulation_factor = float(v)
-    def set_modulation_factor(self, v): self._modulation_factor = float(v)
+    def set_modulation(self, factor: float):
+        self.modulation_factor = float(factor)
+
+    # getters
+    def get_inhibition_factor(self) -> float:
+        return float(self.inhibition_factor)
+
+    def get_modulation_factor(self) -> float:
+        return float(self.modulation_factor)
+
+    def get_inhibition_decay(self) -> float:
+        return float(self.inhibition_decay)
 
     def decay(self):
-        # inhibition decays, modulation resets
-        self._inhibition_factor *= 0.85
-        self._modulation_factor = 1.0
+        # Inhibition decays multiplicatively; modulation resets each tick
+        self.inhibition_factor *= self.inhibition_decay
+        self.modulation_factor = 1.0
 
 
 class RegionBus:
-    def __init__(self):
-        self._inhibition_factor = 0.0
-        self._modulation_factor = 1.0
+    """Region-wide bus (same policy as LateralBus, region scope)."""
+    def __init__(self, inhibition_decay: float = 0.9):
+        self.inhibition_factor = 0.0
+        self.modulation_factor = 1.0
+        self.inhibition_decay = float(inhibition_decay)
 
-    def getInhibitionFactor(self): return self._inhibition_factor
-    def setInhibitionFactor(self, v): self._inhibition_factor = float(v)
-    def getModulationFactor(self): return self._modulation_factor
-    def setModulationFactor(self, v): self._modulation_factor = float(v)
+    # setters
+    def set_inhibition_factor(self, factor: float):
+        self.inhibition_factor = float(factor)
 
-    # aliases
-    get_inhibition_factor = getInhibitionFactor
-    set_inhibition_factor = setInhibitionFactor
-    get_modulation_factor = getModulationFactor
-    set_modulation_factor = setModulationFactor
+    def set_modulation_factor(self, factor: float):
+        self.modulation_factor = float(factor)
+
+    # getters
+    def get_inhibition_factor(self) -> float:
+        return float(self.inhibition_factor)
+
+    def get_modulation_factor(self) -> float:
+        return float(self.modulation_factor)
+
+    def get_inhibition_decay(self) -> float:
+        return float(self.inhibition_decay)
+
+    def decay(self):
+        self.inhibition_factor *= self.inhibition_decay
+        self.modulation_factor = 1.0

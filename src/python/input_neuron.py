@@ -29,5 +29,5 @@ class InputNeuron(Neuron):
         return fired
 
     def on_output(self, amplitude):
-        # input neurons don't fan out by themselves; Layer/Tract handles routing
+        # input neurons don't fan out by themselves; # Layer/Tract handles routing
         pass

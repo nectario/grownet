@@ -10,6 +10,27 @@ from metrics import RegionMetrics
 # - InputLayer2D must provide: forwardImage(frame) -> None
 
 class Region:
+
+    # --- Added for contract parity ---
+    def pulse_inhibition(self, factor: float):
+        """One-shot region-wide inhibition pulse."""
+        try:
+            self.bus.set_inhibition_factor(factor)
+        except Exception:
+            try:
+                self.bus.set_inhibition(factor)
+            except Exception:
+                pass
+
+    def pulse_modulation(self, factor: float):
+        """One-shot region-wide modulation pulse."""
+        try:
+            self.bus.set_modulation_factor(factor)
+        except Exception:
+            try:
+                self.bus.set_modulation(factor)
+            except Exception:
+                pass
     class PruneSummary:
         def __init__(self):
             self.pruned_synapses = 0
@@ -21,7 +42,7 @@ class Region:
         self.input_ports: Dict[str, List[int]] = {}
         self.output_ports: Dict[str, List[int]] = {}
         # RegionBus reserved; keep parity with Java/C++
-        self._bus = None
+        self.bus = None
 
     # ---------- construction: add layers (shape-aware helpers are optional in Python layer) ----------
     def add_layer(self, excitatoryCount: int, inhibitoryCount: int, modulatoryCount: int) -> int:
@@ -116,4 +137,4 @@ class Region:
         return self.layers
 
     def get_bus(self):
-        return self._bus
+        return self.bus

@@ -34,5 +34,4 @@ class SlotEngine:
         if sid not in neuron.slots():
             neuron.slots()[sid] = Weight()
         wt = neuron.slots()[sid]
-        wt.mark_touched(tick_count)
         return wt
