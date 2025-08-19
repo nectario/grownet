@@ -1,9 +1,12 @@
 # Ensure tests can import from src/python without packaging
 import sys, pathlib
+
+from src.python.bus import LateralBus
+from src.python.neuron_excitatory import ExcitatoryNeuron
+
 sys.path.append(str(pathlib.Path(__file__).parents[1] / "src" / "python"))
 
-from neuron_excitatory import ExcitatoryNeuron
-from bus import LateralBus
+
 
 def test_slot_creation_bins_by_percent_delta():
     bus = LateralBus()
