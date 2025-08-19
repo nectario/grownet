@@ -24,7 +24,7 @@ struct Region:
     var input_ports: Dict[String, List[Int]]
     var output_ports: Dict[String, List[Int]]
     var bus: any                         # Replace with RegionBusRef
-    # var _rng: Random                    # If you keep a RNG
+    # var rng: Random                    # If you keep a RNG
 
     fn __init__(mut self, name: String):
         self.name = name
