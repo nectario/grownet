@@ -4,7 +4,7 @@ from layer import Layer
 class InputLayer2D(Layer):
     def __init__(self, height, width, gain, epsilon_fire):
         # create empty layer (no default neurons)
-        self._bus = super().get_bus() if hasattr(self, "_bus") else None  # placeholder
+        self.bus = super().get_bus() if hasattr(self, "bus") else None  # placeholder
         # we cannot call super().__init__ because it would create mixed neurons;
         # instead, initialize skeleton fields as in Layer
         Layer.__init__(self, 0, 0, 0)
