@@ -45,6 +45,16 @@ public final class Region {
         return layers.size() - 1;
     }
 
+
+/** Create a shape-aware N-D input layer defined by shape[] (row-major). */
+public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
+    InputLayerND in = new InputLayerND(shape, gain, epsilonFire);
+    layers.add(in);
+    return layers.size() - 1;
+}
+
+
+
     /** Create a shape-aware output layer (e.g., image writer). */
     public int addOutputLayer2D(int height, int width, double smoothing) {
         OutputLayer2D out = new OutputLayer2D(height, width, smoothing);
@@ -164,6 +174,35 @@ public final class Region {
         }
     }
 
+
+    /** Bind an N-D input edge; creates InputLayerND if absent or wrong type/shape, then wires it → targets. */
+    public void bindInputND(String port, int[] shape, double gain, double epsilonFire, List<Integer> layerIndices) {
+        Objects.requireNonNull(port, "port");
+        Objects.requireNonNull(shape, "shape");
+        Objects.requireNonNull(layerIndices, "layerIndices");
+    
+        Integer idx = inputEdges.get(port);
+        boolean needNew = true;
+        if (idx != null) {
+            Layer maybe = layers.get(idx);
+            if (maybe instanceof InputLayerND) {
+                InputLayerND nd = (InputLayerND) maybe;
+                needNew = !nd.hasShape(shape);
+            }
+        }
+        if (idx == null || needNew) {
+            int edgeIndex = addInputLayerND(shape, gain, epsilonFire);
+            inputEdges.put(port, edgeIndex);
+            idx = edgeIndex;
+        }
+        inputPorts.put(port, List.copyOf(layerIndices)); // introspection only
+        for (int li : layerIndices) {
+            connectLayers(idx, li, /*probability=*/1.0, /*feedback=*/false);
+        }
+    }
+
+
+
     
     // ------------------------------ pulses (region-wide) -------------------
     /** Temporarily raise inhibition for the next tick (applies to all layer buses). */
@@ -220,7 +259,35 @@ public final class Region {
      * Drive this region with a 2D image (values in [0, 1] or any float range).
      * Follows the same onInput/onOutput contract as scalar ticks.
      */
-/** 2D tick (image-agnostic name). Port must be bound to a 2D InputEdge (InputLayer2D). */
+    /** 2D tick (image-agnostic name). Port must be bound to a 2D InputEdge (InputLayer2D). */
+
+    /** N-D tick: deliver a flat row-major array with explicit shape to an InputLayerND edge. */
+    public RegionMetrics tickND(String port, double[] flat, int[] shape) {
+        RegionMetrics m = new RegionMetrics();
+
+        Integer edge = inputEdges.get(port);
+        if (edge == null)
+            throw new IllegalArgumentException("No InputEdge for port '" + port + "'. Call bindInputND(...) first.");
+
+        Layer l = layers.get(edge);
+        if (!(l instanceof InputLayerND))
+            throw new IllegalArgumentException("InputEdge for '" + port + "' is not ND (expected InputLayerND).");
+
+        ((InputLayerND) l).forwardND(flat, shape);
+        m.incDeliveredEvents();
+
+        for (Layer layer : layers) layer.endTick();
+        bus.decay();
+
+        for (Layer layer : layers) {
+            for (Neuron n : layer.getNeurons()) {
+                m.addSlots(n.getSlots().size());
+                m.addSynapses(n.getOutgoing().size());
+            }
+        }
+        return m;
+    }
+
     public RegionMetrics tick2D(String port, double[][] frame) {
         RegionMetrics m = new RegionMetrics();
 

@@ -193,4 +193,39 @@ struct Region:
 
         return edge_idx
 
+    fn add_input_layer_nd(mut self, shape: List[Int], gain: Float64, epsilon_fire: Float64) -> Int:
+        let nd = InputLayerND(shape, gain, epsilon_fire)
+        self.layers.append(nd)
+        return self.layers.size - 1
 
+    fn bind_input_nd(mut self, port: String, shape: List[Int], gain: Float64, epsilon_fire: Float64, attach_layers: List[Int]) -> None:
+        let maybe_edge = self.input_edges.get(port)
+        var edge_index: Int
+        var need_new: Bool = True
+        if maybe_edge is not None:
+            edge_index = maybe_edge
+            if self.layers[edge_index].has_shape(shape):
+                need_new = False
+        if maybe_edge is None or need_new:
+            edge_index = self.add_input_layer_nd(shape, gain, epsilon_fire)
+            self.input_edges[port] = edge_index
+        self.input_ports[port] = attach_layers
+        for dest_index in attach_layers:
+            self.connect_layers(edge_index, dest_index, 1.0, False)
+
+    fn tick_nd(mut self, port: String, flat: List[Float64], shape: List[Int]) -> RegionMetrics:
+        var metrics = RegionMetrics()
+        let maybe_edge = self.input_edges.get(port)
+        if maybe_edge is None:
+            raise Exception("No InputEdge for port '" + port + "'. Call bind_input_nd(...) first.")
+        let edge_index = maybe_edge
+        self.layers[edge_index].forward_nd(flat, shape)
+        metrics.inc_delivered_events(1)
+        for layer_ref in self.layers:
+            layer_ref.end_tick()
+        self.bus.decay()
+        for layer_ref in self.layers:
+            for neuron in layer_ref.get_neurons():
+                metrics.add_slots(neuron.get_slots().size())
+                metrics.add_synapses(neuron.get_outgoing().size())
+        return metrics

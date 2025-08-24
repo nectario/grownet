@@ -38,6 +38,14 @@ class Region:
         self.layers.append(layer)
         return len(self.layers) - 1
 
+    
+    def add_input_layer_nd(self, shape: list[int], gain: float, epsilon_fire: float) -> int:
+        from input_layer_nd import InputLayerND
+        layer = InputLayerND(shape, gain, epsilon_fire)
+        self.layers.append(layer)
+        return len(self.layers) - 1
+
+
     def add_output_layer_2d(self, height: int, width: int, smoothing: float) -> int:
         from output_layer_2d import OutputLayer2D
         layer = OutputLayer2D(height, width, smoothing)
@@ -111,6 +119,23 @@ class Region:
         out_edge = self.ensure_output_edge(port)
         for li in layer_indices:
             self.connect_layers(li, out_edge, 1.0, False)
+
+    
+def bind_input_nd(self, port: str, shape: list[int], gain: float, epsilon_fire: float, layer_indices: list[int]) -> None:
+    idx = self.input_edges.get(port)
+    need_new = True
+    if idx is not None:
+        layer = self.layers[idx]
+        if hasattr(layer, "has_shape") and layer.has_shape(shape):
+            need_new = False
+    if idx is None or need_new:
+        edge_idx = self.add_input_layer_nd(shape, gain, epsilon_fire)
+        self.input_edges[port] = edge_idx
+        idx = edge_idx
+    self.input_ports[port] = list(layer_indices)
+    for li in layer_indices:
+        self.connect_layers(idx, li, 1.0, False)
+
 
     # ---------------- pulses ----------------
     def pulse_inhibition(self, factor: float) -> None:
@@ -196,6 +221,33 @@ class Region:
         return metrics
 
     # ---------------- maintenance ----------------
+    
+def tick_nd(self, port: str, flat: list[float], shape: list[int]) -> RegionMetrics:
+    metrics = RegionMetrics()
+    edge_idx = self.input_edges.get(port)
+    if edge_idx is None:
+        raise ValueError(f"No InputEdge for port '{port}'. Call bind_input_nd(...) first.")
+    layer = self.layers[edge_idx]
+    if not hasattr(layer, "forward_nd"):
+        raise ValueError(f"InputEdge for '{port}' is not ND (expected InputLayerND).")
+    layer.forward_nd(flat, shape)
+    metrics.inc_delivered_events(1)
+    for layer_obj in self.layers:
+        layer_obj.end_tick()
+    try:
+        if self.bus is not None and hasattr(self.bus, "decay"):
+            self.bus.decay()
+    except Exception:
+        pass
+    for layer_obj in self.layers:
+        for neuron in getattr(layer_obj, "get_neurons")():
+            slots = neuron.slots() if hasattr(neuron, "slots") else []
+            metrics.add_slots(len(slots))
+            outgoing = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+            metrics.add_synapses(len(outgoing))
+    return metrics
+
+
     def prune(
         self,
         synapse_stale_window: int = 10000,
