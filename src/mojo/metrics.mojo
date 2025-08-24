@@ -10,30 +10,30 @@ struct RegionMetrics:
         return Self(deliveredEvents=0, totalSlots=0, totalSynapses=0)
 
     # getters / setters
-    fn getDeliveredEvents(self) -> Int64:
+    fn get_delivered_events(self) -> Int64:
         return self.deliveredEvents
 
-    fn setDeliveredEvents(mut self, value: Int64) -> None:
+    fn set_delivered_events(mut self, value: Int64) -> None:
         self.deliveredEvents = value
 
-    fn getTotalSlots(self) -> Int64:
+    fn get_total_slots(self) -> Int64:
         return self.totalSlots
 
-    fn setTotalSlots(mut self, value: Int64) -> None:
+    fn set_total_slots(mut self, value: Int64) -> None:
         self.totalSlots = value
 
-    fn getTotalSynapses(self) -> Int64:
+    fn get_total_synapses(self) -> Int64:
         return self.totalSynapses
 
-    fn setTotalSynapses(mut self, value: Int64) -> None:
+    fn set_total_synapses(mut self, value: Int64) -> None:
         self.totalSynapses = value
 
     # helpers
-    fn incDeliveredEvents(mut self, by: Int64 = 1) -> None:
+    fn inc_delivered_events(mut self, by: Int64 = 1) -> None:
         self.deliveredEvents += by
 
-    fn addSlots(mut self, count: Int64) -> None:
+    fn add_slots(mut self, count: Int64) -> None:
         self.totalSlots += count
 
-    fn addSynapses(mut self, count: Int64) -> None:
+    fn add_synapses(mut self, count: Int64) -> None:
         self.totalSynapses += count

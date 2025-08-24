@@ -1,5 +1,8 @@
-package ai.nektron.grownet;
+package ai.nektron.grownet.tests;
 
+import ai.nektron.grownet.ExcitatoryNeuron;
+import ai.nektron.grownet.LateralBus;
+import ai.nektron.grownet.SlotConfig;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

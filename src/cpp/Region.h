@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <stdexcept>
 
 #include "RegionBus.h"
 #include "Tract.h"
@@ -13,58 +14,70 @@
 
 namespace grownet {
 
-    struct RegionMetrics {
-        int deliveredEvents {0};
-        int delivered_events {0}; // legacy alias for demos
-        int totalSlots      {0};
-        int totalSynapses   {0};
-    };
+/** Simple DTO with add/inc helpers to mirror Java semantics. */
+struct RegionMetrics {
+    long long deliveredEvents {0};
+    long long totalSlots {0};
+    long long totalSynapses {0};
+    // legacy alias used by some demos
+    long long delivered_events {0};
 
-    struct PruneSummary {
-        int prunedSynapses {0};
-        int prunedEdges    {0};
-    };
+    inline void incDeliveredEvents(long long by = 1) {
+        deliveredEvents += by;
+        delivered_events += by;
+    }
+    inline void addSlots(long long n) { totalSlots += n; }
+    inline void addSynapses(long long n) { totalSynapses += n; }
+};
 
-    class Region {
-    public:
-        explicit Region(std::string name);
+/** Prune result (tract-level reserved). */
+struct PruneSummary {
+    long long prunedSynapses {0};
+    long long prunedEdges {0};
+};
 
-        // Construction
-        int addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount);
-        int addInputLayer2D(int h, int w, double gain, double epsilonFire);
-        int addOutputLayer2D(int h, int w, double smoothing);
-        Tract& connectLayers(int sourceIndex, int destIndex, double probability, bool feedback = false);
-        void bindInput(const std::string& port, const std::vector<int>& layerIndices);
-        void bindOutput(const std::string& port, const std::vector<int>& layerIndices);
+/** Region orchestrates layers, tracts, ports, and pulses. */
+class Region {
+public:
+    explicit Region(std::string name);
 
-        // Region-wide pulses (one tick)
-        void pulseInhibition(double factor) { bus.setInhibitionFactor(factor); }
-        void pulseModulation(double factor) { bus.setModulationFactor(factor); }
+    int addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount);
+    int addInputLayer2D(int h, int w, double gain, double epsilonFire);
+    int addOutputLayer2D(int h, int w, double smoothing);
 
-        // Main loop (two-phase)
-        RegionMetrics tick(const std::string& port, double value);
-        RegionMetrics tickImage(const std::string& port, const std::vector<std::vector<double>>& frame);
+    Tract& connectLayers(int sourceIndex, int destIndex, double probability, bool feedback=false);
 
-        // Maintenance
-        PruneSummary prune(long long /*synapseStaleWindow*/ = 10'000, double /*synapseMinStrength*/ = 0.05,
-                           long long /*tractStaleWindow*/   = 10'000, double /*tractMinStrength*/   = 0.05) {
-            // placeholder: no-op for now
-            return PruneSummary{};
-        }
+    void bindInput(const std::string& port, const std::vector<int>& layerIndices);
+    void bindInput2D(const std::string& port, int h, int w, double gain, double epsilonFire, const std::vector<int>& attachLayers);
+    void bindOutput(const std::string& port, const std::vector<int>& layerIndices);
 
-        // Accessors
-        const std::string& getName() const { return name; }
-        std::vector<std::shared_ptr<Layer>>& getLayers() { return layers; }
-        std::vector<std::unique_ptr<Tract>>& getTracts() { return tracts; }
-        RegionBus& getBus() { return bus; }
+    void pulseInhibition(double factor);
+    void pulseModulation(double factor);
 
-    private:
-        std::string name;
-        std::vector<std::shared_ptr<Layer>> layers;      // shared_ptr keeps addresses stable
-        std::vector<std::unique_ptr<Tract>> tracts;
-        RegionBus bus;
-        std::unordered_map<std::string, std::vector<int>> inputPorts;
-        std::unordered_map<std::string, std::vector<int>> outputPorts;
-    };
+    RegionMetrics tick(const std::string& port, double value);
+    RegionMetrics tickImage(const std::string& port, const std::vector<std::vector<double>>& frame);
+
+    const std::string& getName() const { return name; }
+    std::vector<std::shared_ptr<Layer>>& getLayers() { return layers; }
+    std::vector<std::unique_ptr<Tract>>& getTracts() { return tracts; }
+    RegionBus& getBus() { return bus; }
+
+private:
+    // Create one-neuron edge layers lazily per port
+    int ensureInputEdge(const std::string& port);
+    int ensureOutputEdge(const std::string& port);
+
+private:
+    std::string name;
+    std::vector<std::shared_ptr<Layer>> layers;      // shared_ptr keeps addresses stable
+    std::vector<std::unique_ptr<Tract>> tracts;
+    RegionBus bus;
+
+    std::unordered_map<std::string, std::vector<int>> inputPorts;
+    std::unordered_map<std::string, std::vector<int>> outputPorts;
+
+    std::unordered_map<std::string, int> inputEdges;
+    std::unordered_map<std::string, int> outputEdges;
+};
 
 } // namespace grownet

@@ -110,21 +110,57 @@ public final class Region {
         return connectLayers(sourceIndex, destIndex, probability, false);
     }
 
-    /** Bind an external named input port to one or more entry layers. */
+    /** Bind scalar input: create/reuse InputEdge(port) and wire it → target layers (p=1.0). */
     public void bindInput(String port, List<Integer> layerIndices) {
-        inputPorts.put(port, new ArrayList<>(layerIndices));
-        int inEdge = ensureInputEdge(port);
+        Objects.requireNonNull(port, "port");
+        Objects.requireNonNull(layerIndices, "layerIndices");
+        inputPorts.put(port, List.copyOf(layerIndices)); // for introspection only
+
+        int edge = ensureInputEdge(port);
         for (int li : layerIndices) {
-            connectLayers(inEdge, li, 1.0, false);
+            connectLayers(edge, li, /*probability=*/1.0, /*feedback=*/false);
         }
     }
 
-    /** (Reserved) output binding — kept for symmetry/future dashboards. */
+    /** Bind scalar output: wire target layers → OutputEdge(port) (p=1.0). */
     public void bindOutput(String port, List<Integer> layerIndices) {
-        outputPorts.put(port, new ArrayList<>(layerIndices));
-        int outEdge = ensureOutputEdge(port);
+        Objects.requireNonNull(port, "port");
+        Objects.requireNonNull(layerIndices, "layerIndices");
+        outputPorts.put(port, List.copyOf(layerIndices));
+
+        int edge = ensureOutputEdge(port);
         for (int li : layerIndices) {
-            connectLayers(li, outEdge, 1.0, false);
+            connectLayers(li, edge, /*probability=*/1.0, /*feedback=*/false);
+        }
+    }
+
+    /** Bind a 2D input edge; creates InputLayer2D edge if absent or wrong type, then wires it → targets. */
+    public void bindInput2D(String port, int height, int width, double gain, double epsilonFire, List<Integer> layerIndices) {
+
+        Integer idx = inputEdges.get(port);
+        if (idx != null && !(layers.get(idx) instanceof InputLayer2D)) {
+            throw new IllegalStateException(
+                    "Port '" + port + "' already bound as scalar. Use a different port or unbind first.");
+        }
+
+        Objects.requireNonNull(port, "port");
+        Objects.requireNonNull(layerIndices, "layerIndices");
+
+        idx = inputEdges.get(port);
+        boolean needNew2D = true;
+        if (idx != null) {
+            Layer maybe = layers.get(idx);
+            needNew2D = !(maybe instanceof InputLayer2D);
+        }
+        if (idx == null || needNew2D) {
+            int edgeIndex = addInputLayer2D(height, width, gain, epsilonFire);
+            inputEdges.put(port, edgeIndex);
+            idx = edgeIndex;
+        }
+        inputPorts.put(port, List.copyOf(layerIndices));
+
+        for (int li : layerIndices) {
+            connectLayers(idx, li, /*probability=*/1.0, /*feedback=*/false);
         }
     }
 
@@ -152,31 +188,24 @@ public final class Region {
      * Returns lightweight metrics. (deliveredEvents remains a best‑effort placeholder unless
      * your Layer/Neuron tracks it explicitly.)
      */
+    /** Scalar tick: port must be bound to a scalar InputEdge (via bindInput). */
     public RegionMetrics tick(String port, double value) {
+
         RegionMetrics regionMetrics = new RegionMetrics();
 
         Integer edgeIdx = inputEdges.get(port);
-        if (edgeIdx != null) {
-            layers.get(edgeIdx).forward(value);
-            regionMetrics.incDeliveredEvents();
-        } else {
-            List<Integer> entry = inputPorts.get(port);
-            if (entry != null) {
-                for (int idx : entry) {
-                    layers.get(idx).forward(value);
-                    regionMetrics.incDeliveredEvents(); // best‑effort placeholder
-                }
-            }
+        if (edgeIdx == null) {
+            throw new IllegalArgumentException("No InputEdge for port '" + port + "'. Call bindInput(...) first.");
         }
 
-        // End‑of‑tick housekeeping for each layer (decay bus, etc.)
-        for (Layer layer : layers) {
-            layer.endTick();
-        }
-        // Decay region-scope bus as well (keeps pulses ephemeral)
+        layers.get(edgeIdx).forward(value);
+        regionMetrics.incDeliveredEvents();
+
+        // End-of-tick housekeeping
+        for (Layer layer : layers) layer.endTick();
         bus.decay();
 
-        // Aggregate simple counts for visibility
+        // Structural metrics
         for (Layer layer : layers) {
             for (Neuron neuron : layer.getNeurons()) {
                 regionMetrics.addSlots(neuron.getSlots().size());
@@ -185,41 +214,45 @@ public final class Region {
         }
         return regionMetrics;
     }
+
 
     /**
      * Drive this region with a 2D image (values in [0, 1] or any float range).
      * Follows the same onInput/onOutput contract as scalar ticks.
      */
-    public RegionMetrics tickImage(String port, double[][] frame) {
-        RegionMetrics regionMetrics = new RegionMetrics();
+/** 2D tick (image-agnostic name). Port must be bound to a 2D InputEdge (InputLayer2D). */
+    public RegionMetrics tick2D(String port, double[][] frame) {
+        RegionMetrics m = new RegionMetrics();
 
-        List<Integer> entry = inputPorts.get(port);
-        if (entry != null) {
-            for (int idx : entry) {
-                Layer layer = layers.get(idx);
-                if (layer instanceof InputLayer2D) {
-                    ((InputLayer2D) layer).forwardImage(frame);
-                    regionMetrics.incDeliveredEvents();   // per entry layer
-                }
-            }
-        }
+        Integer edge = inputEdges.get(port);
+        if (edge == null)
+            throw new IllegalArgumentException("No InputEdge for port '" + port + "'. Call bindInput2D(...) first.");
 
-        // End‑of‑tick housekeeping
-        for (Layer layer : layers) {
-            layer.endTick();
-        }
-        // Decay region-scope bus as well (keeps pulses ephemeral)
+        Layer l = layers.get(edge);
+        if (!(l instanceof InputLayer2D))
+            throw new IllegalArgumentException("InputEdge for '" + port + "' is not 2D (expected InputLayer2D).");
+
+        ((InputLayer2D) l).forwardImage(frame);
+        m.incDeliveredEvents();
+
+        // End-of-tick housekeeping
+        for (Layer layer : layers) layer.endTick();
         bus.decay();
 
-        // Aggregates
+        // Aggregate structure metrics
         for (Layer layer : layers) {
-            for (Neuron neuron : layer.getNeurons()) {
-                regionMetrics.addSlots(neuron.getSlots().size());
-                regionMetrics.addSynapses(neuron.getOutgoing().size());
+            for (Neuron n : layer.getNeurons()) {
+                m.addSlots(n.getSlots().size());
+                m.addSynapses(n.getOutgoing().size());
             }
         }
-        return regionMetrics;
+        return m;
     }
+
+    public RegionMetrics tickImage(String port, double[][] frame) {
+        return tick2D(port, frame);
+    }
+
 
     // ----------------------------- maintenance ---------------------------
     /**

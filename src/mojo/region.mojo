@@ -19,12 +19,12 @@ struct PruneSummary:
         self.pruned_edges = 0
 
 struct Region:
-    var name: String
-    var layers: List[any]                # Replace `any` with your LayerRef type
-    var input_ports: Dict[String, List[Int]]
-    var output_ports: Dict[String, List[Int]]
-    var bus: any                         # Replace with RegionBusRef
-    # var rng: Random                    # If you keep a RNG
+    var input_edges: Dictionary[String, Int]
+    var output_edges: Dictionary[String, Int]
+    var layers: List[Layer]            # or whatever list/vector type you use
+    var input_ports: Dictionary[String, List[Int]]
+    var output_ports: Dictionary[String, List[Int]]
+    var bus: RegionBus                  # or Optional if your code uses it
 
     fn __init__(mut self, name: String):
         self.name = name
@@ -32,6 +32,69 @@ struct Region:
         self.input_ports = Dict[String, List[Int]]()
         self.output_ports = Dict[String, List[Int]]()
         self.bus = None                  # RegionBusRef
+
+
+    fn tick(self, port: String, value: Float64) -> RegionMetrics:
+        var metrics = RegionMetrics()
+
+        # Prefer delivery to InputEdge if present
+        let maybe_edge = self.input_edges.get(port)
+        if maybe_edge is not None:
+            let edge_index = maybe_edge
+            self.layers[edge_index].forward(value)
+            metrics.inc_delivered_events()
+        else:
+            # Fallback to original: fan directly into bound layers (if any)
+            let maybe_bound = self.input_ports.get(port)
+            if maybe_bound is not None:
+                for entry_layer_index in maybe_bound:
+                    self.layers[entry_layer_index].forward(value)
+                    metrics.inc_delivered_events()
+
+        # End-of-tick housekeeping: per-layer, then region bus decay
+        for layer in self.layers:
+            layer.end_tick()
+
+        if self.bus is not None:
+            self.bus.decay()
+
+        # Aggregate structural metrics
+        for layer in self.layers:
+            for neuron in layer.get_neurons():
+                metrics.add_slots(neuron.slots().size)        # or len(slots) equivalent
+                metrics.add_synapses(neuron.get_outgoing().size)
+
+        return metrics
+
+    # In src/mojo/region.mojo (inside struct Region)
+
+    fn tick_image(self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
+        var metrics = RegionMetrics()
+
+        # Deliver the frame to all layers bound to this input port (shape-aware path)
+        # We keep this identical to Python: call forward_image when available.
+        if self.input_ports.contains(port):
+            let bound_layers = self.input_ports[port]
+            for layer_index in bound_layers:
+                self.layers[layer_index].forward_image(frame)
+                metrics.inc_delivered_events()
+
+        # End-of-tick housekeeping
+        for layer in self.layers:
+            layer.end_tick()
+
+        # Pulses are ephemeral; decay region bus once per tick
+        if self.bus is not None:
+            self.bus.decay()
+
+        # Aggregate structural metrics
+        for layer in self.layers:
+            for neuron in layer.get_neurons():
+                metrics.add_slots(neuron.slots().size)
+                metrics.add_synapses(neuron.get_outgoing().size)
+
+        return metrics
+
 
     # ---------------- construction ----------------
     fn add_layer(mut self,
@@ -67,76 +130,67 @@ struct Region:
         # Walk neurons in src/dst layers, probabilistic connect, return edge count
         return 0
 
-    fn bind_input(mut self, port: String, layer_indices: List[Int]) -> None:
+
+    fn bind_input(self, port: String, layer_indices: List[Int]) -> None:
+        # Record mapping for back-compat / diagnostics
         self.input_ports[port] = layer_indices
 
-    fn bind_output(mut self, port: String, layer_indices: List[Int]) -> None:
+        # Ensure InputEdge(port) exists and wire it to bound layers with prob=1.0
+        let input_edge_index = self.ensure_input_edge(port)
+        for layer_index in layer_indices:
+            self.connect_layers(input_edge_index, layer_index, 1.0, False)
+
+
+    fn bind_output(self, port: String, layer_indices: List[Int]) -> None:
         self.output_ports[port] = layer_indices
 
-    # ---------------- tick (scalar) ----------------
-    fn tick(mut self, port: String, value: Float64) -> RegionMetrics:
-        var m = RegionMetrics()
+        let output_edge_index = self.ensure_output_edge(port)
+        for layer_index in layer_indices:
+            self.connect_layers(layer_index, output_edge_index, 1.0, False)
 
-        if self.input_ports.contains(port):
-            let entry = self.input_ports[port]
-            for idx in entry:
-                # self.layers[idx].forward(value)
-                m.inc_delivered_events()
 
-        # End-of-tick housekeeping
+    fn pulse_inhibition(self, factor: Float64) -> None:
+        # Region-scope bus (if present)
+        if self.bus is not None:
+            self.bus.set_inhibition_factor(factor)
+
+        # Mirror to each layer bus
         for layer in self.layers:
-            # layer.end_tick()
-            pass
+            if layer.bus is not None:
+                layer.bus.set_inhibition_factor(factor)
 
-        # Aggregate visibility counts
+
+    fn pulse_modulation(self, factor: Float64) -> None:
+        if self.bus is not None:
+            self.bus.set_modulation_factor(factor)
+
         for layer in self.layers:
-            # for neuron in layer.get_neurons():
-            #     m.add_slots(neuron.get_slots().size)
-            #     m.add_synapses(neuron.get_outgoing().size)
-            pass
+            if layer.bus is not None:
+                layer.bus.set_modulation_factor(factor)
 
-        return m
 
-    # ---------------- tick (image) ----------------
-    fn tick_image(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
-        var m = RegionMetrics()
 
-        if self.input_ports.contains(port):
-            let entry = self.input_ports[port]
-            for idx in entry:
-                # let layer = self.layers[idx]
-                # if layer is InputLayer2D:
-                #     layer.forward_image(frame)
-                m.inc_delivered_events()
+    fn ensure_input_edge(self, port: String) -> Int:
+        """Ensure an Input edge layer exists for this port; create lazily."""
+        idx = self.input_edges.get(port)
+        if idx is not None:
+            return idx
+        # Minimal scalar input edge: a 1-neuron layer that forwards to internal graph.
+        edge_idx = self.add_layer(1, 0, 0)
+        self.input_edges[port] = edge_idx
+        return edge_idx
 
-        # End-of-tick housekeeping
-        for layer in self.layers:
-            # layer.end_tick()
-            pass
 
-        # Aggregates (same as tick)
-        for layer in self.layers:
-            # for neuron in layer.get_neurons():
-            #     m.add_slots(neuron.get_slots().size)
-            #     m.add_synapses(neuron.get_outgoing().size)
-            pass
+    fn ensure_output_edge(self, port: String) -> Int:
+        """Ensure an Output edge layer exists for this port; create lazily."""
+        idx = self.output_edges.get(port)
+        if idx is not None:
+            return idx
+        # Minimal scalar output edge: a 1-neuron layer acting as a sink.
+        edge_idx = self.add_layer(1, 0, 0)
 
-        return m
+        self.output_edges[port] = edge_idx
 
-    # ---------------- maintenance ----------------
-    fn prune(mut self, synapse_stale_window: Int64, synapse_min_strength: Float64) -> PruneSummary:
-        var ps = PruneSummary()
-        # for layer in self.layers:
-        #     for neuron in layer.get_neurons():
-        #         ps.pruned_synapses += neuron.prune_synapses(synapse_stale_window, synapse_min_strength)
-        return ps
+        return edge_idx
 
-    # ---------------- accessors ----------------
-    fn get_name(self) -> String:
-        return self.name
 
-    fn get_layers(self) -> List[any]:     # replace any with LayerRef
-        return self.layers
-
-    fn get_bus(self) -> any:              # replace with RegionBusRef
-        return self.bus

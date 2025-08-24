@@ -1,7 +1,6 @@
-package tests;
+package ai.nektron.grownet.tests;
 
 import ai.nektron.grownet.Region;
-import ai.nektron.grownet.Layer;
 import ai.nektron.grownet.LateralBus;
 import ai.nektron.grownet.metrics.RegionMetrics;
 import java.util.List;
