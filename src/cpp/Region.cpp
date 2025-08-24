@@ -1,4 +1,5 @@
 #include "Region.h"
+#include "InputLayerND.h"
 #include <random>
 
 namespace grownet {
@@ -152,6 +153,62 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
     } else {
         throw std::invalid_argument("InputEdge for '" + port + "' is not 2D (expected InputLayer2D).");
     }
+
+    for (auto& layer : layers) layer->endTick();
+    bus.decay();
+
+    for (auto& layer : layers) {
+        for (auto& neuron : layer->getNeurons()) {
+            metrics.addSlots(static_cast<long long>(neuron->getSlots().size()));
+            metrics.addSynapses(static_cast<long long>(neuron->getOutgoing().size()));
+        }
+    }
+    return metrics;
+}
+
+
+
+int Region::addInputLayerND(const std::vector<int>& shape, double gain, double epsilonFire) {
+    layers.push_back(std::make_shared<InputLayerND>(shape, gain, epsilonFire));
+    return static_cast<int>(layers.size() - 1);
+}
+
+void Region::bindInputND(const std::string& port, const std::vector<int>& shape, double gain, double epsilonFire, const std::vector<int>& attachLayers) {
+    int edgeIndex;
+    auto it = inputEdges.find(port);
+    if (it != inputEdges.end()) {
+        auto maybe = dynamic_cast<InputLayerND*>(layers[it->second].get());
+        if (maybe != nullptr && maybe->hasShape(shape)) {
+            edgeIndex = it->second;
+        } else {
+            edgeIndex = addInputLayerND(shape, gain, epsilonFire);
+            inputEdges[port] = edgeIndex;
+        }
+    } else {
+        edgeIndex = addInputLayerND(shape, gain, epsilonFire);
+        inputEdges[port] = edgeIndex;
+    }
+    for (int li : attachLayers) {
+        connectLayers(edgeIndex, li, /*probability=*/1.0, /*feedback=*/false);
+    }
+}
+
+RegionMetrics Region::tickND(const std::string& port, const std::vector<double>& flat, const std::vector<int>& shape) {
+    RegionMetrics metrics;
+
+    auto itEdge = inputEdges.find(port);
+    if (itEdge == inputEdges.end()) {
+        throw std::invalid_argument("No InputEdge for port '" + port + "'. Bind an ND input edge first.");
+    }
+
+    int edgeIndex = itEdge->second;
+    auto inputnd = dynamic_cast<InputLayerND*>(layers[edgeIndex].get());
+    if (!inputnd) {
+        throw std::invalid_argument("InputEdge for '" + port + "' is not ND (expected InputLayerND).");
+    }
+
+    inputnd->forwardND(flat, shape);
+    metrics.incDeliveredEvents(1);
 
     for (auto& layer : layers) layer->endTick();
     bus.decay();

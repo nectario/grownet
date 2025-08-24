@@ -11,6 +11,7 @@
 #include "Neuron.h"
 #include "InputLayer2D.h"
 #include "OutputLayer2D.h"
+#include "InputLayerND.h"
 
 namespace grownet {
 
@@ -62,6 +63,13 @@ public:
     std::vector<std::unique_ptr<Tract>>& getTracts() { return tracts; }
     RegionBus& getBus() { return bus; }
 
+
+
+public:
+    // N-D input support (row-major)
+    int addInputLayerND(const std::vector<int>& shape, double gain, double epsilonFire);
+    void bindInputND(const std::string& port, const std::vector<int>& shape, double gain, double epsilonFire, const std::vector<int>& attachLayers);
+    RegionMetrics tickND(const std::string& port, const std::vector<double>& flat, const std::vector<int>& shape);
 private:
     // Create one-neuron edge layers lazily per port
     int ensureInputEdge(const std::string& port);
