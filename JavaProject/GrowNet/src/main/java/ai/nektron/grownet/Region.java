@@ -21,6 +21,10 @@ public final class Region {
     private final List<Layer> layers = new ArrayList<>();
     private final Map<String, List<Integer>> inputPorts  = new HashMap<>();
     private final Map<String, List<Integer>> outputPorts = new HashMap<>();
+    
+    // Edge layers per port (auto-created on bind)
+    private final Map<String, Integer> inputEdges = new HashMap<>();
+    private final Map<String, Integer> outputEdges = new HashMap<>();
     private final RegionBus bus = new RegionBus();   // reserved for future tract batching
     private final Random rng = new Random(1234);
 
@@ -46,6 +50,28 @@ public final class Region {
         OutputLayer2D out = new OutputLayer2D(height, width, smoothing);
         layers.add(out);
         return layers.size() - 1;
+    }
+
+    
+    // ------------------------------ edge helpers ---------------------------
+    /** Ensure there is an Input edge layer for this port; create lazily if missing. */
+    private int ensureInputEdge(String port) {
+        Integer idx = inputEdges.get(port);
+        if (idx != null) return idx;
+        // Minimal scalar input edge: a 1-neuron layer that forwards into the graph.
+        int edge = addLayer(1, 0, 0);
+        inputEdges.put(port, edge);
+        return edge;
+    }
+
+    /** Ensure there is an Output edge layer for this port; create lazily if missing. */
+    private int ensureOutputEdge(String port) {
+        Integer idx = outputEdges.get(port);
+        if (idx != null) return idx;
+        // Minimal scalar output edge: a 1-neuron layer acting as a sink (placeholder).
+        int edge = addLayer(1, 0, 0);
+        outputEdges.put(port, edge);
+        return edge;
     }
 
     // ------------------------------ wiring -------------------------------
@@ -87,11 +113,37 @@ public final class Region {
     /** Bind an external named input port to one or more entry layers. */
     public void bindInput(String port, List<Integer> layerIndices) {
         inputPorts.put(port, new ArrayList<>(layerIndices));
+        int inEdge = ensureInputEdge(port);
+        for (int li : layerIndices) {
+            connectLayers(inEdge, li, 1.0, false);
+        }
     }
 
     /** (Reserved) output binding — kept for symmetry/future dashboards. */
     public void bindOutput(String port, List<Integer> layerIndices) {
         outputPorts.put(port, new ArrayList<>(layerIndices));
+        int outEdge = ensureOutputEdge(port);
+        for (int li : layerIndices) {
+            connectLayers(li, outEdge, 1.0, false);
+        }
+    }
+
+    
+    // ------------------------------ pulses (region-wide) -------------------
+    /** Temporarily raise inhibition for the next tick (applies to all layer buses). */
+    public void pulseInhibition(double factor) {
+        bus.setInhibitionFactor(factor);
+        for (Layer layer : layers) {
+            layer.getBus().setInhibitionFactor(factor);
+        }
+    }
+
+    /** Temporarily scale modulation for the next tick (applies to all layer buses). */
+    public void pulseModulation(double factor) {
+        bus.setModulationFactor(factor);
+        for (Layer layer : layers) {
+            layer.getBus().setModulationFactor(factor);
+        }
     }
 
     // -------------------------------- tick -------------------------------
@@ -103,11 +155,17 @@ public final class Region {
     public RegionMetrics tick(String port, double value) {
         RegionMetrics regionMetrics = new RegionMetrics();
 
-        List<Integer> entry = inputPorts.get(port);
-        if (entry != null) {
-            for (int idx : entry) {
-                layers.get(idx).forward(value);
-                regionMetrics.incDeliveredEvents(); // best‑effort placeholder
+        Integer edgeIdx = inputEdges.get(port);
+        if (edgeIdx != null) {
+            layers.get(edgeIdx).forward(value);
+            regionMetrics.incDeliveredEvents();
+        } else {
+            List<Integer> entry = inputPorts.get(port);
+            if (entry != null) {
+                for (int idx : entry) {
+                    layers.get(idx).forward(value);
+                    regionMetrics.incDeliveredEvents(); // best‑effort placeholder
+                }
             }
         }
 
@@ -115,6 +173,8 @@ public final class Region {
         for (Layer layer : layers) {
             layer.endTick();
         }
+        // Decay region-scope bus as well (keeps pulses ephemeral)
+        bus.decay();
 
         // Aggregate simple counts for visibility
         for (Layer layer : layers) {
@@ -148,6 +208,8 @@ public final class Region {
         for (Layer layer : layers) {
             layer.endTick();
         }
+        // Decay region-scope bus as well (keeps pulses ephemeral)
+        bus.decay();
 
         // Aggregates
         for (Layer layer : layers) {
