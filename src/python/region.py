@@ -121,20 +121,20 @@ class Region:
             self.connect_layers(li, out_edge, 1.0, False)
 
     
-def bind_input_nd(self, port: str, shape: list[int], gain: float, epsilon_fire: float, layer_indices: list[int]) -> None:
-    idx = self.input_edges.get(port)
-    need_new = True
-    if idx is not None:
-        layer = self.layers[idx]
-        if hasattr(layer, "has_shape") and layer.has_shape(shape):
-            need_new = False
-    if idx is None or need_new:
-        edge_idx = self.add_input_layer_nd(shape, gain, epsilon_fire)
-        self.input_edges[port] = edge_idx
-        idx = edge_idx
-    self.input_ports[port] = list(layer_indices)
-    for li in layer_indices:
-        self.connect_layers(idx, li, 1.0, False)
+    def bind_input_nd(self, port: str, shape: list[int], gain: float, epsilon_fire: float, layer_indices: list[int]) -> None:
+        idx = self.input_edges.get(port)
+        need_new = True
+        if idx is not None:
+            layer = self.layers[idx]
+            if hasattr(layer, "has_shape") and layer.has_shape(shape):
+                need_new = False
+        if idx is None or need_new:
+            edge_idx = self.add_input_layer_nd(shape, gain, epsilon_fire)
+            self.input_edges[port] = edge_idx
+            idx = edge_idx
+        self.input_ports[port] = list(layer_indices)
+        for li in layer_indices:
+            self.connect_layers(idx, li, 1.0, False)
 
 
     # ---------------- pulses ----------------
@@ -193,61 +193,39 @@ def bind_input_nd(self, port: str, shape: list[int], gain: float, epsilon_fire: 
         return metrics
 
 
-    def tick_image(self, port: str, frame) -> RegionMetrics:
+    
+    def tick_2d(self, port: str, frame) -> RegionMetrics:
+        """2D tick (image-agnostic). Port must be bound to a 2D Input edge (InputLayer2D)."""
         metrics = RegionMetrics()
-
         edge_idx = self.input_edges.get(port)
         if edge_idx is None:
-            raise KeyError(f"No InputEdge for port '{port}'. Bind a 2D input edge before tick_image().")
-
+            raise ValueError(f"No InputEdge for port '{port}'. Call bind_input_2d(...) first.")
         layer = self.layers[edge_idx]
-        if not hasattr(layer, "forward_image"):
-            raise TypeError(f"InputEdge for '{port}' is not 2D. Use an InputLayer2D edge.")
-
-        layer.forward_image(frame)
+        if hasattr(layer, "forward_image"):
+            layer.forward_image(frame)
+        else:
+            raise ValueError(f"InputEdge for '{port}' is not 2D (expected InputLayer2D).")
         metrics.inc_delivered_events(1)
-
-        for layer in self.layers:
-            layer.end_tick()
-        if self.bus is not None and hasattr(self.bus, "decay"):
-            self.bus.decay()
-
-        for layer in self.layers:
-            for neuron in getattr(layer, "get_neurons")():
+        for layer_obj in self.layers:
+            layer_obj.end_tick()
+        try:
+            if self.bus is not None and hasattr(self.bus, "decay"):
+                self.bus.decay()
+        except Exception:
+            pass
+        for layer_obj in self.layers:
+            for neuron in getattr(layer_obj, "get_neurons")():
                 slots = neuron.slots() if hasattr(neuron, "slots") else []
                 metrics.add_slots(len(slots))
                 outgoing = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
                 metrics.add_synapses(len(outgoing))
         return metrics
 
-    # ---------------- maintenance ----------------
+
+    def tick_image(self, port: str, frame) -> RegionMetrics:
+        return self.tick_2d(port, frame)
+
     
-def tick_nd(self, port: str, flat: list[float], shape: list[int]) -> RegionMetrics:
-    metrics = RegionMetrics()
-    edge_idx = self.input_edges.get(port)
-    if edge_idx is None:
-        raise ValueError(f"No InputEdge for port '{port}'. Call bind_input_nd(...) first.")
-    layer = self.layers[edge_idx]
-    if not hasattr(layer, "forward_nd"):
-        raise ValueError(f"InputEdge for '{port}' is not ND (expected InputLayerND).")
-    layer.forward_nd(flat, shape)
-    metrics.inc_delivered_events(1)
-    for layer_obj in self.layers:
-        layer_obj.end_tick()
-    try:
-        if self.bus is not None and hasattr(self.bus, "decay"):
-            self.bus.decay()
-    except Exception:
-        pass
-    for layer_obj in self.layers:
-        for neuron in getattr(layer_obj, "get_neurons")():
-            slots = neuron.slots() if hasattr(neuron, "slots") else []
-            metrics.add_slots(len(slots))
-            outgoing = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
-            metrics.add_synapses(len(outgoing))
-    return metrics
-
-
     def prune(
         self,
         synapse_stale_window: int = 10000,

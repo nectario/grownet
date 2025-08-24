@@ -68,164 +68,32 @@ struct Region:
 
     # In src/mojo/region.mojo (inside struct Region)
 
-    fn tick_image(self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
-        var metrics = RegionMetrics()
+    
 
-        # Deliver the frame to all layers bound to this input port (shape-aware path)
-        # We keep this identical to Python: call forward_image when available.
-        if self.input_ports.contains(port):
-            let bound_layers = self.input_ports[port]
-            for layer_index in bound_layers:
-                self.layers[layer_index].forward_image(frame)
-                metrics.inc_delivered_events()
+fn tick_2d(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
+    var metrics = RegionMetrics()
 
-        # End-of-tick housekeeping
-        for layer in self.layers:
-            layer.end_tick()
+    let maybe_edge = self.input_edges.get(port)
+    if maybe_edge is None:
+        raise Exception("No InputEdge for port '" + port + "'. Call bind_input_2d(...) first.")
+    let edge_index = maybe_edge
 
-        # Pulses are ephemeral; decay region bus once per tick
-        if self.bus is not None:
-            self.bus.decay()
+    # Expect the edge layer to implement forward_image(...)
+    self.layers[edge_index].forward_image(frame)
+    metrics.inc_delivered_events(1)
 
-        # Aggregate structural metrics
-        for layer in self.layers:
-            for neuron in layer.get_neurons():
-                metrics.add_slots(neuron.slots().size)
-                metrics.add_synapses(neuron.get_outgoing().size)
+    # End-of-tick housekeeping
+    for layer_ref in self.layers:
+        layer_ref.end_tick()
 
-        return metrics
-
-
-    # ---------------- construction ----------------
-    fn add_layer(mut self,
-                 excitatory_count: Int,
-                 inhibitory_count: Int,
-                 modulatory_count: Int) -> Int:
-        # let layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
-        # self.layers.append(layer)
-        # return self.layers.size - 1
-        return 0
-
-    fn add_input_layer_2d(mut self,
-                          height: Int, width: Int,
-                          gain: Float64, epsilon_fire: Float64) -> Int:
-        # let layer = InputLayer2D(height, width, gain, epsilon_fire)
-        # self.layers.append(layer)
-        # return self.layers.size - 1
-        return 0
-
-    fn add_output_layer_2d(mut self,
-                           height: Int, width: Int,
-                           smoothing: Float64) -> Int:
-        # let layer = OutputLayer2D(height, width, smoothing)
-        # self.layers.append(layer)
-        # return self.layers.size - 1
-        return 0
-
-    # ---------------- wiring ----------------
-    fn connect_layers(mut self,
-                      source_index: Int, dest_index: Int,
-                      probability: Float64, feedback: Bool = False) -> Int:
-        # Defensive bounds & clamping as in Python
-        # Walk neurons in src/dst layers, probabilistic connect, return edge count
-        return 0
-
-
-    fn bind_input(self, port: String, layer_indices: List[Int]) -> None:
-        # Record mapping for back-compat / diagnostics
-        self.input_ports[port] = layer_indices
-
-        # Ensure InputEdge(port) exists and wire it to bound layers with prob=1.0
-        let input_edge_index = self.ensure_input_edge(port)
-        for layer_index in layer_indices:
-            self.connect_layers(input_edge_index, layer_index, 1.0, False)
-
-
-    fn bind_output(self, port: String, layer_indices: List[Int]) -> None:
-        self.output_ports[port] = layer_indices
-
-        let output_edge_index = self.ensure_output_edge(port)
-        for layer_index in layer_indices:
-            self.connect_layers(layer_index, output_edge_index, 1.0, False)
-
-
-    fn pulse_inhibition(self, factor: Float64) -> None:
-        # Region-scope bus (if present)
-        if self.bus is not None:
-            self.bus.set_inhibition_factor(factor)
-
-        # Mirror to each layer bus
-        for layer in self.layers:
-            if layer.bus is not None:
-                layer.bus.set_inhibition_factor(factor)
-
-
-    fn pulse_modulation(self, factor: Float64) -> None:
-        if self.bus is not None:
-            self.bus.set_modulation_factor(factor)
-
-        for layer in self.layers:
-            if layer.bus is not None:
-                layer.bus.set_modulation_factor(factor)
-
-
-
-    fn ensure_input_edge(self, port: String) -> Int:
-        """Ensure an Input edge layer exists for this port; create lazily."""
-        idx = self.input_edges.get(port)
-        if idx is not None:
-            return idx
-        # Minimal scalar input edge: a 1-neuron layer that forwards to internal graph.
-        edge_idx = self.add_layer(1, 0, 0)
-        self.input_edges[port] = edge_idx
-        return edge_idx
-
-
-    fn ensure_output_edge(self, port: String) -> Int:
-        """Ensure an Output edge layer exists for this port; create lazily."""
-        idx = self.output_edges.get(port)
-        if idx is not None:
-            return idx
-        # Minimal scalar output edge: a 1-neuron layer acting as a sink.
-        edge_idx = self.add_layer(1, 0, 0)
-
-        self.output_edges[port] = edge_idx
-
-        return edge_idx
-
-    fn add_input_layer_nd(mut self, shape: List[Int], gain: Float64, epsilon_fire: Float64) -> Int:
-        let nd = InputLayerND(shape, gain, epsilon_fire)
-        self.layers.append(nd)
-        return self.layers.size - 1
-
-    fn bind_input_nd(mut self, port: String, shape: List[Int], gain: Float64, epsilon_fire: Float64, attach_layers: List[Int]) -> None:
-        let maybe_edge = self.input_edges.get(port)
-        var edge_index: Int
-        var need_new: Bool = True
-        if maybe_edge is not None:
-            edge_index = maybe_edge
-            if self.layers[edge_index].has_shape(shape):
-                need_new = False
-        if maybe_edge is None or need_new:
-            edge_index = self.add_input_layer_nd(shape, gain, epsilon_fire)
-            self.input_edges[port] = edge_index
-        self.input_ports[port] = attach_layers
-        for dest_index in attach_layers:
-            self.connect_layers(edge_index, dest_index, 1.0, False)
-
-    fn tick_nd(mut self, port: String, flat: List[Float64], shape: List[Int]) -> RegionMetrics:
-        var metrics = RegionMetrics()
-        let maybe_edge = self.input_edges.get(port)
-        if maybe_edge is None:
-            raise Exception("No InputEdge for port '" + port + "'. Call bind_input_nd(...) first.")
-        let edge_index = maybe_edge
-        self.layers[edge_index].forward_nd(flat, shape)
-        metrics.inc_delivered_events(1)
-        for layer_ref in self.layers:
-            layer_ref.end_tick()
+    if self.bus is not None:
         self.bus.decay()
-        for layer_ref in self.layers:
-            for neuron in layer_ref.get_neurons():
-                metrics.add_slots(neuron.get_slots().size())
-                metrics.add_synapses(neuron.get_outgoing().size())
-        return metrics
+
+    # Aggregate structural metrics
+    for layer_ref in self.layers:
+        for neuron in layer_ref.get_neurons():
+            metrics.add_slots(neuron.slots().size)
+            metrics.add_synapses(neuron.get_outgoing().size)
+    return metrics
+fn tick_image(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
+        return self.tick_2d(port, frame)
