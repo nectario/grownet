@@ -1,0 +1,11 @@
+meta:
+  id: PHASE-B
+  title: "Phase B: Spatial Focus (2D spotlight)"
+  rerunnable: true
+
+actions:
+  - include: "codex/cr/CR-B-01-spatial-focus.yaml"
+  - include: "codex/cr/CR-B-02-tests.yaml"
+
+postconditions:
+  - note: "Phase B applied"

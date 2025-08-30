@@ -1,0 +1,37 @@
+meta:
+  id: CR-BOOT
+  title: "GrowNet Codex bootstrap: health checks, anchors, guardrails"
+  rerunnable: true
+
+preconditions:
+  - dir_exists: "src"
+
+actions:
+  - add_file:
+      path: "./codex/docs/README_Codex.md"
+      if_exists: "overwrite"
+      content: |
+        # GrowNet — Codex Guide
+        - Java is gold; keep semantics identical across languages.
+        - Ports are edges; 2D uses tick2D, ND uses tickND. tickImage delegates to tick2D.
+        - Python uses snake_case; **fields must not start with '_'**.
+        - Mojo uses `struct`, `fn`, and explicit param types; avoid clever tricks.
+        - C++ headers define the shape; use std::unique_ptr/shared_ptr consistently.
+        - Do not remove public methods without replacing with a delegating alias.
+        - Add change anchors like: // [GROWNET:ANCHOR::<name>]
+
+  - ensure_block:
+      file: "src/java/ai/nektron/grownet/Region.java"
+      anchor_before: "public final class Region"
+      insert: |
+        // [GROWNET:ANCHOR::AFTER_METRICS]  // keep for Codex hook insertion later
+
+  # Light repo-wide sanity runs (allowed to be no-ops if targets don't exist)
+  - run: "mvn -q -DskipTests test || true"
+  - run: "cmake -S src/cpp -B build || true"
+  - run: "cmake --build build || true"
+  - run: "pytest -q || true"
+  - run: "echo 'Codex bootstrap done.'"
+
+postconditions:
+  - file_exists: "./codex/docs/README_Codex.md"

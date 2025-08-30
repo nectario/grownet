@@ -9,6 +9,10 @@ struct Neuron:
     var outgoing: list[Synapse]  # declared in file using this struct
     var have_last_input: Bool = False
     var last_input_value: Float64 = 0.0
+    # temporal focus state
+    var focus_anchor: Float64 = 0.0
+    var focus_set: Bool = False
+    var focus_lock_until_tick: Int = 0
     var last_fired: Bool = False
 
     fn init(mut self, neuron_id: String, slot_limit: Int = -1) -> None:
@@ -24,27 +28,30 @@ struct Neuron:
         self.outgoing.append(s)
 
     fn on_input(mut self, value: Float64, modulation_factor: Float64) -> Bool:
-        # Pick/select slot by percent delta.
-        var slot_id: Int = 0
-        if self.have_last_input:
-            slot_id = self.slot_engine.slot_id(self.last_input_value, value, Int(self.slots.size()))
-        else:
-            slot_id = 0
-        # Select or create
-        if not self.slots.contains(slot_id):
-            if self.slot_limit >= 0 and Int(self.slots.size()) >= self.slot_limit:
-                # Reuse 0 if limit reached
-                slot_id = 0
-            else:
-                self.slots[slot_id] = Weight()
-        var slot = self.slots[slot_id]
-        slot.reinforce(modulation_factor)
-        let fired = slot.update_threshold(value)
+        if not self.focus_set:
+            self.focus_anchor = value
+            self.focus_set = True
 
-        self.have_last_input = True
-        self.last_input_value = value
+        let bin_width_pct: Float64 = 10.0
+        let epsilon_scale: Float64 = 1e-6
+        var slot_identifier: Int = self.slot_engine.select_anchor_slot_id(
+            self.focus_anchor, value, bin_width_pct, epsilon_scale
+        )
+
+        if not self.slots.contains(slot_identifier):
+            if self.slot_limit >= 0 and Int(self.slots.size()) >= self.slot_limit:
+                if slot_identifier >= self.slot_limit:
+                    slot_identifier = self.slot_limit - 1
+                if not self.slots.contains(slot_identifier):
+                    self.slots[slot_identifier] = Weight()
+            else:
+                self.slots[slot_identifier] = Weight()
+
+        var selected_weight = self.slots[slot_identifier]
+        selected_weight.reinforce(modulation_factor)
+        let fired: Bool = selected_weight.update_threshold(value)
         self.last_fired = fired
-        self.slots[slot_id] = slot  # writeback
+        self.slots[slot_identifier] = selected_weight
         return fired
 
     fn on_output(mut self, amplitude: Float64) -> None:

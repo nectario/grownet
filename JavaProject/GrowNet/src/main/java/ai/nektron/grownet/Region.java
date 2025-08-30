@@ -1,6 +1,8 @@
 package ai.nektron.grownet;
 
 import ai.nektron.grownet.metrics.RegionMetrics;
+import ai.nektron.grownet.growth.GrowthPolicy;
+import ai.nektron.grownet.growth.GrowthEngine;
 
 import java.util.*;
 
@@ -27,6 +29,9 @@ public final class Region {
     private final Map<String, Integer> outputEdges = new HashMap<>();
     private final RegionBus bus = new RegionBus();   // reserved for future tract batching
     private final Random rng = new Random(1234);
+
+    // [GROWNET:ANCHOR::AFTER_METRICS]
+    private GrowthPolicy growthPolicy = null;   // optional, controls best‑effort growth
 
     // --------------------------- construction ----------------------------
     public Region(String name) { this.name = name; }
@@ -251,6 +256,12 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 regionMetrics.addSynapses(neuron.getOutgoing().size());
             }
         }
+        // Best‑effort growth hook
+        try {
+            if (growthPolicy != null) {
+                GrowthEngine.maybeGrowNeurons(this, growthPolicy);
+            }
+        } catch (Throwable ignored) { }
         return regionMetrics;
     }
 
@@ -343,4 +354,8 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
     /** Back‑compat alias; prefer {@link #getLayers()}. */
     public List<Layer> layers() { return layers; }
     public RegionBus getBus() { return bus; }
+
+    // ------------------------------ growth policy ---------------------------
+    public GrowthPolicy getGrowthPolicy() { return growthPolicy; }
+    public Region setGrowthPolicy(GrowthPolicy gp) { this.growthPolicy = gp; return this; }
 }

@@ -1,0 +1,57 @@
+meta:
+  id: CR-A-02
+  title: "Temporal Focus: add focus_anchor state to Neuron"
+  rerunnable: true
+  language_targets: [java, cpp, python, mojo]
+
+preconditions:
+  - any_exists:
+      - "src/java/**/Neuron.java"
+      - "src/python/neuron_base.py"
+      - "src/cpp/**/Neuron.h"
+      - "src/mojo/neuron_base.mojo"
+
+actions:
+  # ---- Java ----
+  - ensure_block:
+      file_glob: "src/java/**/Neuron.java"
+      anchor_before: "public class Neuron"
+      insert: |
+        // Temporal Focus — anchor & locks
+        protected double focusAnchor = 0.0;
+        protected boolean focusSet = false;
+        protected long    focusLockUntilTick = 0L;
+        public double getFocusAnchor() { return focusAnchor; }
+
+  # ---- Python ----
+  - ensure_block:
+      file: "src/python/neuron_base.py"
+      anchor_before: "class NeuronBase"
+      insert: |
+        # Temporal Focus — anchor & locks
+        focus_anchor: float = 0.0
+        focus_set: bool = False
+        focus_lock_until_tick: int = 0
+
+  # ---- C++ ----
+  - ensure_block:
+      file_glob: "src/cpp/**/Neuron.h"
+      anchor_before: "class Neuron"
+      insert: |
+        // Temporal Focus — anchor & locks
+        double focusAnchor = 0.0;
+        bool   focusSet = false;
+        long long focusLockUntilTick = 0;
+
+  # ---- Mojo ----
+  - ensure_block:
+      file: "src/mojo/neuron_base.mojo"
+      anchor_before: "struct Neuron"
+      insert: |
+        var focus_anchor: Float64 = 0.0
+        var focus_set: Bool = False
+        var focus_lock_until_tick: Int = 0
+
+postconditions:
+  - code_contains: { file_glob: "src/java/**/Neuron.java", pattern: "getFocusAnchor" }
+  - code_contains: { file: "src/python/neuron_base.py", pattern: "focus_anchor" }

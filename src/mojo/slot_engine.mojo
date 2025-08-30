@@ -12,3 +12,22 @@ struct SlotEngine:
         # Encode sign
         let sign_bit = 0 if current_input >= last_input else 1
         return bin_index * 2 + sign_bit
+
+    fn select_anchor_slot_id(
+        self,
+        focus_anchor: Float64,
+        input_value: Float64,
+        bin_width_pct: Float64,
+        epsilon_scale: Float64
+    ) -> Int:
+        var scale: Float64 = focus_anchor
+        if scale < 0.0:
+            scale = -scale
+        if scale < epsilon_scale:
+            scale = epsilon_scale
+        var delta: Float64 = input_value - focus_anchor
+        if delta < 0.0:
+            delta = -delta
+        let delta_pct: Float64 = 100.0 * delta / scale
+        let width: Float64 = if bin_width_pct > 0.1 then bin_width_pct else 0.1
+        return Int(delta_pct / width)

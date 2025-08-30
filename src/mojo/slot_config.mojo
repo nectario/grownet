@@ -11,3 +11,17 @@ struct SlotConfig:
     var slot_width_percent: F64           = 10.0          # for FIXED / ADAPTIVE seed
     var nonuniform_edges:   List[F64]     = []            # ascending, e.g., [2.5, 5.0, 10.0, 20.0]
     var max_slots:          Int64         = -1            # -1 = unbounded
+    # temporal-focus knobs
+    enum AnchorMode: Int:
+        FIRST = 0
+        EMA = 1
+        WINDOW = 2
+        LAST = 3
+    var anchor_mode:        AnchorMode    = AnchorMode.FIRST
+    var bin_width_pct:      F64           = 10.0
+    var epsilon_scale:      F64           = 1e-6
+    var recenter_threshold_pct: F64       = 35.0
+    var recenter_lock_ticks:    Int       = 20
+    var anchor_beta:        F64           = 0.05
+    var outlier_growth_threshold_pct: F64 = 60.0
+    var slot_limit:         Int           = 16

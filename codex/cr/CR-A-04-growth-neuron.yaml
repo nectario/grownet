@@ -1,0 +1,74 @@
+meta:
+  id: CR-A-04
+  title: "Temporal Focus: neuron growth hook (outlier→sibling spawn)"
+  rerunnable: true
+
+preconditions:
+  - file_exists: "src/java/ai/nektron/grownet/growth/GrowthPolicy.java"
+  - file_exists: "src/java/ai/nektron/grownet/growth/GrowthEngine.java"
+  - file_exists: "src/java/ai/nektron/grownet/Region.java"
+
+actions:
+  - ensure_block:
+      file: "src/java/ai/nektron/grownet/growth/GrowthPolicy.java"
+      anchor_before: "public final class GrowthPolicy"
+      insert: |
+        // --- Neuron-level knobs ---
+        private boolean neuronGrowthEnabled = true;
+        private int neuronMinTicksBetweenGrowth = 50;
+        private int neuronMaxPerLayer = 0; // 0 = unlimited
+        private double neuronInheritWiringProb = 0.5;
+
+        public boolean isNeuronGrowthEnabled() { return neuronGrowthEnabled; }
+        public GrowthPolicy setNeuronGrowthEnabled(boolean v) { neuronGrowthEnabled = v; return this; }
+        public int getNeuronMinTicksBetweenGrowth() { return neuronMinTicksBetweenGrowth; }
+        public GrowthPolicy setNeuronMinTicksBetweenGrowth(int v) { neuronMinTicksBetweenGrowth = Math.max(0, v); return this; }
+        public int getNeuronMaxPerLayer() { return neuronMaxPerLayer; }
+        public GrowthPolicy setNeuronMaxPerLayer(int v) { neuronMaxPerLayer = Math.max(0, v); return this; }
+        public double getNeuronInheritWiringProb() { return neuronInheritWiringProb; }
+        public GrowthPolicy setNeuronInheritWiringProb(double v) { neuronInheritWiringProb = Math.max(0.0, Math.min(1.0, v)); return this; }
+
+  - ensure_block:
+      file: "src/java/ai/nektron/grownet/growth/GrowthEngine.java"
+      anchor_before: "public final class GrowthEngine"
+      insert: |
+        public static void maybeGrowNeurons(Region region, GrowthPolicy policy) {
+            if (region == null || policy == null || !policy.isNeuronGrowthEnabled()) return;
+            try {
+                final var layers = region.getLayers();
+                for (int li = 0; li < layers.size(); ++li) {
+                    final var layer = layers.get(li);
+                    if (policy.getNeuronMaxPerLayer() > 0 && layer.getNeurons().size() >= policy.getNeuronMaxPerLayer()) continue;
+
+                    for (var n : layer.getNeurons()) {
+                        final int limit = 16; // fallback
+                        final boolean atCapacity = n.getSlots().size() >= limit;
+                        double a = 0.0;
+                        try { a = n.getFocusAnchor(); } catch (Throwable t) {}
+                        double last = 0.0;
+                        try { last = n.getLastInputValue(); } catch (Throwable t) {}
+                        final double scale = Math.max(Math.abs(a), 1e-6);
+                        final double deltaPct = 100.0 * Math.abs(last - a) / scale;
+                        if (atCapacity && deltaPct >= policy.getOutlierGrowthThresholdPct()) {
+                            try {
+                                layer.spawnSiblingLike(n, last, policy.getNeuronInheritWiringProb());
+                            } catch (Throwable t2) { /* optional */ }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+  - ensure_block:
+      file: "src/java/ai/nektron/grownet/Region.java"
+      anchor_before: "// [GROWNET:ANCHOR::AFTER_METRICS]"
+      insert: |
+        try {
+            var gp = this.getGrowthPolicy();
+            if (gp != null) {
+                ai.nektron.grownet.growth.GrowthEngine.maybeGrowNeurons(this, gp);
+            }
+        } catch (Throwable __ignored) {}
+
+postconditions:
+  - code_contains: { file: "src/java/ai/nektron/grownet/growth/GrowthEngine.java", pattern: "maybeGrowNeurons" }

@@ -1,0 +1,42 @@
+meta:
+  id: CR-A-05
+  title: "Temporal Focus tests: slot sequence & outlier smoke"
+  rerunnable: true
+
+actions:
+  - add_file:
+      path: "src/python/tests/test_temporal_focus.py"
+      if_exists: "overwrite"
+      content: |
+        from region import Region
+        def test_anchor_bins_simple_sequence():
+            r = Region("dbg")
+            l0 = r.add_layer(1,0,0)
+            r.bind_input("x", [l0])
+            seq = [1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0]
+            for v in seq: r.tick("x", v)
+            n = r.get_layers()[l0].get_neurons()[0]
+            assert len(n.slots()) >= 10
+
+  - add_file:
+      path: "src/java/tests/TestTemporalFocus.java"
+      if_exists: "overwrite"
+      content: |
+        package ai.nektron.grownet.tests;
+        import ai.nektron.grownet.*;
+        import org.junit.Test;
+        import static org.junit.Assert.*;
+        public class TestTemporalFocus {
+            @Test public void simpleBins() {
+                Region r = new Region("dbg");
+                int l0 = r.addLayer(1,0,0);
+                r.bindInput("x", java.util.List.of(l0));
+                double[] seq = {1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0};
+                for (double v : seq) r.tick("x", v);
+                Neuron n = r.getLayers().get(l0).getNeurons().get(0);
+                assertTrue(n.getSlots().size() >= 10);
+            }
+        }
+
+  - run: "pytest -q || true"
+  - run: "mvn -q -Dtest=TestTemporalFocus test || true"

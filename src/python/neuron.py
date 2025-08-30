@@ -13,6 +13,10 @@ class Neuron:
         self.outgoing = []  # list of target neurons
         self.have_last_input = False
         self.last_input_value = 0.0
+        # temporal focus state
+        self.focus_anchor = 0.0
+        self.focus_set = False
+        self.focus_lock_until_tick = 0
         self.fired_last = False
         self.fire_hooks = []  # callbacks: fn(neuron, value)
 

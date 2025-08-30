@@ -26,12 +26,30 @@ class SlotEngine:
             return 0
 
     def select_or_create_slot(self, neuron, input_value, tick_count=0):
-        # neuron must expose: has_last_input(), get_last_input_value(), slots dict
-        if neuron.has_last_input():
-            sid = self.slot_id(neuron.get_last_input_value(), input_value, len(neuron.slots()))
-        else:
-            sid = 0
-        if sid not in neuron.slots():
-            neuron.slots()[sid] = Weight()
-        wt = neuron.slots()[sid]
-        return wt
+        cfg = self.cfg
+        # FIRST-anchor: set anchor once
+        if not getattr(neuron, "focus_set", False) and getattr(cfg, "anchor_mode", "FIRST") == "FIRST":
+            neuron.focus_anchor = float(input_value)
+            neuron.focus_set = True
+
+        anchor = float(getattr(neuron, "focus_anchor", 0.0))
+        eps = max(1e-12, float(getattr(cfg, "epsilon_scale", 1e-6)))
+        denom = max(abs(anchor), eps)
+        delta_pct = abs(float(input_value) - anchor) / denom * 100.0
+        bin_w = max(0.1, float(getattr(cfg, "bin_width_pct", 10.0)))
+        sid = int(delta_pct // bin_w)
+
+        # clamp to slot_limit, ensure existence
+        limit = int(getattr(cfg, "slot_limit", 16))
+        if limit > 0 and sid >= limit:
+            sid = limit - 1
+        slots = neuron.slots()
+        if sid not in slots:
+            if limit > 0 and len(slots) >= limit:
+                # reuse last id within [0, limit-1]
+                sid = min(sid, limit - 1)
+                if sid not in slots:
+                    slots[sid] = Weight()
+            else:
+                slots[sid] = Weight()
+        return slots[sid]

@@ -66,6 +66,12 @@ public:
     bool didFireLast() const { return firedLast; }
     void setFiredLast(bool v) { firedLast = v; }
     void setLastInputValue(double v) { lastInputValue = v; haveLastInput = true; }
+
+    // Temporal focus state (public for simple access across components)
+    double     focusAnchor { 0.0 };
+    bool       focusSet { false };
+    long long  focusLockUntilTick { 0 };
+    double getFocusAnchor() const { return focusAnchor; }
 };
 
 } // namespace grownet

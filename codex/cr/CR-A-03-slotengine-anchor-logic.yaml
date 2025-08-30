@@ -1,0 +1,67 @@
+meta:
+  id: CR-A-03
+  title: "Temporal Focus: anchor-based Δ% binning in SlotEngine + outlier flag"
+  rerunnable: true
+
+preconditions:
+  - any_exists:
+      - "src/java/**/SlotEngine.java"
+      - "src/python/slot_engine.py"
+      - "src/cpp/**/SlotEngine.*"
+      - "src/mojo/slot_engine.mojo"
+
+actions:
+  # ---- Java ----
+  - ensure_block:
+      file_glob: "src/java/**/SlotEngine.java"
+      anchor_before: "public final class SlotEngine"
+      insert: |
+        // Anchor-based selection (FIRST-mode). Returns slot id; ensures capacity/clamp.
+        public int selectOrCreateSlot(Neuron n, double x, SlotConfig cfg) {
+            if (!n.focusSet && cfg.getAnchorMode() == SlotConfig.AnchorMode.FIRST) {
+                n.focusAnchor = x; n.focusSet = true;
+            }
+            final double a = n.focusAnchor;
+            final double scale = Math.max(Math.abs(a), cfg.getEpsilonScale());
+            final double deltaPct = 100.0 * Math.abs(x - a) / scale;
+            final int slotId = (int) Math.floor(deltaPct / Math.max(0.1, cfg.getBinWidthPct()));
+            return ensureSlot(n, slotId, cfg.getSlotLimit());
+        }
+
+        private int ensureSlot(Neuron n, int slotId, int limit) {
+            if (!n.getSlots().containsKey(slotId)) {
+                if (n.getSlots().size() >= limit) return Math.max(0, Math.min(slotId, limit - 1));
+                n.getSlots().put(slotId, new Weight());
+            }
+            return slotId;
+        }
+
+  # ---- Python ----
+  - ensure_block:
+      file: "src/python/slot_engine.py"
+      anchor_before: "class SlotEngine"
+      insert: |
+        def select_or_create_slot(self, neuron, x: float, cfg) -> int:
+            if not getattr(neuron, "focus_set", False) and getattr(cfg, "anchor_mode", "FIRST") == "FIRST":
+                neuron.focus_anchor = x
+                neuron.focus_set = True
+            a = neuron.focus_anchor
+            scale = max(abs(a), getattr(cfg, "epsilon_scale", 1e-6))
+            delta_pct = 100.0 * abs(x - a) / scale
+            bin_width = max(0.1, getattr(cfg, "bin_width_pct", 10.0))
+            slot_id = int(delta_pct // bin_width)
+            slots = neuron.slots()
+            if slot_id not in slots:
+                if len(slots) >= getattr(cfg, "slot_limit", 16):
+                    slot_id = min(slot_id, getattr(cfg, "slot_limit", 16) - 1)
+                else:
+                    slots[slot_id] = {}
+            return slot_id
+
+  # ---- C++ / Mojo ----
+  - instruction:
+      text: |
+        Mirror the Java/Python logic in C++ SlotEngine.* and mojo/slot_engine.mojo with explicit types.
+
+postconditions:
+  - code_contains: { file: "src/python/slot_engine.py", pattern: "focus_anchor" }

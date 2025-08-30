@@ -1,0 +1,93 @@
+meta:
+  id: CR-B-01
+  title: "Spatial Focus: spotlight mask in InputLayer2D (top-1 + sticky)"
+  rerunnable: true
+
+preconditions:
+  - any_exists:
+      - "src/java/**/InputLayer2D.java"
+      - "src/python/input_layer_2d.py"
+      - "src/mojo/input_layer_2d.mojo"
+
+actions:
+  # ---- Policy (Java) ----
+  - add_file:
+      path: "src/java/ai/nektron/grownet/attn/SpatialFocusPolicy.java"
+      if_exists: "skip"
+      content: |
+        package ai.nektron.grownet.attn;
+        public final class SpatialFocusPolicy {
+            public boolean enabled = true;
+            public int topK = 1;
+            public double focusGain = 1.5;
+            public double backgroundGain = 0.85;
+            public double sigma = 1.0;
+            public int stickyTicks = 3;
+            public double thresholdZ = 1.0;
+            public String salience = "abs";
+        }
+
+  # ---- Python fields ----
+  - ensure_block:
+      file: "src/python/input_layer_2d.py"
+      anchor_before: "class InputLayer2D"
+      insert: |
+        spatial_focus = {
+            "enabled": True, "top_k": 1, "focus_gain": 1.5, "background_gain": 0.85,
+            "sigma": 1.0, "sticky_ticks": 3, "threshold_z": 1.0, "salience": "abs"
+        }
+        _last_focus_idx = None
+        _focus_sticky_left = 0
+
+  # ---- Python mask ----
+  - ensure_block:
+      file: "src/python/input_layer_2d.py"
+      anchor_before: "def forward_image"
+      insert: |
+        def _focus_mask(self, frame):
+            H, W = len(frame), len(frame[0])
+            best, best_idx = -1e9, (0,0)
+            for y in range(H):
+                for x in range(W):
+                    v = abs(frame[y][x])
+                    if v > best: best, best_idx = v, (y,x)
+            if self._focus_sticky_left > 0 and self._last_focus_idx is not None:
+                self._focus_sticky_left -= 1
+                best_idx = self._last_focus_idx
+            else:
+                self._last_focus_idx = best_idx
+                self._focus_sticky_left = self.spatial_focus.get("sticky_ticks", 3)
+            focus_gain = self.spatial_focus.get("focus_gain", 1.5)
+            bg = self.spatial_focus.get("background_gain", 0.85)
+            sigma = max(1e-3, self.spatial_focus.get("sigma", 1.0))
+            import math
+            mask = [[bg for _ in range(W)] for _ in range(H)]
+            fy, fx = best_idx
+            for y in range(H):
+                for x in range(W):
+                    d2 = (y - fy)*(y - fy) + (x - fx)*(x - fx)
+                    g = math.exp(-0.5 * d2 / (sigma*sigma))
+                    mask[y][x] = bg + (focus_gain - bg) * g
+            return mask
+
+  # ---- Python apply mask in forward_image ----
+  - patch_text:
+      file: "src/python/input_layer_2d.py"
+      find: "def forward_image("
+      before_context: ""
+      after_context: ""
+      replace_with: |
+        def forward_image(self, frame):
+            H, W = len(frame), len(frame[0])
+            if getattr(self, "spatial_focus", None) and self.spatial_focus.get("enabled", True):
+                mask = self._focus_mask(frame)
+                for y in range(H):
+                    for x in range(W):
+                        self.neurons[self._index(y,x)].on_input(frame[y][x] * mask[y][x])
+            else:
+                for y in range(H):
+                    for x in range(W):
+                        self.neurons[self._index(y,x)].on_input(frame[y][x])
+
+postconditions:
+  - code_contains: { file: "src/python/input_layer_2d.py", pattern: "_focus_mask" }

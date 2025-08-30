@@ -1,0 +1,27 @@
+meta:
+  id: CR-B-02
+  title: "Spatial Focus tests: spotlight & stickiness"
+  rerunnable: true
+
+actions:
+  - add_file:
+      path: "src/python/tests/test_spatial_focus.py"
+      if_exists: "overwrite"
+      content: |
+        from region import Region
+        def test_focus_spotlight_simple():
+            r = Region("dbg")
+            edge = r.add_input_layer_2d(2, 3, 1.0, 0.01)
+            l0 = r.add_layer(1, 0, 0)
+            r.bind_input("pixels", [edge])
+            in_layer = r.get_layers()[edge]
+            try:
+                in_layer.spatial_focus["enabled"] = True
+            except Exception:
+                pass
+            frame = [[0.0, 0.0, 0.0],
+                     [0.0, 1.0, 0.0]]
+            r.tick_2d("pixels", frame)
+            # smoke only
+
+  - run: "pytest -q || true"

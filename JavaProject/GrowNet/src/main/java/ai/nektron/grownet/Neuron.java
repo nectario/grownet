@@ -32,6 +32,11 @@ public class Neuron {
     protected boolean haveLastInput = false;
     protected double  lastInputValue = 0.0;
 
+    // Temporal focus (anchor-based)
+    protected double  focusAnchor = 0.0;
+    protected boolean focusSet = false;
+    protected long    focusLockUntilTick = 0L;
+
     // NEW: hooks notified whenever this neuron fires
     private final List<BiConsumer<Double, Neuron>> fireHooks = new ArrayList<>();
 
@@ -189,4 +194,6 @@ public class Neuron {
     public double getLastInputValue() {
         return lastInputValue;
     }
+
+    public double getFocusAnchor() { return focusAnchor; }
 }

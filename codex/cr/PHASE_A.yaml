@@ -1,0 +1,15 @@
+meta:
+  id: PHASE-A
+  title: "Phase A: Temporal Focus end-to-end"
+  rerunnable: true
+
+actions:
+  - include: "codex/cr/CR-BOOT.yaml"
+  - include: "codex/cr/CR-A-01-temporal-slotconfig.yaml"
+  - include: "codex/cr/CR-A-02-neuron-focus-fields.yaml"
+  - include: "codex/cr/CR-A-03-slotengine-anchor-logic.yaml"
+  - include: "codex/cr/CR-A-04-growth-neuron.yaml"
+  - include: "codex/cr/CR-A-05-tests.yaml"
+
+postconditions:
+  - note: "Phase A applied"

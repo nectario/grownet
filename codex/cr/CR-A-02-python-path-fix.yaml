@@ -1,0 +1,21 @@
+meta:
+  id: CR-A-02-PY-PATH
+  title: "Temporal Focus: Python path fix (neuron.py vs neuron_base.py)"
+  rerunnable: true
+
+preconditions:
+  - file_exists: "src/python/neuron.py"
+
+actions:
+  - ensure_block:
+      file: "src/python/neuron.py"
+      anchor_before: "class Neuron"
+      insert: |
+        # Temporal Focus — anchor & locks
+        focus_anchor = 0.0
+        focus_set = False
+        focus_lock_until_tick = 0
+
+postconditions:
+  - code_contains: { file: "src/python/neuron.py", pattern: "focus_anchor" }
+

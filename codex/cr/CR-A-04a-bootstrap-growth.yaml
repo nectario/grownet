@@ -1,0 +1,156 @@
+meta:
+  id: CR-A-04a
+  title: "Bootstrap growth files: GrowthPolicy & GrowthEngine (Java)"
+  rerunnable: true
+
+preconditions:
+  - dir_exists: "src/java"
+
+actions:
+  - add_file:
+      path: "src/java/ai/nektron/grownet/growth/GrowthPolicy.java"
+      if_exists: "skip"
+      content: |
+        package ai.nektron.grownet.growth;
+
+        /**
+         * Minimal growth policy: layer growth knobs + neuron growth knobs + cooldowns.
+         * Defaults are conservative and can be tuned at runtime.
+         */
+        public final class GrowthPolicy {
+            private boolean enabled = true;
+
+            // layer growth
+            private int    minTicksBetweenGrowth = 50;
+            private int    cooldownTicksRemaining = 0;
+            private double layerGrowthThreshold = 0.75;
+            private int    maxLayers = 32;
+            private double newLayerConnectProbability = 0.20;
+            private int    blueprintExcitatory = 64;
+            private int    blueprintInhibitory = 16;
+            private int    blueprintModulatory = 8;
+
+            // neuron growth
+            private boolean neuronGrowthEnabled = true;
+            private int     neuronMinTicksBetweenGrowth = 50;
+            private int     neuronMaxPerLayer = 0; // 0 = unlimited
+            private double  neuronInheritWiringProb = 0.5;
+
+            // temporal focus (read by engine via SlotConfig in your code)
+            private double outlierGrowthThresholdPct = 60.0;
+
+            public boolean isEnabled() { return enabled; }
+            public GrowthPolicy setEnabled(boolean v){ enabled=v; return this; }
+
+            public int  getMinTicksBetweenGrowth(){ return minTicksBetweenGrowth; }
+            public GrowthPolicy setMinTicksBetweenGrowth(int v){ minTicksBetweenGrowth=Math.max(0,v); return this; }
+            public void tickCooldown(){ if (cooldownTicksRemaining>0) cooldownTicksRemaining--; }
+            public boolean isCoolingDown(){ return cooldownTicksRemaining>0; }
+            public void startCooldown(){ cooldownTicksRemaining=minTicksBetweenGrowth; }
+
+            public double getLayerGrowthThreshold(){ return layerGrowthThreshold; }
+            public GrowthPolicy setLayerGrowthThreshold(double v){ layerGrowthThreshold=Math.max(0.0, Math.min(1.0,v)); return this; }
+
+            public int  getMaxLayers(){ return maxLayers; }
+            public GrowthPolicy setMaxLayers(int v){ maxLayers=Math.max(1,v); return this; }
+
+            public double getNewLayerConnectProbability(){ return newLayerConnectProbability; }
+            public GrowthPolicy setNewLayerConnectProbability(double v){ newLayerConnectProbability=Math.max(0.0,Math.min(1.0,v)); return this; }
+
+            public int getBlueprintExcitatory(){ return blueprintExcitatory; }
+            public int getBlueprintInhibitory(){ return blueprintInhibitory; }
+            public int getBlueprintModulatory(){ return blueprintModulatory; }
+            public GrowthPolicy setBlueprint(int e,int i,int m){
+                blueprintExcitatory=Math.max(0,e);
+                blueprintInhibitory=Math.max(0,i);
+                blueprintModulatory=Math.max(0,m);
+                return this;
+            }
+
+            public boolean isNeuronGrowthEnabled(){ return neuronGrowthEnabled; }
+            public GrowthPolicy setNeuronGrowthEnabled(boolean v){ neuronGrowthEnabled=v; return this; }
+            public int getNeuronMinTicksBetweenGrowth(){ return neuronMinTicksBetweenGrowth; }
+            public GrowthPolicy setNeuronMinTicksBetweenGrowth(int v){ neuronMinTicksBetweenGrowth=Math.max(0,v); return this; }
+            public int getNeuronMaxPerLayer(){ return neuronMaxPerLayer; }
+            public GrowthPolicy setNeuronMaxPerLayer(int v){ neuronMaxPerLayer=Math.max(0,v); return this; }
+            public double getNeuronInheritWiringProb(){ return neuronInheritWiringProb; }
+            public GrowthPolicy setNeuronInheritWiringProb(double v){ neuronInheritWiringProb=Math.max(0.0,Math.min(1.0,v)); return this; }
+
+            public double getOutlierGrowthThresholdPct(){ return outlierGrowthThresholdPct; }
+            public GrowthPolicy setOutlierGrowthThresholdPct(double v){ outlierGrowthThresholdPct=Math.max(0.0,v); return this; }
+        }
+
+  - add_file:
+      path: "src/java/ai/nektron/grownet/growth/GrowthEngine.java"
+      if_exists: "skip"
+      content: |
+        package ai.nektron.grownet.growth;
+
+        import ai.nektron.grownet.Layer;
+        import ai.nektron.grownet.Neuron;
+        import ai.nektron.grownet.Region;
+
+        import java.util.List;
+
+        /**
+         * Minimal growth engine: layer pressure (slots/neuron) + neuron outlier hook.
+         * Best-effort; never throws into Region.tick().
+         */
+        public final class GrowthEngine {
+            private GrowthEngine(){}
+
+            public static void maybeGrow(Region region, GrowthPolicy policy){
+                if (region==null || policy==null || !policy.isEnabled()) return;
+                policy.tickCooldown();
+                if (policy.isCoolingDown()) return;
+
+                List<Layer> layers = region.getLayers();
+                if (layers.size() >= policy.getMaxLayers()) return;
+
+                // simple pressure proxy: avg slots per neuron normalized by a virtual limit (16)
+                long neurons=0, slots=0;
+                for (Layer L : layers){
+                    var ns = L.getNeurons();
+                    neurons += ns.size();
+                    for (Neuron n : ns) slots += n.getSlots().size();
+                }
+                if (neurons==0) return;
+                double avg = (double)slots / (double)neurons;
+                double pressure = Math.min(1.0, avg / 16.0);
+
+                if (pressure >= policy.getLayerGrowthThreshold()){
+                    int src = layers.size()-1;
+                    int idx = region.addLayer(
+                        policy.getBlueprintExcitatory(),
+                        policy.getBlueprintInhibitory(),
+                        policy.getBlueprintModulatory());
+                    if (src >= 0) region.connectLayers(src, idx, policy.getNewLayerConnectProbability(), false);
+                    policy.startCooldown();
+                }
+            }
+
+            public static void maybeGrowNeurons(Region region, GrowthPolicy policy){
+                if (region==null || policy==null || !policy.isNeuronGrowthEnabled()) return;
+                try{
+                    for (Layer L : region.getLayers()){
+                        if (policy.getNeuronMaxPerLayer()>0 && L.getNeurons().size() >= policy.getNeuronMaxPerLayer()) continue;
+                        for (Neuron n : L.getNeurons()){
+                            // Outlier vs anchor using last input
+                            double a=0.0, last=0.0;
+                            try { a = n.getFocusAnchor(); } catch(Throwable ignore){}
+                            try { last = n.getLastInputValue(); } catch(Throwable ignore){}
+                            double deltaPct = 100.0 * Math.abs(last - a) / Math.max(1e-6, Math.abs(a));
+                            boolean atCap = n.getSlots().size() >= 16;
+                            if (atCap && deltaPct >= policy.getOutlierGrowthThresholdPct()){
+                                try { L.spawnSiblingLike(n, last, policy.getNeuronInheritWiringProb()); } catch(Throwable ignore){}
+                            }
+                        }
+                    }
+                }catch(Throwable ignore){}
+            }
+        }
+
+postconditions:
+  - file_exists: "src/java/ai/nektron/grownet/growth/GrowthPolicy.java"
+  - file_exists: "src/java/ai/nektron/grownet/growth/GrowthEngine.java"
+

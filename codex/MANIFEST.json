@@ -1,0 +1,31 @@
+{
+  "pack": "GrowNet Codex CR Pack",
+  "phases": [
+    "PHASE_A",
+    "PHASE_B"
+  ],
+  "cr_files": [
+    "CR-A-01-temporal-slotconfig.yaml",
+    "CR-A-02-neuron-focus-fields.yaml",
+    "CR-A-03-slotengine-anchor-logic.yaml",
+    "CR-A-04-growth-neuron.yaml",
+    "CR-A-05-tests.yaml",
+    "CR-B-01-spatial-focus.yaml",
+    "CR-B-02-tests.yaml",
+    "CR-BOOT.yaml",
+    "PHASE_A.yaml",
+    "PHASE_B.yaml"
+  ],
+  "docs": [
+    "ANCHOR_GUIDELINES.md",
+    "CONTEXT_GrowNet_Vision.md",
+    "INTERPRETATION_GUIDE.md",
+    "ONBOARDING.md",
+    "README_Codex.md",
+    "STYLE_AND_PARITY.md"
+  ],
+  "scripts": [
+    "apply_phase_a.sh",
+    "apply_phase_b.sh"
+  ]
+}

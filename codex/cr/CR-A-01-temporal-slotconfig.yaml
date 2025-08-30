@@ -1,0 +1,96 @@
+meta:
+  id: CR-A-01
+  title: "Temporal Focus: extend SlotConfig with anchor fields"
+  rerunnable: true
+  language_targets: [java, cpp, python, mojo]
+
+preconditions:
+  - any_exists:
+      - "src/java/**/SlotConfig.java"
+      - "src/java/**/slot/SlotConfig.java"
+      - "src/python/slot_config.py"
+      - "src/cpp/**/SlotConfig.h"
+      - "src/mojo/slot_config.mojo"
+
+actions:
+  # ---- Java ----
+  - ensure_block:
+      file_glob: "src/java/**/SlotConfig.java"
+      anchor_before: "public final class SlotConfig"
+      insert: |
+        // Temporal Focus (anchor-based) fields
+        public enum AnchorMode { FIRST, EMA, WINDOW, LAST }
+        private AnchorMode anchorMode = AnchorMode.FIRST;
+        private double binWidthPct = 10.0;
+        private double epsilonScale = 1e-6;
+        private double recenterThresholdPct = 35.0;
+        private int    recenterLockTicks = 20;
+        private double anchorBeta = 0.05;
+        private double outlierGrowthThresholdPct = 60.0;
+        private int    slotLimit = 16; // ensure present
+
+        public AnchorMode getAnchorMode() { return anchorMode; }
+        public SlotConfig setAnchorMode(AnchorMode m) { this.anchorMode = m; return this; }
+        public double getBinWidthPct() { return binWidthPct; }
+        public SlotConfig setBinWidthPct(double v) { this.binWidthPct = Math.max(0.1, v); return this; }
+        public double getEpsilonScale() { return epsilonScale; }
+        public SlotConfig setEpsilonScale(double v) { this.epsilonScale = Math.max(1e-12, v); return this; }
+        public double getRecenterThresholdPct() { return recenterThresholdPct; }
+        public SlotConfig setRecenterThresholdPct(double v) { this.recenterThresholdPct = Math.max(0.0, v); return this; }
+        public int getRecenterLockTicks() { return recenterLockTicks; }
+        public SlotConfig setRecenterLockTicks(int v) { this.recenterLockTicks = Math.max(0, v); return this; }
+        public double getAnchorBeta() { return anchorBeta; }
+        public SlotConfig setAnchorBeta(double v) { this.anchorBeta = Math.max(0.0, Math.min(1.0, v)); return this; }
+        public double getOutlierGrowthThresholdPct() { return outlierGrowthThresholdPct; }
+        public SlotConfig setOutlierGrowthThresholdPct(double v) { this.outlierGrowthThresholdPct = Math.max(0.0, v); return this; }
+        public int getSlotLimit() { return slotLimit; }
+        public SlotConfig setSlotLimit(int v) { this.slotLimit = Math.max(1, v); return this; }
+
+  # ---- Python ----
+  - ensure_block:
+      file: "src/python/slot_config.py"
+      anchor_before: "class SlotConfig"
+      insert: |
+        # Temporal Focus (anchor-based) fields
+        anchor_mode = "FIRST"        # FIRST | EMA | WINDOW | LAST
+        bin_width_pct = 10.0
+        epsilon_scale = 1e-6
+        recenter_threshold_pct = 35.0
+        recenter_lock_ticks = 20
+        anchor_beta = 0.05
+        outlier_growth_threshold_pct = 60.0
+        slot_limit = 16
+
+  # ---- C++ header ----
+  - ensure_block:
+      file_glob: "src/cpp/**/SlotConfig.h"
+      anchor_before: "struct SlotConfig"
+      insert: |
+        enum class AnchorMode { FIRST, EMA, WINDOW, LAST };
+        AnchorMode anchorMode = AnchorMode::FIRST;
+        double binWidthPct = 10.0;
+        double epsilonScale = 1e-6;
+        double recenterThresholdPct = 35.0;
+        int    recenterLockTicks = 20;
+        double anchorBeta = 0.05;
+        double outlierGrowthThresholdPct = 60.0;
+        int    slotLimit = 16;
+
+  # ---- Mojo ----
+  - ensure_block:
+      file: "src/mojo/slot_config.mojo"
+      anchor_before: "struct SlotConfig"
+      insert: |
+        enum AnchorMode: Int: FIRST = 0, EMA = 1, WINDOW = 2, LAST = 3
+        var anchor_mode: AnchorMode = AnchorMode.FIRST
+        var bin_width_pct: Float64 = 10.0
+        var epsilon_scale: Float64 = 1e-6
+        var recenter_threshold_pct: Float64 = 35.0
+        var recenter_lock_ticks: Int = 20
+        var anchor_beta: Float64 = 0.05
+        var outlier_growth_threshold_pct: Float64 = 60.0
+        var slot_limit: Int = 16
+
+postconditions:
+  - code_contains: { file_glob: "src/java/**/SlotConfig.java", pattern: "AnchorMode { FIRST" }
+  - code_contains: { file: "src/python/slot_config.py", pattern: "anchor_mode" }
