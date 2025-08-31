@@ -1,12 +1,12 @@
 from region import Region
 
-fn generate_frame(h: Int64, w: Int64, step: Int64) -> Array[Array[Float64]]:
-    var img = Array[Array[Float64]](h)
-    for y in range(h):
-        var row = Array[Float64](w)
-        for x in range(w): row[Int(x)] = 0.0
-        img[Int(y)] = row
-    img[Int((step * 2) % h)][Int(step % w)] = 1.0
+fn generate_frame(height: Int64, width: Int64, step: Int64) -> Array[Array[Float64]]:
+    var img = Array[Array[Float64]](height)
+    for row_idx in range(height):
+        var row = Array[Float64](width)
+        for col_idx in range(width): row[Int(col_idx)] = 0.0
+        img[Int(row_idx)] = row
+    img[Int((step * 2) % height)][Int(step % width)] = 1.0
     return img
 
 fn main():

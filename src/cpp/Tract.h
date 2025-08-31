@@ -15,8 +15,8 @@ class Tract {
     double probability { 1.0 };
     std::mt19937 rng { 1337 };
 public:
-    Tract(Layer* src, Layer* dst, RegionBus* bus, bool fb, double prob)
-        : source(src), dest(dst), regionBus(bus), feedback(fb), probability(prob) {
+    Tract(Layer* sourceLayer, Layer* destLayer, RegionBus* regionBusPtr, bool isFeedback, double connectProbability)
+        : source(sourceLayer), dest(destLayer), regionBus(regionBusPtr), feedback(isFeedback), probability(connectProbability) {
         std::uniform_real_distribution<double> uni(0.0, 1.0);
         auto& srcNeurons = source->getNeurons();
         for (int index = 0; index < static_cast<int>(srcNeurons.size()); ++index) {

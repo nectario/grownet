@@ -10,28 +10,28 @@ class InputLayer2D : public Layer {
     int height;
     int width;
 public:
-    InputLayer2D(int h, int w, double gain, double epsilonFire)
-        : Layer(0, 0, 0), height(h), width(w) {
-        auto& list = getNeurons();
+    InputLayer2D(int heightPixels, int widthPixels, double gain, double epsilonFire)
+        : Layer(0, 0, 0), height(heightPixels), width(widthPixels) {
+        auto& neuronList = getNeurons();
         SlotConfig cfg = SlotConfig::fixed(10.0);
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                list.push_back(std::make_shared<InputNeuron>(
-                    "IN[" + std::to_string(y) + "," + std::to_string(x) + "]",
+        for (int row = 0; row < height; ++row) {
+            for (int col = 0; col < width; ++col) {
+                neuronList.push_back(std::make_shared<InputNeuron>(
+                    "IN[" + std::to_string(row) + "," + std::to_string(col) + "]",
                     getBus(), cfg, gain, epsilonFire));
             }
         }
     }
 
-    int index(int y, int x) const { return y * width + x; }
+    int index(int row, int col) const { return row * width + col; }
 
     void forwardImage(const std::vector<std::vector<double>>& frame) {
-        auto& list = getNeurons();
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                int idx = index(y, x);
-                auto n = std::static_pointer_cast<InputNeuron>(list[idx]);
-                n->onInput(frame[y][x]);
+        auto& neuronList = getNeurons();
+        for (int row = 0; row < height; ++row) {
+            for (int col = 0; col < width; ++col) {
+                int neuronIndex = index(row, col);
+                auto inputNeuron = std::static_pointer_cast<InputNeuron>(neuronList[neuronIndex]);
+                inputNeuron->onInput(frame[row][col]);
             }
         }
     }

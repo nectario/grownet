@@ -24,8 +24,8 @@ struct Neuron:
 
     fn connect(mut self, target_index: Int, feedback: Bool = False) -> None:
         from synapse import Synapse
-        let s = Synapse(target_index, feedback)
-        self.outgoing.append(s)
+        let syn = Synapse(target_index, feedback)
+        self.outgoing.append(syn)
 
     fn on_input(mut self, value: Float64, modulation_factor: Float64) -> Bool:
         if not self.focus_set:

@@ -13,11 +13,11 @@ struct InputLayerND:
         var i: Int = 0
         var total: Int = 1
         while i < shape.size:
-            let d = shape[i]
-            if d <= 0:
+            let dim = shape[i]
+            if dim <= 0:
                 raise Exception("shape dims must be > 0")
-            self.shape.append(d)
-            total = total * d
+            self.shape.append(dim)
+            total = total * dim
             i += 1
         self.size = total
         self.core = Layer(self.size, 0, 0)

@@ -11,34 +11,35 @@ class OutputLayer2D : public Layer {
     int width;
     std::vector<std::vector<double>> frame;
 public:
-    OutputLayer2D(int h, int w, double smoothing)
-        : Layer(0, 0, 0), height(h), width(w), frame(h, std::vector<double>(w, 0.0)) {
-        auto& list = getNeurons();
+    OutputLayer2D(int heightPixels, int widthPixels, double smoothing)
+        : Layer(0, 0, 0), height(heightPixels), width(widthPixels), frame(heightPixels, std::vector<double>(widthPixels, 0.0)) {
+        auto& neuronList = getNeurons();
         SlotConfig cfg = SlotConfig::fixed(10.0);
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                list.push_back(std::make_shared<OutputNeuron>(
-                    "OUT[" + std::to_string(y) + "," + std::to_string(x) + "]",
+        for (int row = 0; row < height; ++row) {
+            for (int col = 0; col < width; ++col) {
+                neuronList.push_back(std::make_shared<OutputNeuron>(
+                    "OUT[" + std::to_string(row) + "," + std::to_string(col) + "]",
                     getBus(), cfg, smoothing));
             }
         }
     }
 
-    int index(int y, int x) const { return y * width + x; }
+    int index(int row, int col) const { return row * width + col; }
 
     void propagateFrom(int sourceIndex, double value) override {
         if (sourceIndex < 0 || sourceIndex >= static_cast<int>(getNeurons().size())) return;
-        auto n = std::static_pointer_cast<OutputNeuron>(getNeurons()[sourceIndex]);
-        bool fired = n->onInput(value);
-        if (fired) n->onOutput(value);
+        auto outputNeuron = std::static_pointer_cast<OutputNeuron>(getNeurons()[sourceIndex]);
+        bool fired = outputNeuron->onInput(value);
+        if (fired) outputNeuron->onOutput(value);
     }
 
     void endTick() override {
-        for (int idx = 0; idx < static_cast<int>(getNeurons().size()); ++idx) {
-            auto n = std::static_pointer_cast<OutputNeuron>(getNeurons()[idx]);
-            n->endTick();
-            int y = idx / width, x = idx % width;
-            frame[y][x] = n->getOutputValue();
+        for (int neuronIndex = 0; neuronIndex < static_cast<int>(getNeurons().size()); ++neuronIndex) {
+            auto outputNeuron = std::static_pointer_cast<OutputNeuron>(getNeurons()[neuronIndex]);
+            outputNeuron->endTick();
+            int row = neuronIndex / width;
+            int col = neuronIndex % width;
+            frame[row][col] = outputNeuron->getOutputValue();
         }
         Layer::endTick();
     }

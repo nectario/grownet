@@ -17,18 +17,18 @@ public:
     InputLayerND(const std::vector<int>& dims, double gain, double epsilonFire)
         : Layer(0, 0, 0), shape(dims), size(1) {
         if (shape.empty()) throw std::invalid_argument("shape rank must be >= 1");
-        long prod = 1;
-        for (int d : shape) {
-            if (d <= 0) throw std::invalid_argument("shape dims must be > 0");
-            prod *= d;
-            if (prod > std::numeric_limits<int>::max()) throw std::invalid_argument("shape too large");
+        long product = 1;
+        for (int dim : shape) {
+            if (dim <= 0) throw std::invalid_argument("shape dims must be > 0");
+            product *= dim;
+            if (product > std::numeric_limits<int>::max()) throw std::invalid_argument("shape too large");
         }
-        size = static_cast<int>(prod);
-        auto& list = getNeurons();
-        list.reserve(size);
+        size = static_cast<int>(product);
+        auto& neuronList = getNeurons();
+        neuronList.reserve(size);
         SlotConfig cfg = SlotConfig::fixed(10.0);
         for (int i = 0; i < size; ++i) {
-            list.push_back(std::make_shared<InputNeuron>(
+            neuronList.push_back(std::make_shared<InputNeuron>(
                 std::string("IN[") + std::to_string(i) + "]",
                 getBus(), cfg, gain, epsilonFire));
         }
@@ -46,10 +46,10 @@ public:
         if (static_cast<int>(flat.size()) != size) {
             throw std::invalid_argument("flat length != expected size");
         }
-        auto& list = getNeurons();
+        auto& neuronList = getNeurons();
         for (int i = 0; i < size; ++i) {
-            auto n = std::static_pointer_cast<InputNeuron>(list[i]);
-            n->onInput(flat[i]);
+            auto inputNeuron = std::static_pointer_cast<InputNeuron>(neuronList[i]);
+            inputNeuron->onInput(flat[i]);
         }
     }
 

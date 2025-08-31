@@ -22,8 +22,8 @@ struct Weight {
     static constexpr double ETA   = 0.02;
     static constexpr double RSTAR = 0.05;
 
-    inline static double smoothClamp(double x, double lo, double hi) {
-        return std::max(lo, std::min(hi, x));
+    inline static double smoothClamp(double value, double low, double high) {
+        return std::max(low, std::min(high, value));
     }
 
     void reinforce(double modulationFactor) {
@@ -47,10 +47,10 @@ struct Weight {
 
     // accessors often handy in higher-level code
     double getStrengthValue() const { return strengthValue; }
-    void   setStrengthValue(double v) { strengthValue = v; }
+    void   setStrengthValue(double value) { strengthValue = value; }
     bool   isFirstSeen() const { return firstSeen; }
-    void   setFirstSeen(bool v) { firstSeen = v; }
+    void   setFirstSeen(bool first) { firstSeen = first; }
     double getThresholdValue() const { return thresholdValue; }
-    void   setThresholdValue(double v) { thresholdValue = v; }
+    void   setThresholdValue(double value) { thresholdValue = value; }
 };
 } // namespace grownet

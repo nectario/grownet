@@ -11,6 +11,7 @@ struct Synapse {
     bool    feedback { false };
 
     Synapse() = default;
-    Synapse(Neuron* src, Neuron* dst, bool fb) : source(src), target(dst), feedback(fb) {}
+    Synapse(Neuron* sourceNeuron, Neuron* targetNeuron, bool isFeedback)
+        : source(sourceNeuron), target(targetNeuron), feedback(isFeedback) {}
 };
 } // namespace grownet

@@ -37,25 +37,25 @@ struct Layer:
         let mod_factor = self.bus.modulation_factor
 
         var idx = 0
-        for n in self.neurons_inh:
-            if n.on_input(value, mod_factor):
+        for neuron in self.neurons_inh:
+            if neuron.on_input(value, mod_factor):
                 # emit inhibition
                 self.bus.set_inhibition_factor(0.7)
-                n.on_output(value)
+                neuron.on_output(value)
             idx += 1
 
         idx = 0
-        for n in self.neurons_mod:
-            if n.on_input(value, mod_factor):
+        for neuron in self.neurons_mod:
+            if neuron.on_input(value, mod_factor):
                 self.bus.set_modulation_factor(1.5)
-                n.on_output(value)
+                neuron.on_output(value)
             idx += 1
 
         # Excitatory last: they actually propagate.
         idx = 0
-        for n in self.neurons_exc:
-            if n.on_input(value, mod_factor):
-                n.on_output(value)
+        for neuron in self.neurons_exc:
+            if neuron.on_input(value, mod_factor):
+                neuron.on_output(value)
                 spikes.append(Spike(idx, value))
             idx += 1
 

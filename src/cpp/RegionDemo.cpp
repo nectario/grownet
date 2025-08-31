@@ -3,16 +3,16 @@
 
 int main_region_demo() {
     grownet::Region region("region_demo");
-    int src = region.addLayer(8, 2, 1);
-    int dst = region.addLayer(8, 2, 1);
-    region.bindInput("in", { src });
-    region.connectLayers(src, dst, 0.4, false);
+    int sourceLayerIndex = region.addLayer(8, 2, 1);
+    int destLayerIndex = region.addLayer(8, 2, 1);
+    region.bindInput("in", { sourceLayerIndex });
+    region.connectLayers(sourceLayerIndex, destLayerIndex, 0.4, false);
 
-    for (int t = 0; t < 5; ++t) {
-        auto m = region.tick("in", (t % 2 == 0) ? 1.0 : 0.0);
-        std::cout << "[t=" << t << "] delivered=" << m.deliveredEvents << "\n";
+    for (int tickIndex = 0; tickIndex < 5; ++tickIndex) {
+        auto metrics = region.tick("in", (tickIndex % 2 == 0) ? 1.0 : 0.0);
+        std::cout << "[t=" << tickIndex << "] delivered=" << metrics.deliveredEvents << "\n";
     }
-    auto ps = region.prune(10000, 0.05);
-    std::cout << "pruned synapses=" << ps.prunedSynapses << "\n";
+    auto pruneSummary = region.prune(10000, 0.05);
+    std::cout << "pruned synapses=" << pruneSummary.prunedSynapses << "\n";
     return 0;
 }

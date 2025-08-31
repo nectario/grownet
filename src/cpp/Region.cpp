@@ -44,16 +44,16 @@ Tract& Region::connectLayers(int sourceIndex, int destIndex, double probability,
 // ---------------- edge helpers ----------------
 
 int Region::ensureInputEdge(const std::string& port) {
-    auto it = inputEdges.find(port);
-    if (it != inputEdges.end()) return it->second;
+    auto edgeIt = inputEdges.find(port);
+    if (edgeIt != inputEdges.end()) return edgeIt->second;
     int edgeIndex = addLayer(1, 0, 0); // 1-neuron scalar input edge
     inputEdges[port] = edgeIndex;
     return edgeIndex;
 }
 
 int Region::ensureOutputEdge(const std::string& port) {
-    auto it = outputEdges.find(port);
-    if (it != outputEdges.end()) return it->second;
+    auto edgeIt = outputEdges.find(port);
+    if (edgeIt != outputEdges.end()) return edgeIt->second;
     int edgeIndex = addLayer(1, 0, 0); // 1-neuron scalar output sink
     outputEdges[port] = edgeIndex;
     return edgeIndex;
@@ -64,24 +64,24 @@ int Region::ensureOutputEdge(const std::string& port) {
 void Region::bindInput(const std::string& port, const std::vector<int>& layerIndices) {
     inputPorts[port] = layerIndices;
     int inEdge = ensureInputEdge(port);
-    for (int idx : layerIndices) {
-        connectLayers(inEdge, idx, /*probability=*/1.0, /*feedback=*/false);
+    for (int layerIndex : layerIndices) {
+        connectLayers(inEdge, layerIndex, /*probability=*/1.0, /*feedback=*/false);
     }
 }
 
 void Region::bindInput2D(const std::string& port, int h, int w, double gain, double epsilonFire, const std::vector<int>& attachLayers) {
     // create or reuse 2D edge
     int edgeIndex;
-    auto it = inputEdges.find(port);
-    if (it != inputEdges.end() && dynamic_cast<InputLayer2D*>(layers[it->second].get()) != nullptr) {
-        edgeIndex = it->second;
+    auto edgeIt = inputEdges.find(port);
+    if (edgeIt != inputEdges.end() && dynamic_cast<InputLayer2D*>(layers[edgeIt->second].get()) != nullptr) {
+        edgeIndex = edgeIt->second;
     } else {
         edgeIndex = addInputLayer2D(h, w, gain, epsilonFire);
         inputEdges[port] = edgeIndex;
     }
     // wire edge -> attached layers
-    for (int li : attachLayers) {
-        connectLayers(edgeIndex, li, /*probability=*/1.0, /*feedback=*/false);
+    for (int layerIndex : attachLayers) {
+        connectLayers(edgeIndex, layerIndex, /*probability=*/1.0, /*feedback=*/false);
     }
 }
 
@@ -90,8 +90,8 @@ void Region::bindInput2D(const std::string& port, int h, int w, double gain, dou
 void Region::bindOutput(const std::string& port, const std::vector<int>& layerIndices) {
     outputPorts[port] = layerIndices;
     int outEdge = ensureOutputEdge(port);
-    for (int idx : layerIndices) {
-        connectLayers(idx, outEdge, /*probability=*/1.0, /*feedback=*/false);
+    for (int layerIndex : layerIndices) {
+        connectLayers(layerIndex, outEdge, /*probability=*/1.0, /*feedback=*/false);
     }
 }
 
@@ -116,12 +116,12 @@ void Region::pulseModulation(double factor) {
 RegionMetrics Region::tick(const std::string& port, double value) {
     RegionMetrics metrics;
 
-    auto itEdge = inputEdges.find(port);
-    if (itEdge == inputEdges.end()) {
+    auto edgeIt = inputEdges.find(port);
+    if (edgeIt == inputEdges.end()) {
         throw std::invalid_argument("No InputEdge for port '" + port + "'. Bind input first.");
     }
 
-    int edgeIndex = itEdge->second;
+    int edgeIndex = edgeIt->second;
     layers[edgeIndex]->forward(value);
     metrics.incDeliveredEvents(1);
 
@@ -141,14 +141,14 @@ RegionMetrics Region::tick(const std::string& port, double value) {
 RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::vector<double>>& frame) {
     RegionMetrics metrics;
 
-    auto itEdge = inputEdges.find(port);
-    if (itEdge == inputEdges.end()) {
+    auto edgeIt = inputEdges.find(port);
+    if (edgeIt == inputEdges.end()) {
         throw std::invalid_argument("No InputEdge for port '" + port + "'. Bind a 2D input edge first.");
     }
 
-    int edgeIndex = itEdge->second;
-    if (auto input2d = dynamic_cast<InputLayer2D*>(layers[edgeIndex].get())) {
-        input2d->forwardImage(frame);
+    int edgeIndex = edgeIt->second;
+    if (auto input2DLayer = dynamic_cast<InputLayer2D*>(layers[edgeIndex].get())) {
+        input2DLayer->forwardImage(frame);
         metrics.incDeliveredEvents(1);
     } else {
         throw std::invalid_argument("InputEdge for '" + port + "' is not 2D (expected InputLayer2D).");
@@ -175,11 +175,11 @@ int Region::addInputLayerND(const std::vector<int>& shape, double gain, double e
 
 void Region::bindInputND(const std::string& port, const std::vector<int>& shape, double gain, double epsilonFire, const std::vector<int>& attachLayers) {
     int edgeIndex;
-    auto it = inputEdges.find(port);
-    if (it != inputEdges.end()) {
-        auto maybe = dynamic_cast<InputLayerND*>(layers[it->second].get());
-        if (maybe != nullptr && maybe->hasShape(shape)) {
-            edgeIndex = it->second;
+    auto edgeIt2 = inputEdges.find(port);
+    if (edgeIt2 != inputEdges.end()) {
+        auto maybeNd = dynamic_cast<InputLayerND*>(layers[edgeIt2->second].get());
+        if (maybeNd != nullptr && maybeNd->hasShape(shape)) {
+            edgeIndex = edgeIt2->second;
         } else {
             edgeIndex = addInputLayerND(shape, gain, epsilonFire);
             inputEdges[port] = edgeIndex;
@@ -188,26 +188,26 @@ void Region::bindInputND(const std::string& port, const std::vector<int>& shape,
         edgeIndex = addInputLayerND(shape, gain, epsilonFire);
         inputEdges[port] = edgeIndex;
     }
-    for (int li : attachLayers) {
-        connectLayers(edgeIndex, li, /*probability=*/1.0, /*feedback=*/false);
+    for (int layerIndex : attachLayers) {
+        connectLayers(edgeIndex, layerIndex, /*probability=*/1.0, /*feedback=*/false);
     }
 }
 
 RegionMetrics Region::tickND(const std::string& port, const std::vector<double>& flat, const std::vector<int>& shape) {
     RegionMetrics metrics;
 
-    auto itEdge = inputEdges.find(port);
-    if (itEdge == inputEdges.end()) {
+    auto edgeIt3 = inputEdges.find(port);
+    if (edgeIt3 == inputEdges.end()) {
         throw std::invalid_argument("No InputEdge for port '" + port + "'. Bind an ND input edge first.");
     }
 
-    int edgeIndex = itEdge->second;
-    auto inputnd = dynamic_cast<InputLayerND*>(layers[edgeIndex].get());
-    if (!inputnd) {
+    int edgeIndex = edgeIt3->second;
+    auto inputNd = dynamic_cast<InputLayerND*>(layers[edgeIndex].get());
+    if (!inputNd) {
         throw std::invalid_argument("InputEdge for '" + port + "' is not ND (expected InputLayerND).");
     }
 
-    inputnd->forwardND(flat, shape);
+    inputNd->forwardND(flat, shape);
     metrics.incDeliveredEvents(1);
 
     for (auto& layer : layers) layer->endTick();

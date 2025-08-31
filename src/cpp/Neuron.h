@@ -64,8 +64,8 @@ public:
     bool hasLastInput() const { return haveLastInput; }
     double getLastInputValue() const { return lastInputValue; }
     bool didFireLast() const { return firedLast; }
-    void setFiredLast(bool v) { firedLast = v; }
-    void setLastInputValue(double v) { lastInputValue = v; haveLastInput = true; }
+    void setFiredLast(bool fired) { firedLast = fired; }
+    void setLastInputValue(double value) { lastInputValue = value; haveLastInput = true; }
 
     // Temporal focus state (public for simple access across components)
     double     focusAnchor { 0.0 };
