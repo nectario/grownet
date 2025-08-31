@@ -1,3 +1,10 @@
+/**
+ * @file Layer.h
+ * @brief Mixed E/I/M population sharing a lateral bus.
+ *
+ * Provides simple random wiring helpers and a unified forward/propagate/endTick
+ * contract used by Region and shape-aware layers (e.g., Input/OutputLayer2D).
+ */
 #pragma once
 #include <memory>
 #include <random>
@@ -13,6 +20,9 @@
 
 namespace grownet {
 
+/**
+ * @brief Mixed-type layer with E/I/M neurons and a per-layer LateralBus.
+ */
 class Layer {
     std::vector<std::shared_ptr<Neuron>> neurons;
     LateralBus bus;

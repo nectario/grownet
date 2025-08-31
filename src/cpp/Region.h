@@ -1,3 +1,11 @@
+/**
+ * @file Region.h
+ * @brief Region orchestrates layers, port bindings, and edge-only ticks.
+ *
+ * Ports are modeled as edge layers (scalar or shape-aware). A tick drives the
+ * bound edge exactly once; downstream layers receive activity via wiring from
+ * that edge. Metrics mirror the Java reference via RegionMetrics helpers.
+ */
 #pragma once
 #include <memory>
 #include <string>
@@ -37,7 +45,14 @@ struct PruneSummary {
     long long prunedEdges {0};
 };
 
-/** Region orchestrates layers, tracts, ports, and pulses. */
+/**
+ * @brief Group of layers with helpers for wiring and ticking.
+ *
+ * - Ports-as-edges: bindInput/bindInput2D/bindInputND create edges lazily.
+ * - Ticks: edge-only delivery (`tick`, `tickImage`, `tickND`), then end-of-tick
+ *   housekeeping and structural metric aggregation.
+ * - Safety: throws std::out_of_range/invalid_argument for invalid indices/ports.
+ */
 class Region {
 public:
     explicit Region(std::string name);
