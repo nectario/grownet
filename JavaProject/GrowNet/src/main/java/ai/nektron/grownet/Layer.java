@@ -39,22 +39,22 @@ public class Layer {
 
     /** Layer‑local fanout (demo‑level). */
     public void wireRandomFeedforward(double probability) {
-        for (Neuron a : neurons) {
-            for (Neuron b : neurons) {
-                if (a == b) continue;
+        for (Neuron srcNeuron : neurons) {
+            for (Neuron dstNeuron : neurons) {
+                if (srcNeuron == dstNeuron) continue;
                 if (rng.nextDouble() < probability) {
-                    a.connect(b, /*feedback=*/false);
+                    srcNeuron.connect(dstNeuron, /*feedback=*/false);
                 }
             }
         }
     }
 
     public void wireRandomFeedback(double probability) {
-        for (Neuron a : neurons) {
-            for (Neuron b : neurons) {
-                if (a == b) continue;
+        for (Neuron srcNeuron : neurons) {
+            for (Neuron dstNeuron : neurons) {
+                if (srcNeuron == dstNeuron) continue;
                 if (rng.nextDouble() < probability) {
-                    a.connect(b, /*feedback=*/true);
+                    srcNeuron.connect(dstNeuron, /*feedback=*/true);
                 }
             }
         }

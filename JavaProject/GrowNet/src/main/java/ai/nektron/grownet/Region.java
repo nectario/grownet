@@ -246,12 +246,12 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         regionMetrics.incDeliveredEvents();
 
         // End-of-tick housekeeping
-        for (Layer layer : layers) layer.endTick();
+        for (Layer l : layers) l.endTick();
         bus.decay();
 
         // Structural metrics
-        for (Layer layer : layers) {
-            for (Neuron neuron : layer.getNeurons()) {
+        for (Layer l : layers) {
+            for (Neuron neuron : l.getNeurons()) {
                 regionMetrics.addSlots(neuron.getSlots().size());
                 regionMetrics.addSynapses(neuron.getOutgoing().size());
             }
@@ -274,57 +274,57 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
 
     /** N-D tick: deliver a flat row-major array with explicit shape to an InputLayerND edge. */
     public RegionMetrics tickND(String port, double[] flat, int[] shape) {
-        RegionMetrics m = new RegionMetrics();
+        RegionMetrics metrics = new RegionMetrics();
 
         Integer edge = inputEdges.get(port);
         if (edge == null)
             throw new IllegalArgumentException("No InputEdge for port '" + port + "'. Call bindInputND(...) first.");
 
-        Layer l = layers.get(edge);
-        if (!(l instanceof InputLayerND))
+        Layer layer = layers.get(edge);
+        if (!(layer instanceof InputLayerND))
             throw new IllegalArgumentException("InputEdge for '" + port + "' is not ND (expected InputLayerND).");
 
-        ((InputLayerND) l).forwardND(flat, shape);
-        m.incDeliveredEvents();
+        ((InputLayerND) layer).forwardND(flat, shape);
+        metrics.incDeliveredEvents();
 
-        for (Layer layer : layers) layer.endTick();
+        for (Layer l : layers) l.endTick();
         bus.decay();
 
-        for (Layer layer : layers) {
-            for (Neuron n : layer.getNeurons()) {
-                m.addSlots(n.getSlots().size());
-                m.addSynapses(n.getOutgoing().size());
+        for (Layer l : layers) {
+            for (Neuron neuron : l.getNeurons()) {
+                metrics.addSlots(neuron.getSlots().size());
+                metrics.addSynapses(neuron.getOutgoing().size());
             }
         }
-        return m;
+        return metrics;
     }
 
     public RegionMetrics tick2D(String port, double[][] frame) {
-        RegionMetrics m = new RegionMetrics();
+        RegionMetrics metrics = new RegionMetrics();
 
         Integer edge = inputEdges.get(port);
         if (edge == null)
             throw new IllegalArgumentException("No InputEdge for port '" + port + "'. Call bindInput2D(...) first.");
 
-        Layer l = layers.get(edge);
-        if (!(l instanceof InputLayer2D))
+        Layer layer = layers.get(edge);
+        if (!(layer instanceof InputLayer2D))
             throw new IllegalArgumentException("InputEdge for '" + port + "' is not 2D (expected InputLayer2D).");
 
-        ((InputLayer2D) l).forwardImage(frame);
-        m.incDeliveredEvents();
+        ((InputLayer2D) layer).forwardImage(frame);
+        metrics.incDeliveredEvents();
 
         // End-of-tick housekeeping
-        for (Layer layer : layers) layer.endTick();
+        for (Layer l : layers) l.endTick();
         bus.decay();
 
         // Aggregate structure metrics
-        for (Layer layer : layers) {
-            for (Neuron n : layer.getNeurons()) {
-                m.addSlots(n.getSlots().size());
-                m.addSynapses(n.getOutgoing().size());
+        for (Layer l : layers) {
+            for (Neuron neuron : l.getNeurons()) {
+                metrics.addSlots(neuron.getSlots().size());
+                metrics.addSynapses(neuron.getOutgoing().size());
             }
         }
-        return m;
+        return metrics;
     }
 
     public RegionMetrics tickImage(String port, double[][] frame) {
@@ -338,14 +338,14 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
      * Java version keeps a two‑argument signature for simplicity.
      */
     public PruneSummary prune(long synapseStaleWindow, double synapseMinStrength) {
-        PruneSummary ps = new PruneSummary();
+        PruneSummary pruneSummary = new PruneSummary();
         for (Layer layer : layers) {
             for (Neuron neuron : layer.getNeurons()) {
-                ps.prunedSynapses += neuron.pruneSynapses(synapseStaleWindow, synapseMinStrength);
+                pruneSummary.prunedSynapses += neuron.pruneSynapses(synapseStaleWindow, synapseMinStrength);
             }
         }
-        // ps.prunedEdges stays zero until you track inter‑layer tracts explicitly
-        return ps;
+        // pruneSummary.prunedEdges stays zero until you track inter‑layer tracts explicitly
+        return pruneSummary;
     }
 
     // ------------------------------ accessors ----------------------------

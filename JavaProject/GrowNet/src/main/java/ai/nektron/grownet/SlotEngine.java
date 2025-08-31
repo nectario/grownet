@@ -18,15 +18,15 @@ public final class SlotEngine {
         return 0;
     }
 
-    private int fixedBucket(double dp) {
-        if (dp <= 0.0) return 0;
-        return (int)Math.floor((dp + (cfg.slotWidthPercent - 1.0)) / cfg.slotWidthPercent);
+    private int fixedBucket(double deltaPercent) {
+        if (deltaPercent <= 0.0) return 0;
+        return (int)Math.floor((deltaPercent + (cfg.slotWidthPercent - 1.0)) / cfg.slotWidthPercent);
     }
 
-    private int nonuniformBucket(double dp) {
+    private int nonuniformBucket(double deltaPercent) {
         int idx = 0;
         for (double edge : cfg.nonuniformEdges) {
-            if (dp <= edge) return idx;
+            if (deltaPercent <= edge) return idx;
             idx++;
         }
         return idx;
@@ -36,19 +36,19 @@ public final class SlotEngine {
      * Temporal‑focus helper (FIRST anchor): choose a slot id for input x, ensure a slot exists,
      * and clamp growth at cfg.getSlotLimit() when at capacity.
      */
-    public int selectOrCreateSlot(Neuron n, double x, SlotConfig cfg) {
-        if (n == null) return 0;
+    public int selectOrCreateSlot(Neuron neuron, double inputValue, SlotConfig cfg) {
+        if (neuron == null) return 0;
         if (cfg == null) cfg = this.cfg;
 
         // Anchor (FIRST)
-        if (!n.focusSet && cfg.getAnchorMode() == SlotConfig.AnchorMode.FIRST) {
-            n.focusAnchor = x;
-            n.focusSet = true;
+        if (!neuron.focusSet && cfg.getAnchorMode() == SlotConfig.AnchorMode.FIRST) {
+            neuron.focusAnchor = inputValue;
+            neuron.focusSet = true;
         }
 
-        double anchor = n.focusAnchor;
+        double anchor = neuron.focusAnchor;
         double denom = Math.max(Math.abs(anchor), cfg.getEpsilonScale());
-        double deltaPct = Math.abs(x - anchor) / denom * 100.0;
+        double deltaPct = Math.abs(inputValue - anchor) / denom * 100.0;
         double bin = Math.max(0.1, cfg.getBinWidthPct());
         int slotId = (int) Math.floor(deltaPct / bin);
 
@@ -59,15 +59,15 @@ public final class SlotEngine {
         }
 
         // Ensure existence; if at capacity and creating a new id, clamp reuse
-        if (!n.getSlots().containsKey(slotId)) {
-            if (limit > 0 && n.getSlots().size() >= limit) {
+        if (!neuron.getSlots().containsKey(slotId)) {
+            if (limit > 0 && neuron.getSlots().size() >= limit) {
                 // reuse the highest existing id within [0, limit-1]
                 slotId = Math.min(slotId, limit - 1);
-                if (!n.getSlots().containsKey(slotId)) {
-                    n.getSlots().put(slotId, new Weight());
+                if (!neuron.getSlots().containsKey(slotId)) {
+                    neuron.getSlots().put(slotId, new Weight());
                 }
             } else {
-                n.getSlots().put(slotId, new Weight());
+                neuron.getSlots().put(slotId, new Weight());
             }
         }
         return slotId;

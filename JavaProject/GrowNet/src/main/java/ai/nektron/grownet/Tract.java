@@ -28,7 +28,7 @@ public final class Tract {
         final Neuron sourceNeuron;
         final Neuron targetNeuron;
         long lastStep = 0L;
-        Edge(Neuron s, Neuron t) { this.sourceNeuron = s; this.targetNeuron = t; }
+        Edge(Neuron source, Neuron target) { this.sourceNeuron = source; this.targetNeuron = target; }
     }
 
     /** A queued delivery to a target neuron. */
@@ -76,10 +76,10 @@ public final class Tract {
 
     /** Fire-hook: batch an event for each edge whose source == who. */
     private void onSourceFired(Neuron who, double amplitude) {
-        for (Edge e : edges) {
-            if (e.sourceNeuron == who) {
-                e.lastStep = regionBus.getCurrentStep();
-                queue.add(new Event(e.targetNeuron, amplitude));
+        for (Edge edge : edges) {
+            if (edge.sourceNeuron == who) {
+                edge.lastStep = regionBus.getCurrentStep();
+                queue.add(new Event(edge.targetNeuron, amplitude));
             }
         }
     }
@@ -91,8 +91,8 @@ public final class Tract {
     public int flush() {
         int delivered = 0;
         while (!queue.isEmpty()) {
-            Event ev = queue.poll();
-            boolean fired = ev.targetNeuron.onInput(ev.amplitude); // learning + threshold are inside the neuron
+            Event event = queue.poll();
+            boolean fired = event.targetNeuron.onInput(event.amplitude); // learning + threshold are inside the neuron
             if (fired) delivered++;
         }
         return delivered;

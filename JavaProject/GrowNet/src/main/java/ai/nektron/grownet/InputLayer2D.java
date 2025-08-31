@@ -22,11 +22,11 @@ public class InputLayer2D extends Layer {
         this.width  = width;
 
         final List<Neuron> list = getNeurons();
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
+        for (int row = 0; row < height; ++row) {
+            for (int col = 0; col < width; ++col) {
                 // InputNeuron is single‑slot; share the layer’s bus
                 InputNeuron n = new InputNeuron(
-                        "IN[" + y + "," + x + "]",
+                        "IN[" + row + "," + col + "]",
                         getBus(),
                         gain,
                         epsilonFire
@@ -37,7 +37,7 @@ public class InputLayer2D extends Layer {
     }
 
     /** Row‑major index helper. */
-    public int index(int y, int x) { return y * width + x; }
+    public int index(int row, int col) { return row * width + col; }
 
     /**
      * Drive this input Layer with a 2D image (values in [0, 1] or any float range).
@@ -50,10 +50,10 @@ public class InputLayer2D extends Layer {
                     "image shape mismatch: expected " + height + "×" + width);
         }
 
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                double value = image[y][x];
-                InputNeuron n = (InputNeuron) getNeurons().get(index(y, x));
+        for (int row = 0; row < height; ++row) {
+            for (int col = 0; col < width; ++col) {
+                double value = image[row][col];
+                InputNeuron n = (InputNeuron) getNeurons().get(index(row, col));
                 boolean fired = n.onInput(value);     // unified API: single argument
                 if (fired) n.onOutput(value);         // keeps the onOutput contract
             }
@@ -64,9 +64,9 @@ public class InputLayer2D extends Layer {
     public double[][] getFrame() {
         double[][] frame = new double[height][width];
         int idx = 0;
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                frame[y][x] = ((InputNeuron) getNeurons().get(idx++)).getOutputValue();
+        for (int row = 0; row < height; ++row) {
+            for (int col = 0; col < width; ++col) {
+                frame[row][col] = ((InputNeuron) getNeurons().get(idx++)).getOutputValue();
             }
         }
         return frame;

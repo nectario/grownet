@@ -21,10 +21,10 @@ public class OutputLayer2D extends Layer {
 
         // Create one OutputNeuron per pixel.
         List<Neuron> neurons = getNeurons();
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
+        for (int row = 0; row < height; ++row) {
+            for (int col = 0; col < width; ++col) {
 
-                neurons.add(new OutputNeuron("OUT[" + y + "," + x + "]",
+                neurons.add(new OutputNeuron("OUT[" + row + "," + col + "]",
                         getBus(),
                         SlotConfig.singleSlot()));
 
@@ -36,7 +36,7 @@ public class OutputLayer2D extends Layer {
     }
 
     /** Row-major index helper. */
-    public int index(int y, int x) { return y * width + x; }
+    public int index(int row, int col) { return row * width + col; }
 
     /** Route a scalar into the output neuron with the given index. */
 
@@ -58,13 +58,13 @@ public class OutputLayer2D extends Layer {
         // Allow the layer bus to decay toward neutral this tick.
         super.endTick();
 
-        for (int index = 0; index < getNeurons().size(); ++index) {
-            OutputNeuron outputNeuron = (OutputNeuron) getNeurons().get(index);
+        for (int neuronIndex = 0; neuronIndex < getNeurons().size(); ++neuronIndex) {
+            OutputNeuron outputNeuron = (OutputNeuron) getNeurons().get(neuronIndex);
             outputNeuron.endTick();
 
-            int y = index / width;
-            int x = index % width;
-            frame[y][x] = outputNeuron.getOutputValue();
+            int row = neuronIndex / width;
+            int col = neuronIndex % width;
+            frame[row][col] = outputNeuron.getOutputValue();
         }
     }
 

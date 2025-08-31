@@ -180,8 +180,8 @@ public class Neuron {
     }
 
     private void notifyFireHooks(double amplitude) {
-        for (BiConsumer<Double, Neuron> h : fireHooks) {
-            try { h.accept(amplitude, this); } catch (Exception ignored) { }
+        for (BiConsumer<Double, Neuron> hook : fireHooks) {
+            try { hook.accept(amplitude, this); } catch (Exception ignored) { }
         }
     }
 
