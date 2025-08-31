@@ -43,7 +43,7 @@ class SlotEngine:
         limit = int(getattr(cfg, "slot_limit", 16))
         if limit > 0 and sid >= limit:
             sid = limit - 1
-        slots = neuron.slots()
+        slots = neuron.slots
         if sid not in slots:
             if limit > 0 and len(slots) >= limit:
                 # reuse last id within [0, limit-1]

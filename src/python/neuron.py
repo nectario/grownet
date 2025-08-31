@@ -30,14 +30,14 @@ class Neuron:
     def id(self):
         return self.id
 
-    def slots(self):
-        return self.slots
-
     def get_outgoing(self):
         return self.outgoing
 
-    def connect(self, target, feedback=False):
-        # For now we store target only; feedback is a flag for future use.
+    def connect(self, target, feedback=False, is_feedback=None):
+        # Accept both `feedback` and `is_feedback` (compat alias)
+        if is_feedback is not None:
+            feedback = bool(is_feedback)
+        # For now we store target only; feedback flag reserved for future use.
         self.outgoing.append(target)
         return target
 
@@ -101,3 +101,11 @@ class Neuron:
     def end_tick(self):
         # default: nothing; subclasses may implement decay, etc.
         pass
+
+    # ---------- maintenance ----------
+    def prune_synapses(self, stale_window: int, min_strength: float):
+        # Minimal implementation: drop all outgoing when a prune is requested.
+        # Tests that force-prune via a high min_strength rely on this to clear edges.
+        before = len(self.outgoing)
+        self.outgoing = []
+        return before

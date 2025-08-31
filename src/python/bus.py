@@ -8,9 +8,15 @@ class LateralBus:
     # setters
     def set_inhibition(self, factor: float):
         self.inhibition_factor = float(factor)
+    # compat alias
+    def set_inhibition_factor(self, factor: float):
+        self.set_inhibition(factor)
 
     def set_modulation(self, factor: float):
         self.modulation_factor = float(factor)
+    # compat alias
+    def set_modulation_factor(self, factor: float):
+        self.set_modulation(factor)
 
     # getters
     def get_inhibition_factor(self) -> float:
@@ -35,12 +41,16 @@ class RegionBus:
         self.modulation_factor = 1.0
         self.inhibition_decay = float(inhibition_decay)
 
-    # setters
-    def set_inhibition_factor(self, factor: float):
+    # setters (canonical + compat aliases)
+    def set_inhibition(self, factor: float):
         self.inhibition_factor = float(factor)
+    def set_inhibition_factor(self, factor: float):
+        self.set_inhibition(factor)
 
-    def set_modulation_factor(self, factor: float):
+    def set_modulation(self, factor: float):
         self.modulation_factor = float(factor)
+    def set_modulation_factor(self, factor: float):
+        self.set_modulation(factor)
 
     # getters
     def get_inhibition_factor(self) -> float:

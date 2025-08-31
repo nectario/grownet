@@ -7,11 +7,11 @@ class InputNeuron(Neuron):
         self.gain = float(gain)
         self.epsilon_fire = float(epsilon_fire)
         # ensure slot 0 exists
-        self.slots()[0] = Weight()
+        self.slots[0] = Weight()
 
     def on_input(self, value):
         effective = self.gain * float(value)
-        slot = self.slots()[0]
+        slot = self.slots[0]
         # T0 threshold init
         if not slot.is_first_seen():
             slot.set_threshold_value(max(0.0, abs(effective) * (1.0 - self.epsilon_fire)))

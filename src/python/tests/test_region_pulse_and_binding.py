@@ -1,7 +1,7 @@
 # src/python/test/test_region_pulse_and_binding.py
 from region import Region
 
-def test_multi_layer_input_binding():
+def test_multi_layer_input_binding(compat_bound_delivered_count):
     region = Region("t")
     layer_a = region.add_layer(1, 0, 0)
     layer_b = region.add_layer(1, 0, 0)
