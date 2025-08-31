@@ -60,18 +60,18 @@ class Region:
             raise IndexError(f"source_index out of range: {source_index}")
         if dest_index < 0 or dest_index >= len(self.layers):
             raise IndexError(f"dest_index out of range: {dest_index}")
-        p = max(0.0, min(1.0, float(probability)))
+        prob = max(0.0, min(1.0, float(probability)))
         src_layer = self.layers[source_index]
         dst_layer = self.layers[dest_index]
         count = 0
         # Layer exposes get_neurons(); neurons expose connect(target, feedback=False)
-        for a in getattr(src_layer, "get_neurons")():
-            for b in getattr(dst_layer, "get_neurons")():
-                if self.rng.random() <= p:
+        for src_neuron in getattr(src_layer, "get_neurons")():
+            for dst_neuron in getattr(dst_layer, "get_neurons")():
+                if self.rng.random() <= prob:
                     try:
-                        a.connect(b, feedback=feedback)
+                        src_neuron.connect(dst_neuron, feedback=feedback)
                     except TypeError:
-                        a.connect(b)
+                        src_neuron.connect(dst_neuron)
                     count += 1
         return count
 
@@ -107,22 +107,22 @@ class Region:
 
         edge_idx = None
         if layer_indices and InputLayer2D is not None:
-            for li in layer_indices:
-                lyr = self.layers[li]
-                if isinstance(lyr, InputLayer2D):
-                    edge_idx = li
+            for layer_index in layer_indices:
+                layer_obj = self.layers[layer_index]
+                if isinstance(layer_obj, InputLayer2D):
+                    edge_idx = layer_index
                     break
         if edge_idx is not None:
             self.input_edges[port] = edge_idx
             # Wire edge to any other attached layers (excluding itself)
-            for li in layer_indices:
-                if li != edge_idx:
-                    self.connect_layers(edge_idx, li, 1.0, False)
+            for layer_index in layer_indices:
+                if layer_index != edge_idx:
+                    self.connect_layers(edge_idx, layer_index, 1.0, False)
         else:
             # Scalar edge layer path
             in_edge = self.ensure_input_edge(port)
-            for li in layer_indices:
-                self.connect_layers(in_edge, li, 1.0, False)
+            for layer_index in layer_indices:
+                self.connect_layers(in_edge, layer_index, 1.0, False)
 
     def bind_input_2d(self, port: str, height: int, width: int, gain: float, epsilon_fire: float, attach_layers: List[int]) -> None:
         from input_layer_2d import InputLayer2D
@@ -139,24 +139,24 @@ class Region:
     def bind_output(self, port: str, layer_indices: List[int]) -> None:
         self.output_ports[port] = list(layer_indices)
         out_edge = self.ensure_output_edge(port)
-        for li in layer_indices:
-            self.connect_layers(li, out_edge, 1.0, False)
+        for layer_index in layer_indices:
+            self.connect_layers(layer_index, out_edge, 1.0, False)
 
     
     def bind_input_nd(self, port: str, shape: list[int], gain: float, epsilon_fire: float, layer_indices: list[int]) -> None:
         idx = self.input_edges.get(port)
         need_new = True
         if idx is not None:
-            layer = self.layers[idx]
-            if hasattr(layer, "has_shape") and layer.has_shape(shape):
+            layer_obj = self.layers[idx]
+            if hasattr(layer_obj, "has_shape") and layer_obj.has_shape(shape):
                 need_new = False
         if idx is None or need_new:
             edge_idx = self.add_input_layer_nd(shape, gain, epsilon_fire)
             self.input_edges[port] = edge_idx
             idx = edge_idx
         self.input_ports[port] = list(layer_indices)
-        for li in layer_indices:
-            self.connect_layers(idx, li, 1.0, False)
+        for layer_index in layer_indices:
+            self.connect_layers(idx, layer_index, 1.0, False)
 
 
     # ---------------- pulses ----------------
@@ -273,7 +273,7 @@ class Region:
         synapse_stale_window: int = 10000,
         synapse_min_strength: float = 0.05) -> 'Region.PruneSummary':
 
-        ps = Region.PruneSummary()
+        prune_summary = Region.PruneSummary()
 
         # A prune function takes (int, float) and returns something int()-convertible.
         PruneFn = Callable[[int, float], SupportsInt]
@@ -288,11 +288,11 @@ class Region:
                     except Exception:
                         result = 0  # defensive default if an impl raises
                     try:
-                        ps.prunedSynapses += int(result)
+                        prune_summary.prunedSynapses += int(result)
                     except (TypeError, ValueError):
                         # If an implementation returns a non-numeric/None, ignore it.
                         pass
-        return ps
+        return prune_summary
 
     # ---------------- accessors ----------------
     def get_name(self) -> str:

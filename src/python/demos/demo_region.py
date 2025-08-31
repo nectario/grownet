@@ -8,14 +8,14 @@ def main() -> None:
     region = Region("vision")
 
     # two small mixed-type layers
-    l0 = region.add_layer(excitatory_count=8, inhibitory_count=2, modulatory_count=1)
-    l1 = region.add_layer(excitatory_count=8, inhibitory_count=2, modulatory_count=1)
+    layer0 = region.add_layer(excitatory_count=8, inhibitory_count=2, modulatory_count=1)
+    layer1 = region.add_layer(excitatory_count=8, inhibitory_count=2, modulatory_count=1)
 
     # feedforward wiring from l0 -> l1
-    region.connect_layers(l0, l1, probability=0.20, feedback=False)
+    region.connect_layers(layer0, layer1, probability=0.20, feedback=False)
 
     # bind a named input port to l0
-    region.bind_input(port="pixels", layer_indices=[l0])
+    region.bind_input(port="pixels", layer_indices=[layer0])
 
     # drive a simple scalar over 50 ticks
     for tick in range(50):

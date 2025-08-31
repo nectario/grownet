@@ -11,24 +11,24 @@ class InputLayer2D(Layer):
         self.height = int(height)
         self.width = int(width)
         # fill grid with InputNeurons
-        for y in range(self.height):
-            for x in range(self.width):
-                n = InputNeuron(f"IN[{y},{x}]", gain=gain, epsilon_fire=epsilon_fire)
-                n.set_bus(self.get_bus())
-                self.get_neurons().append(n)
+        for row_idx in range(self.height):
+            for col_idx in range(self.width):
+                neuron = InputNeuron(f"IN[{row_idx},{col_idx}]", gain=gain, epsilon_fire=epsilon_fire)
+                neuron.set_bus(self.get_bus())
+                self.get_neurons().append(neuron)
 
     def index(self, y, x):
         return int(y) * self.width + int(x)
 
     def forward_image(self, frame_2d):
         # frame_2d: iterable of rows
-        h = min(self.height, len(frame_2d))
-        for y in range(h):
-            row = frame_2d[y]
-            w = min(self.width, len(row))
-            for x in range(w):
-                idx = self.index(y, x)
-                self.get_neurons()[idx].on_input(row[x])
+        height_limit = min(self.height, len(frame_2d))
+        for row_idx in range(height_limit):
+            row = frame_2d[row_idx]
+            width_limit = min(self.width, len(row))
+            for col_idx in range(width_limit):
+                neuron_index = self.index(row_idx, col_idx)
+                self.get_neurons()[neuron_index].on_input(row[col_idx])
 
     def propagate_from(self, source_index, value):
         # Inputs are sinks; nothing to do.

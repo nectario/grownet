@@ -11,18 +11,18 @@ class Layer:
         self.neurons = []
         # default slot policy baked into Neuron base
         slot_limit = -1
-        for i in range(int(excitatory_count)):
-            n = ExcitatoryNeuron(f"E{i}")
-            n.set_bus(self.bus)
-            self.neurons.append(n)
-        for i in range(int(inhibitory_count)):
-            n = InhibitoryNeuron(f"I{i}")
-            n.set_bus(self.bus)
-            self.neurons.append(n)
-        for i in range(int(modulatory_count)):
-            n = ModulatoryNeuron(f"M{i}")
-            n.set_bus(self.bus)
-            self.neurons.append(n)
+        for idx in range(int(excitatory_count)):
+            neuron = ExcitatoryNeuron(f"E{idx}")
+            neuron.set_bus(self.bus)
+            self.neurons.append(neuron)
+        for idx in range(int(inhibitory_count)):
+            neuron = InhibitoryNeuron(f"I{idx}")
+            neuron.set_bus(self.bus)
+            self.neurons.append(neuron)
+        for idx in range(int(modulatory_count)):
+            neuron = ModulatoryNeuron(f"M{idx}")
+            neuron.set_bus(self.bus)
+            self.neurons.append(neuron)
 
     def get_neurons(self):
         return self.neurons
@@ -32,27 +32,27 @@ class Layer:
 
     # wiring
     def wire_random_feedforward(self, probability):
-        for a in self.neurons:
-            for b in self.neurons:
-                if a is b:
+        for src_neuron in self.neurons:
+            for dst_neuron in self.neurons:
+                if src_neuron is dst_neuron:
                     continue
                 if self.rng.random() < probability:
-                    a.connect(b, feedback=False)
+                    src_neuron.connect(dst_neuron, feedback=False)
 
     def wire_random_feedback(self, probability):
-        for a in self.neurons:
-            for b in self.neurons:
-                if a is b:
+        for src_neuron in self.neurons:
+            for dst_neuron in self.neurons:
+                if src_neuron is dst_neuron:
                     continue
                 if self.rng.random() < probability:
-                    a.connect(b, feedback=True)
+                    src_neuron.connect(dst_neuron, feedback=True)
 
     # main drive
     def forward(self, value):
-        for n in self.neurons:
-            fired = n.on_input(value)
+        for neuron in self.neurons:
+            fired = neuron.on_input(value)
             if fired:
-                n.on_output(value)
+                neuron.on_output(value)
 
     def propagate_from(self, source_index, value):
         # default: treat like uniform drive from external source
@@ -60,6 +60,6 @@ class Layer:
 
     def end_tick(self):
         # decay the bus; give neurons a chance to do housekeeping
-        for n in self.neurons:
-            n.end_tick()
+        for neuron in self.neurons:
+            neuron.end_tick()
         self.bus.decay()

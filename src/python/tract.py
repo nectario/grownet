@@ -5,11 +5,11 @@ class Tract:
         self.region_bus = region_bus
         self.feedback = bool(feedback)
         # subscribe to each source neuron fire via the layer's wiring scheme:
-        for idx, n in enumerate(self.src.get_neurons()):
+        for src_index, neuron in enumerate(self.src.get_neurons()):
             # capture idx for closure
             def make_hook(i):
                 return lambda who, value: self.on_source_fired(i, value)
-            n.register_fire_hook(make_hook(idx))
+            neuron.register_fire_hook(make_hook(src_index))
 
     def on_source_fired(self, source_index, value):
         # forward to destination layer; let the layer decide how to handle

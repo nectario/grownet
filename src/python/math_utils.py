@@ -13,8 +13,8 @@ def smooth_clamp(value, low, high, k=0.5):
     span = high - low
     if span <= 0:
         return low
-    t = (value - low) / span
-    t = clamp(t, 0.0, 1.0)
+    t_ratio = (value - low) / span
+    t_ratio = clamp(t_ratio, 0.0, 1.0)
     # cubic smoothstep
-    t = t * t * (3.0 - 2.0 * t)
-    return low + t * span
+    t_ratio = t_ratio * t_ratio * (3.0 - 2.0 * t_ratio)
+    return low + t_ratio * span

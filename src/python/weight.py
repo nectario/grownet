@@ -50,12 +50,12 @@ class Weight:
 
     def update_threshold(self, input_value, beta=0.05, eta=0.01, r_star=0.1, eps=1e-3):
         # First observation "imprint"
-        v = float(input_value)
+        value_float = float(input_value)
         if not self.seen_first:
-            self.theta = abs(v) * (1.0 + eps)
+            self.theta = abs(value_float) * (1.0 + eps)
             self.seen_first = True
 
-        fired = (abs(v) > self.theta) or (self.strength > self.theta)
+        fired = (abs(value_float) > self.theta) or (self.strength > self.theta)
         # EMA of recent fires (treat True as 1.0, False as 0.0)
         self.ema_rate = (1.0 - beta) * self.ema_rate + beta * (1.0 if fired else 0.0)
         # drift threshold toward target spike rate
