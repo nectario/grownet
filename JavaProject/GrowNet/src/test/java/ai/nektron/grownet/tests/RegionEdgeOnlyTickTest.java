@@ -7,6 +7,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
 
+/**
+ * Edge-only delivery semantics: a scalar tick drives the bound edge exactly once; 
+ * deliveredEvents should equal 1 per port event.
+ */
 public class RegionEdgeOnlyTickTest {
 
     @Test
