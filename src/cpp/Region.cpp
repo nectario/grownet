@@ -113,6 +113,7 @@ void Region::pulseModulation(double factor) {
 
 // ---------------- ticks ----------------
 
+// Drive a scalar into the edge bound to `port` (edge-only delivery) and collect metrics.
 RegionMetrics Region::tick(const std::string& port, double value) {
     RegionMetrics metrics;
 
@@ -138,6 +139,7 @@ RegionMetrics Region::tick(const std::string& port, double value) {
 }
 
 
+// Drive a 2D frame into an InputLayer2D edge bound to `port`.
 RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::vector<double>>& frame) {
     RegionMetrics metrics;
 
@@ -193,6 +195,7 @@ void Region::bindInputND(const std::string& port, const std::vector<int>& shape,
     }
 }
 
+// Drive a row-major flat tensor + shape into an InputLayerND edge bound to `port`.
 RegionMetrics Region::tickND(const std::string& port, const std::vector<double>& flat, const std::vector<int>& shape) {
     RegionMetrics metrics;
 

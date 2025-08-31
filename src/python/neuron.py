@@ -3,6 +3,7 @@ from slot_config import fixed
 from slot_engine import SlotEngine
 
 class Neuron:
+    """Base neuron with slot memory and unified on_input/on_output contract."""
     def __init__(self, neuron_id, bus=None, slot_cfg=None, slot_limit=-1):
         self.id = str(neuron_id)
         self.bus = bus
@@ -42,6 +43,7 @@ class Neuron:
         return target
 
     def register_fire_hook(self, callback):
+        """Register a callback invoked after this neuron fires (value, self)."""
         self.fire_hooks.append(callback)
 
     def has_last_input(self):
@@ -62,6 +64,7 @@ class Neuron:
 
     # ---------- core behaviour ----------
     def on_input(self, value):
+        """Select/reinforce a slot, update threshold, and optionally fire."""
         # Choose (or create) slot, reinforce with current modulation, update θ, decide to fire
         if self.slot_limit >= 0 and len(self.slots) >= self.slot_limit:
             # if saturated, reuse slot 0
@@ -104,8 +107,11 @@ class Neuron:
 
     # ---------- maintenance ----------
     def prune_synapses(self, stale_window: int, min_strength: float):
-        # Minimal implementation: drop all outgoing when a prune is requested.
-        # Tests that force-prune via a high min_strength rely on this to clear edges.
+        """Minimal prune implementation: drop all outgoing connections.
+
+        Tests that force-prune via a high min_strength rely on this behavior
+        to clear edges. Real implementations may use timestamps/strengths.
+        """
         before = len(self.outgoing)
         self.outgoing = []
         return before

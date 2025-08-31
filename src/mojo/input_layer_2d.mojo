@@ -15,7 +15,7 @@ struct InputLayer2D:
         return row * self.width + col
 
     fn forward_image(mut self, frame: list[list[Float64]]) -> list[Spike]:
-        # Fan out each pixel into the corresponding excit neuron.
+        # Fan out each pixel into the corresponding excit neuron (row-major).
         var spikes = []
         var row = 0
         while row < self.height:

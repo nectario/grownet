@@ -33,6 +33,7 @@ struct Weight {
         reinforcementCount++;
     }
 
+    // T0 imprint + EMA-driven threshold drift; returns whether strength > threshold.
     bool updateThreshold(double inputValue) {
         if (!firstSeen) {
             thresholdValue = std::abs(inputValue) * (1.0 + EPS);

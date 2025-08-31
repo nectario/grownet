@@ -25,6 +25,7 @@ public:
 
     int index(int row, int col) const { return row * width + col; }
 
+    // Deliver a 2D frame (row-major) to matching input neurons.
     void forwardImage(const std::vector<std::vector<double>>& frame) {
         auto& neuronList = getNeurons();
         for (int row = 0; row < height; ++row) {

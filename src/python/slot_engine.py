@@ -2,11 +2,12 @@ from slot_config import SlotPolicy
 from weight import Weight
 
 class SlotEngine:
+    """Slot selection helpers (policy + temporal focus)."""
     def __init__(self, cfg):
         self.cfg = cfg
 
     def slot_id(self, last_input, current_input, known_slots):
-        # map percent delta into an integer slot id (bin)
+        """Map a percent delta to an integer bin (policy-dependent)."""
         if self.cfg.policy == SlotPolicy.FIXED:
             if last_input == 0:
                 return 0
@@ -26,6 +27,7 @@ class SlotEngine:
             return 0
 
     def select_or_create_slot(self, neuron, input_value, tick_count=0):
+        """FIRST-anchor binning with capacity clamp; ensures slot exists."""
         cfg = self.cfg
         # FIRST-anchor: set anchor once
         if not getattr(neuron, "focus_set", False) and getattr(cfg, "anchor_mode", "FIRST") == "FIRST":

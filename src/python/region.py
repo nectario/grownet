@@ -8,6 +8,11 @@ from typing import List, Dict, Any, Callable, SupportsInt, cast
 
 
 class Region:
+    """Orchestrates layers, port bindings, and ticks.
+
+    Ports are modeled as edge layers. A tick drives the bound edge exactly once;
+    downstream layers receive activity via wiring from that edge.
+    """
     class PruneSummary:
         def __init__(self):
             self.prunedSynapses = 0
@@ -97,6 +102,11 @@ class Region:
         return edge_idx
 
     def bind_input(self, port: str, layer_indices: List[int]) -> None:
+        """Bind a scalar input port to one or more layers (edge-only delivery).
+
+        If any target is an InputLayer2D, treat it as the port's edge and wire
+        it forward to the remaining targets (convenience path).
+        """
         self.input_ports[port] = list(layer_indices)
         # Convenience: if user passes a shape-aware input layer as a bound target,
         # treat that layer as the edge for this port and wire it forward.
@@ -190,6 +200,7 @@ class Region:
 
     # ---------------- ticks ----------------
     def tick(self, port: str, value: float) -> RegionMetrics:
+        """Drive a scalar into the edge bound to `port`; return per-tick metrics."""
         metrics = RegionMetrics()
 
         edge_idx = self.input_edges.get(port)
@@ -228,7 +239,7 @@ class Region:
 
     
     def tick_2d(self, port: str, frame) -> RegionMetrics:
-        """2D tick (image-agnostic). Port must be bound to a 2D Input edge (InputLayer2D)."""
+        """Drive a 2D frame into an InputLayer2D edge bound to `port`."""
         metrics = RegionMetrics()
         edge_idx = self.input_edges.get(port)
         if edge_idx is None:
@@ -272,6 +283,7 @@ class Region:
         self,
         synapse_stale_window: int = 10000,
         synapse_min_strength: float = 0.05) -> 'Region.PruneSummary':
+        """Prune weak/stale synapses via per-neuron hooks; returns a small summary."""
 
         prune_summary = Region.PruneSummary()
 

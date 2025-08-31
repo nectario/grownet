@@ -233,6 +233,7 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
      * your Layer/Neuron tracks it explicitly.)
      */
     /** Scalar tick: port must be bound to a scalar InputEdge (via bindInput). */
+    /** Drive a scalar into the edge bound to {@code port}; returns per-tick metrics. */
     public RegionMetrics tick(String port, double value) {
 
         RegionMetrics regionMetrics = new RegionMetrics();
@@ -273,6 +274,7 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
     /** 2D tick (image-agnostic name). Port must be bound to a 2D InputEdge (InputLayer2D). */
 
     /** N-D tick: deliver a flat row-major array with explicit shape to an InputLayerND edge. */
+    /** Deliver a row-major flat tensor + shape into an InputLayerND edge. */
     public RegionMetrics tickND(String port, double[] flat, int[] shape) {
         RegionMetrics metrics = new RegionMetrics();
 
@@ -299,6 +301,7 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         return metrics;
     }
 
+    /** Drive a 2D frame into an InputLayer2D edge bound to {@code port}. */
     public RegionMetrics tick2D(String port, double[][] frame) {
         RegionMetrics metrics = new RegionMetrics();
 

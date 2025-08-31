@@ -1,5 +1,5 @@
 class LateralBus:
-    """Per-layer bus for inhibition/modulation."""
+    """Per-layer bus carrying transient inhibition and modulation factors."""
     def __init__(self, inhibition_decay: float = 0.9):
         self.inhibition_factor = 0.0   # decays toward 0.0
         self.modulation_factor = 1.0   # resets to 1.0 each tick

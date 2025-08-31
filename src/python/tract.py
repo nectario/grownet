@@ -1,4 +1,8 @@
 class Tract:
+    """Bridges two layers by subscribing to source fires and routing to dest.
+
+    Minimal helper for demos; delivery and reinforcement happen at the target.
+    """
     def __init__(self, src_layer, dst_layer, region_bus=None, feedback=False):
         self.src = src_layer
         self.dst = dst_layer
@@ -12,5 +16,5 @@ class Tract:
             neuron.register_fire_hook(make_hook(src_index))
 
     def on_source_fired(self, source_index, value):
-        # forward to destination layer; let the layer decide how to handle
+        # Forward to destination layer; let the layer decide how to handle
         self.dst.propagate_from(source_index, value)

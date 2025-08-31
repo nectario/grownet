@@ -2,6 +2,7 @@ from output_neuron import OutputNeuron
 from layer import Layer
 
 class OutputLayer2D(Layer):
+    """Shape-aware sink: output neurons expose a 2D frame snapshot per tick."""
     def __init__(self, height, width, smoothing):
         Layer.__init__(self, 0, 0, 0)
         self.height = int(height)
@@ -25,7 +26,7 @@ class OutputLayer2D(Layer):
             neuron.on_output(value)
 
     def end_tick(self):
-        # update frame from each output neuron's last value, then decay
+        # Update frame from each output neuron's last value, then decay
         for neuron_index, neuron in enumerate(self.get_neurons()):
             neuron.end_tick()
             row_idx = neuron_index // self.width

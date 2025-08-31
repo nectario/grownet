@@ -12,6 +12,7 @@ bool Neuron::onInput(double value) {
 }
 
 void Neuron::onOutput(double amplitude) {
+    // Notify hooks (e.g., Tract) and then perform default excitatory fanout.
     notifyFire(amplitude);
     // Default excitatory fanout: deliver to connected targets
     for (auto& syn : outgoing) {

@@ -36,6 +36,7 @@ public final class SlotEngine {
      * Temporal‑focus helper (FIRST anchor): choose a slot id for input x, ensure a slot exists,
      * and clamp growth at cfg.getSlotLimit() when at capacity.
      */
+    /** FIRST-anchor helper: choose a slot id for {@code inputValue}, ensure it exists, and clamp at slotLimit. */
     public int selectOrCreateSlot(Neuron neuron, double inputValue, SlotConfig cfg) {
         if (neuron == null) return 0;
         if (cfg == null) cfg = this.cfg;

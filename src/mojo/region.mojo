@@ -34,6 +34,7 @@ struct Region:
         self.bus = None                  # RegionBusRef
 
 
+    # Drive a scalar into the edge bound to `port` and collect metrics.
     fn tick(self, port: String, value: Float64) -> RegionMetrics:
         var metrics = RegionMetrics()
 
@@ -70,6 +71,7 @@ struct Region:
 
     
 
+// Drive a 2D frame into an InputLayer2D edge bound to `port`.
 fn tick_2d(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
     var metrics = RegionMetrics()
 

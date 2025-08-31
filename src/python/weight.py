@@ -42,14 +42,14 @@ class Weight:
 
     # --- learning helpers ---
     def reinforce(self, modulation_factor):
-        # scaled step; keep conservative default
+        """Increase strength with a small step scaled by modulation."""
         step = 0.02 * float(modulation_factor)
         if self.hit_count < 10000:
             self.strength = smooth_clamp(self.strength + step, -1.0, 1.0)
             self.hit_count += 1
 
     def update_threshold(self, input_value, beta=0.05, eta=0.01, r_star=0.1, eps=1e-3):
-        # First observation "imprint"
+        """T0 imprint + T2 homeostasis; return whether threshold is crossed."""
         value_float = float(input_value)
         if not self.seen_first:
             self.theta = abs(value_float) * (1.0 + eps)

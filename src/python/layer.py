@@ -5,6 +5,7 @@ from neuron_modulatory import ModulatoryNeuron
 from lateral_bus import LateralBus
 
 class Layer:
+    """Mixed E/I/M population with a shared lateral bus."""
     def __init__(self, excitatory_count, inhibitory_count, modulatory_count):
         self.bus = LateralBus()
         self.rng = random.Random(1234)
@@ -49,6 +50,7 @@ class Layer:
 
     # main drive
     def forward(self, value):
+        """Drive all neurons with a scalar for this tick."""
         for neuron in self.neurons:
             fired = neuron.on_input(value)
             if fired:
@@ -59,7 +61,7 @@ class Layer:
         self.forward(value)
 
     def end_tick(self):
-        # decay the bus; give neurons a chance to do housekeeping
+        # Decay the bus; give neurons a chance to do housekeeping
         for neuron in self.neurons:
             neuron.end_tick()
         self.bus.decay()
