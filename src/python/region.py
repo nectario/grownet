@@ -31,6 +31,8 @@ class Region:
         # Region-scope bus (optional; some codebases keep only per-layer buses)
         self.bus = None
         self.rng = random.Random(1234)
+        # Optional flag to compute spatial metrics in tick_2d (also gated by env var)
+        self.enable_spatial_metrics = False
 
     # ---------------- construction ----------------
     def add_layer(self, excitatory_count: int, inhibitory_count: int, modulatory_count: int) -> int:
@@ -82,6 +84,105 @@ class Region:
                         src_neuron.connect(dst_neuron)
                     count += 1
         return count
+
+    def connect_layers_windowed(self,
+                                src_index: int,
+                                dest_index: int,
+                                kernel_h: int,
+                                kernel_w: int,
+                                stride_h: int = 1,
+                                stride_w: int = 1,
+                                padding: str = "valid",
+                                feedback: bool = False) -> int:
+        """Wire src(2D) → dst using sliding windows (deterministic).
+
+        - If dst is OutputLayer2D: each window sends all its source pixels to the
+          output neuron at the window's center.
+        - Otherwise: allowed source pixels are connected via a Tract that forwards
+          events to dst.propagate_from_2d, which then fans to dst neurons.
+        Returns number of hook wires created (deterministic count).
+        """
+        from input_layer_2d import InputLayer2D
+        from output_layer_2d import OutputLayer2D
+        if src_index < 0 or src_index >= len(self.layers):
+            raise IndexError("src_index out of range")
+        if dest_index < 0 or dest_index >= len(self.layers):
+            raise IndexError("dest_index out of range")
+
+        src_layer = self.layers[src_index]
+        dst_layer = self.layers[dest_index]
+        if not isinstance(src_layer, InputLayer2D):
+            raise ValueError("connect_layers_windowed requires src to be InputLayer2D")
+
+        H, W = int(getattr(src_layer, "height", 0)), int(getattr(src_layer, "width", 0))
+        kh, kw = int(kernel_h), int(kernel_w)
+        sh, sw = max(1, int(stride_h)), max(1, int(stride_w))
+        pad = str(padding or "valid").lower()
+
+        # Determine window origins (top-left) for 'valid' (no padding) or 'same' (approximate center pad)
+        origins = []
+        if pad == "same":
+            pr = max(0, (kh - 1) // 2)
+            pc = max(0, (kw - 1) // 2)
+            r0 = -pr
+            c0 = -pc
+            r = r0
+            while r + kh <= H + pr + pr:
+                c = c0
+                while c + kw <= W + pc + pc:
+                    origins.append((r, c))
+                    c += sw
+                r += sh
+        else:
+            r = 0
+            while r + kh <= H:
+                c = 0
+                while c + kw <= W:
+                    origins.append((r, c))
+                    c += sw
+                r += sh
+
+        # Compute allowed source indices and (optionally) sink map for OutputLayer2D
+        allowed: set[int] = set()
+        sink_map: dict[int, list[int]] = {}
+        wires = 0
+
+        if isinstance(dst_layer, OutputLayer2D):
+            for (r0, c0) in origins:
+                # window clamp to valid coordinates
+                rr0, cc0 = max(0, r0), max(0, c0)
+                rr1, cc1 = min(H, r0 + kh), min(W, c0 + kw)
+                if rr0 >= rr1 or cc0 >= cc1:
+                    continue
+                # center index (integer floor)
+                cr = min(H - 1, max(0, r0 + kh // 2))
+                cc = min(W - 1, max(0, c0 + kw // 2))
+                center_idx = cr * W + cc
+                for rr in range(rr0, rr1):
+                    for cc2 in range(cc0, cc1):
+                        src_idx = rr * W + cc2
+                        allowed.add(src_idx)
+                        sink_map.setdefault(src_idx, []).append(center_idx)
+                        wires += 1
+            # Create a tract that delivers directly to mapped output neurons
+            from tract import Tract
+            Tract(src_layer, dst_layer, self.bus, feedback, None, allowed_source_indices=allowed, sink_map=sink_map)
+        else:
+            # For generic layers, allow all pixels that participate in any window;
+            # destination layer will fan to its neurons with 2D context.
+            for (r0, c0) in origins:
+                rr0, cc0 = max(0, r0), max(0, c0)
+                rr1, cc1 = min(H, r0 + kh), min(W, c0 + kw)
+                if rr0 >= rr1 or cc0 >= cc1:
+                    continue
+                for rr in range(rr0, rr1):
+                    for cc2 in range(cc0, cc1):
+                        allowed.add(rr * W + cc2)
+                        wires += 1
+            from tract import Tract
+            Tract(src_layer, dst_layer, self.bus, feedback, None, allowed_source_indices=allowed)
+
+        return wires
 
     # ---------------- edge helpers ----------------
     def ensure_input_edge(self, port: str) -> int:
@@ -285,6 +386,15 @@ class Region:
                 metrics.add_slots(len(slots_map) if isinstance(slots_map, dict) else 0)
                 outgoing = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
                 metrics.add_synapses(len(outgoing))
+
+        # Optional spatial metrics
+        try:
+            import os
+            if self.enable_spatial_metrics or os.environ.get("GROWNET_ENABLE_SPATIAL_METRICS") == "1":
+                self._compute_spatial_metrics(metrics, frame)
+        except Exception:
+            pass
+
         return metrics
 
 
@@ -329,3 +439,86 @@ class Region:
 
     def get_bus(self):
         return self.bus
+
+    # ---------------- internal helpers ----------------
+    def _compute_spatial_metrics(self, metrics: RegionMetrics, input_frame) -> None:
+        """Compute activePixels, centroid, and bbox from the best available 2D layer.
+
+        Prefer the furthest downstream OutputLayer2D frame this tick; if no non-zero
+        output is found, fall back to the input frame passed to tick_2d.
+        """
+        from output_layer_2d import OutputLayer2D
+
+        chosen = None
+        # pick last OutputLayer2D (furthest downstream by index)
+        for layer in reversed(self.layers):
+            if isinstance(layer, OutputLayer2D):
+                try:
+                    fr = layer.get_frame()
+                    chosen = fr
+                    break
+                except Exception:
+                    continue
+
+        if chosen is None:
+            chosen = input_frame
+
+        # If chosen is entirely zeros, but input has non-zeros, prefer input
+        def _is_all_zero(img):
+            try:
+                for row in img:
+                    for v in row:
+                        if float(v) != 0.0:
+                            return False
+                return True
+            except Exception:
+                return True
+
+        if chosen is not input_frame and _is_all_zero(chosen) and not _is_all_zero(input_frame):
+            chosen = input_frame
+
+        # Compute metrics
+        total = 0.0
+        sum_r = 0.0
+        sum_c = 0.0
+        rmin, rmax, cmin, cmax = 10**9, -1, 10**9, -1
+        H = len(chosen) if chosen is not None else 0
+        W = len(chosen[0]) if H > 0 else 0
+
+        for r in range(H):
+            row = chosen[r]
+            for c in range(min(W, len(row))):
+                v = float(row[c])
+                if v > 0.0:
+                    total += v
+                    sum_r += r * v
+                    sum_c += c * v
+                    if r < rmin: rmin = r
+                    if r > rmax: rmax = r
+                    if c < cmin: cmin = c
+                    if c > cmax: cmax = c
+
+        active = 0
+        if H > 0 and W > 0:
+            # count active pixels (value > 0.0)
+            active = sum(1 for r in range(H) for c in range(W) if float(chosen[r][c]) > 0.0)
+
+        metrics.active_pixels = active
+        metrics.activePixels = active
+        if total > 0.0:
+            metrics.centroid_row = sum_r / total
+            metrics.centroid_col = sum_c / total
+            metrics.centroidRow = metrics.centroid_row
+            metrics.centroidCol = metrics.centroid_col
+        else:
+            metrics.centroid_row = 0.0
+            metrics.centroid_col = 0.0
+            metrics.centroidRow = 0.0
+            metrics.centroidCol = 0.0
+
+        bbox = (0, -1, 0, -1) if rmax < rmin or cmax < cmin else (rmin, rmax, cmin, cmax)
+        metrics.bbox = bbox
+        try:
+            metrics.bboxRowMin, metrics.bboxRowMax, metrics.bboxColMin, metrics.bboxColMax = bbox
+        except Exception:
+            pass

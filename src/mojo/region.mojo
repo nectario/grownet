@@ -101,3 +101,13 @@ fn tick_2d(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
     return metrics
 fn tick_image(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
         return self.tick_2d(port, frame)
+
+    # Windowed deterministic wiring helper (parity stub)
+    fn connect_layers_windowed(self,
+        src_index: Int, dest_index: Int,
+        kernel_h: Int, kernel_w: Int,
+        stride_h: Int = 1, stride_w: Int = 1,
+        padding: String = "valid",
+        feedback: Bool = False) -> Int:
+        # TODO: implement deterministic windowed wiring (Phase B parity)
+        return 0

@@ -72,6 +72,13 @@ public:
     bool       focusSet { false };
     long long  focusLockUntilTick { 0 };
     double getFocusAnchor() const { return focusAnchor; }
+
+    // Spatial anchors (row/col) — Phase B stubs
+    int anchorRow { -1 };
+    int anchorCol { -1 };
+
+    // Spatial variant (defaults to scalar path)
+    virtual bool onInput2D(double value, int row, int col) { (void)row; (void)col; return onInput(value); }
 };
 
 } // namespace grownet

@@ -19,6 +19,13 @@ class SlotConfig:
     outlier_growth_threshold_pct = 60.0   # threshold for neuron growth hooks
     slot_limit = 16                       # cap slots per neuron (soft)
 
+    # Spatial focus knobs (Phase B)
+    # When enabled on destination neurons/layers, slotting uses 2D anchors/bins.
+    spatial_enabled = False               # off by default; opt-in per layer/neuron
+    row_bin_width_pct = 100.0             # bin width for row deltas (percent)
+    col_bin_width_pct = 100.0             # bin width for col deltas (percent)
+    # anchor_mode is reused; support "ORIGIN" for spatial (anchor at (0,0)).
+
 def fixed(delta_percent=10.0):
     return SlotConfig(SlotPolicy.FIXED, fixed_delta_percent=delta_percent)
 

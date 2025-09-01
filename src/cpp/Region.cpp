@@ -1,6 +1,7 @@
 #include "Region.h"
 #include "InputLayerND.h"
 #include <random>
+#include <cstdlib>
 
 namespace grownet {
 
@@ -38,6 +39,17 @@ Tract& Region::connectLayers(int sourceIndex, int destIndex, double probability,
 
     tracts.push_back(std::move(tract));
     return *tracts.back();
+}
+
+int Region::connectLayersWindowed(int sourceIndex, int destIndex,
+                                  int kernelH, int kernelW,
+                                  int strideH, int strideW,
+                                  const std::string& padding,
+                                  bool feedback) {
+    // Minimal parity stub: prefer to wire via Tract deterministically in a future pass.
+    (void)sourceIndex; (void)destIndex; (void)kernelH; (void)kernelW;
+    (void)strideH; (void)strideW; (void)padding; (void)feedback;
+    return 0;
 }
 
 
@@ -164,6 +176,61 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
             metrics.addSlots(static_cast<long long>(neuron->getSlots().size()));
             metrics.addSynapses(static_cast<long long>(neuron->getOutgoing().size()));
         }
+    }
+
+    // Optional spatial metrics (env: GROWNET_ENABLE_SPATIAL_METRICS=1 or Region flag)
+    try {
+        const char* env = std::getenv("GROWNET_ENABLE_SPATIAL_METRICS");
+        bool doSpatial = enableSpatialMetrics || (env && std::string(env) == "1");
+        if (doSpatial) {
+            // Prefer furthest downstream OutputLayer2D
+            const std::vector<std::vector<double>>* chosen = nullptr;
+            for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+                auto out2d = dynamic_cast<OutputLayer2D*>((*it).get());
+                if (out2d) { chosen = &out2d->getFrame(); break; }
+            }
+            auto isAllZero = [](const std::vector<std::vector<double>>& img) {
+                for (const auto& row : img) for (double v : row) if (v != 0.0) return false; return true;
+            };
+            if (!chosen) chosen = &frame;
+            else if (isAllZero(*chosen) && !isAllZero(frame)) chosen = &frame;
+
+            const auto& img = *chosen;
+            const int H = static_cast<int>(img.size());
+            const int W = H > 0 ? static_cast<int>(img[0].size()) : 0;
+            long long active = 0;
+            double total = 0.0, sumR = 0.0, sumC = 0.0;
+            int rmin = 1e9, rmax = -1, cmin = 1e9, cmax = -1;
+            for (int r = 0; r < H; ++r) {
+                const auto& row = img[r];
+                const int limit = std::min(W, static_cast<int>(row.size()));
+                for (int c = 0; c < limit; ++c) {
+                    double v = row[c];
+                    if (v > 0.0) {
+                        ++active; total += v; sumR += r * v; sumC += c * v;
+                        if (r < rmin) rmin = r; if (r > rmax) rmax = r;
+                        if (c < cmin) cmin = c; if (c > cmax) cmax = c;
+                    }
+                }
+            }
+            metrics.activePixels = active;
+            if (total > 0.0) {
+                metrics.centroidRow = sumR / total;
+                metrics.centroidCol = sumC / total;
+            } else {
+                metrics.centroidRow = 0.0;
+                metrics.centroidCol = 0.0;
+            }
+            if (rmax >= rmin && cmax >= cmin) {
+                metrics.bboxRowMin = rmin; metrics.bboxRowMax = rmax;
+                metrics.bboxColMin = cmin; metrics.bboxColMax = cmax;
+            } else {
+                metrics.bboxRowMin = 0; metrics.bboxRowMax = -1;
+                metrics.bboxColMin = 0; metrics.bboxColMax = -1;
+            }
+        }
+    } catch (...) {
+        // swallow any computation errors; metrics remain defaults
     }
     return metrics;
 }

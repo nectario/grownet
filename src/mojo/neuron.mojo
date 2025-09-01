@@ -16,6 +16,10 @@ struct Neuron:
     var focus_lock_until_tick: Int = 0
     var last_fired: Bool = False
 
+    # spatial focus anchors (Phase B)
+    var anchor_row: Int = -1
+    var anchor_col: Int = -1
+
     fn init(mut self, neuron_id: String, slot_limit: Int = -1) -> None:
         self.neuron_id = neuron_id
         self.slot_engine = SlotEngine()
@@ -59,3 +63,7 @@ struct Neuron:
 
         # Base neuron: no-op; subclasses override.
         pass
+
+    fn on_input_2d(mut self, value: Float64, row: Int, col: Int, modulation_factor: Float64) -> Bool:
+        # Default: reuse scalar path
+        return self.on_input(value, modulation_factor)

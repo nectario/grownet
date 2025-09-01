@@ -22,3 +22,17 @@ def test_something():
 
 This does not change tick delivery — the edge is still driven once — it only adjusts the reported `deliveredEvents` for compatibility.
 
+## Spatial metrics (optional)
+
+Set the environment flag below to compute simple spatial metrics during `tick_2d`:
+
+```
+GROWNET_ENABLE_SPATIAL_METRICS=1
+```
+
+When enabled, `Region.tick_2d` populates these optional fields on `RegionMetrics`:
+- `active_pixels`/`activePixels`: count of pixels with value > 0.0
+- `centroid_row`/`centroidRow`, `centroid_col`/`centroidCol`: weighted centroid (weights = pixel values)
+- `bbox`: `(row_min, row_max, col_min, col_max)` for active pixels (or `(0, -1, 0, -1)` if empty)
+
+It prefers the frame from the most downstream `OutputLayer2D`; if no non‑zero output exists, it falls back to the input frame driven this tick.

@@ -60,6 +60,30 @@ class Layer:
         # default: treat like uniform drive from external source
         self.forward(value)
 
+    def propagate_from_2d(self, source_index: int, value: float, height: int, width: int) -> None:
+        """Destination-side hook for 2D-aware propagation.
+
+        Computes (row,col) from source_index and calls each neuron's spatial
+        on_input_2d if available/enabled, else falls back to scalar on_input.
+        """
+        try:
+            r = int(source_index) // int(width)
+            c = int(source_index) % int(width)
+        except Exception:
+            # if shape is invalid, fallback to scalar
+            r, c = 0, 0
+        for neuron in self.neurons:
+            fired = False
+            if hasattr(neuron, "on_input_2d"):
+                try:
+                    fired = neuron.on_input_2d(value, r, c)
+                except Exception:
+                    fired = neuron.on_input(value)
+            else:
+                fired = neuron.on_input(value)
+            if fired:
+                neuron.on_output(value)
+
     def end_tick(self):
         # Decay the bus; give neurons a chance to do housekeeping
         for neuron in self.neurons:

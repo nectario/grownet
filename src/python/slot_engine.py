@@ -1,11 +1,14 @@
 from slot_config import SlotPolicy
 from weight import Weight
+from typing import Tuple
+
 
 class SlotEngine:
-    """Slot selection helpers (policy + temporal focus)."""
+    """Slot selection helpers (policy + temporal & spatial focus)."""
     def __init__(self, cfg):
         self.cfg = cfg
 
+    # -------- scalar (temporal) --------
     def slot_id(self, last_input, current_input, known_slots):
         """Map a percent delta to an integer bin (policy-dependent)."""
         if self.cfg.policy == SlotPolicy.FIXED:
@@ -55,3 +58,63 @@ class SlotEngine:
             else:
                 slots[sid] = Weight()
         return slots[sid]
+
+    # -------- spatial (2D) --------
+    def slot_id_2d(self, anchor_rc: Tuple[int, int], current_rc: Tuple[int, int]) -> Tuple[int, int]:
+        """Return (row_bin, col_bin) using |Δrow| and |Δcol| as % of denom (per-axis).
+
+        Denominator per axis uses max(|anchor_axis|, epsilon_scale) to avoid divide-by-zero.
+        Bin widths are controlled by cfg.row_bin_width_pct / cfg.col_bin_width_pct.
+        """
+        ar, ac = int(anchor_rc[0]), int(anchor_rc[1])
+        cr, cc = int(current_rc[0]), int(current_rc[1])
+
+        eps = max(1e-12, float(getattr(self.cfg, "epsilon_scale", 1e-6)))
+        denom_r = max(abs(ar), eps)
+        denom_c = max(abs(ac), eps)
+
+        dp_r = abs(cr - ar) / denom_r * 100.0
+        dp_c = abs(cc - ac) / denom_c * 100.0
+
+        bw_r = max(0.1, float(getattr(self.cfg, "row_bin_width_pct", 100.0)))
+        bw_c = max(0.1, float(getattr(self.cfg, "col_bin_width_pct", 100.0)))
+
+        return int(dp_r // bw_r), int(dp_c // bw_c)
+
+    def select_or_create_slot_2d(self, neuron, row: int, col: int):
+        """2D FIRST/ORIGIN anchor + capacity clamp; ensures spatial slot exists.
+
+        Keys are (row_bin, col_bin) tuples. When capacity is saturated, reuse a
+        fallback id (limit-1, limit-1) to avoid unbounded growth.
+        """
+        cfg = self.cfg
+
+        # pick anchors
+        anchor_mode = str(getattr(cfg, "anchor_mode", "FIRST")).upper()
+        if anchor_mode == "ORIGIN":
+            ar, ac = 0, 0
+        else:
+            # FIRST: set if not present
+            if getattr(neuron, "focus_anchor_row", None) is None or getattr(neuron, "focus_anchor_col", None) is None:
+                neuron.focus_anchor_row = int(row)
+                neuron.focus_anchor_col = int(col)
+            ar, ac = int(neuron.focus_anchor_row), int(neuron.focus_anchor_col)
+
+        rb, cb = self.slot_id_2d((ar, ac), (int(row), int(col)))
+        limit = int(getattr(cfg, "slot_limit", 16))
+
+        if limit > 0:
+            rb = min(rb, limit - 1)
+            cb = min(cb, limit - 1)
+
+        key = (rb, cb)
+        slots = neuron.slots
+        if key not in slots:
+            if limit > 0 and len(slots) >= limit:
+                # reuse a deterministic fallback within domain
+                key = (limit - 1, limit - 1)
+                if key not in slots:
+                    slots[key] = Weight()
+            else:
+                slots[key] = Weight()
+        return slots[key]

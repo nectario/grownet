@@ -10,3 +10,4 @@ CMakeFiles/
 # Python cache files
 __pycache__/
 *.pyc
+.idea

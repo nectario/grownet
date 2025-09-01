@@ -31,6 +31,15 @@ struct RegionMetrics {
     // legacy alias used by some demos
     long long delivered_events {0};
 
+    // Optional spatial metrics (Phase B)
+    long long activePixels {0};
+    double centroidRow {0.0};
+    double centroidCol {0.0};
+    int bboxRowMin {0};
+    int bboxRowMax {-1};
+    int bboxColMin {0};
+    int bboxColMax {-1};
+
     inline void incDeliveredEvents(long long by = 1) {
         deliveredEvents += by;
         delivered_events += by;
@@ -62,6 +71,12 @@ public:
     int addOutputLayer2D(int h, int w, double smoothing);
 
     Tract& connectLayers(int sourceIndex, int destIndex, double probability, bool feedback=false);
+    // Windowed deterministic wiring (spatial focus helper). Returns number of edges created.
+    int connectLayersWindowed(int sourceIndex, int destIndex,
+                              int kernelH, int kernelW,
+                              int strideH=1, int strideW=1,
+                              const std::string& padding="valid",
+                              bool feedback=false);
 
     void bindInput(const std::string& port, const std::vector<int>& layerIndices);
     void bindInput2D(const std::string& port, int h, int w, double gain, double epsilonFire, const std::vector<int>& attachLayers);
@@ -95,6 +110,7 @@ private:
     std::vector<std::shared_ptr<Layer>> layers;      // shared_ptr keeps addresses stable
     std::vector<std::unique_ptr<Tract>> tracts;
     RegionBus bus;
+    bool enableSpatialMetrics { false };
 
     std::unordered_map<std::string, std::vector<int>> inputPorts;
     std::unordered_map<std::string, std::vector<int>> outputPorts;

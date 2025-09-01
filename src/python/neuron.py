@@ -22,6 +22,10 @@ class Neuron:
         self.fired_last = False
         self.fire_hooks = []  # callbacks: fn(neuron, value)
 
+        # spatial focus anchors (row/col) — set lazily when spatial is enabled
+        self.focus_anchor_row = None  # type: int | None
+        self.focus_anchor_col = None  # type: int | None
+
     # ---------- infrastructure ----------
     def set_bus(self, bus):
         self.bus = bus
@@ -112,6 +116,34 @@ class Neuron:
 
         # default: nothing; subclasses may implement decay, etc.
         pass
+
+    # ---------- spatial variant ----------
+    def on_input_2d(self, value: float, row: int, col: int) -> bool:
+        """Spatial on_input: manage (row,col) anchor and 2D slot selection.
+
+        If spatial is not enabled in the neuron's slot config, fall back to scalar on_input.
+        """
+        try:
+            if not bool(getattr(self.slot_cfg, "spatial_enabled", False)):
+                return self.on_input(value)
+        except Exception:
+            return self.on_input(value)
+
+        # choose/create spatial slot
+        slot = self.slot_engine.select_or_create_slot_2d(self, int(row), int(col))
+
+        # reinforcement scaled by modulation
+        mod = 1.0
+        if self.bus is not None:
+            mod = self.bus.get_modulation_factor()
+        slot.reinforce(modulation_factor=mod)
+
+        fired = slot.update_threshold(value)
+        self.set_fired_last(fired)
+        self.set_last_input_value(value)
+        if fired:
+            self.fire(value)
+        return fired
 
     # ---------- maintenance ----------
     def prune_synapses(self, stale_window: int, min_strength: float):

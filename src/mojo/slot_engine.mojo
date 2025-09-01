@@ -33,3 +33,17 @@ struct SlotEngine:
         var delta_pct: Float64 = 100.0 * delta / scale
         var width: Float64 = if bin_width_pct > 0.1 then bin_width_pct else 0.1
         return Int(delta_pct / width)
+
+    fn slot_id_2d(self, anchor_row: Int, anchor_col: Int, row: Int, col: Int,
+                   row_bin_width_pct: Float64, col_bin_width_pct: Float64, epsilon_scale: Float64) -> (Int, Int):
+        var ar = Float64(anchor_row); var ac = Float64(anchor_col)
+        var rr = Float64(row);        var cc = Float64(col)
+        var denom_r = if ar >= 0.0 then ar else -ar
+        var denom_c = if ac >= 0.0 then ac else -ac
+        if denom_r < epsilon_scale: denom_r = epsilon_scale
+        if denom_c < epsilon_scale: denom_c = epsilon_scale
+        var dpr = rr - ar; if dpr < 0.0: dpr = -dpr
+        var dpc = cc - ac; if dpc < 0.0: dpc = -dpc
+        var rbin = Int((100.0 * dpr / denom_r) / (if row_bin_width_pct > 0.1 then row_bin_width_pct else 0.1))
+        var cbin = Int((100.0 * dpc / denom_c) / (if col_bin_width_pct > 0.1 then col_bin_width_pct else 0.1))
+        return (rbin, cbin)
