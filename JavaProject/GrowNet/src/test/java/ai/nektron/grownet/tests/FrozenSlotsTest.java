@@ -2,13 +2,14 @@ package ai.nektron.grownet.tests;
 
 import ai.nektron.grownet.Layer;
 import ai.nektron.grownet.Neuron;
+import ai.nektron.grownet.Weight;
+import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.api.Test;
 
 /**
  * Tests for Frozen Slots (Java).
@@ -48,6 +49,66 @@ public class FrozenSlotsTest {
             m.invoke(slot);
             return true;
         }
+    }
+
+    /** Helper: drive once to ensure a FIRST-anchor slot is created and return it. */
+    private static Weight establishSingleSlot(Layer layer, Neuron neuron, double inputValue) {
+        layer.forward(inputValue);
+        layer.endTick();
+        Map<Integer, Weight> slots = neuron.getSlots();
+        assertNotNull(slots, "Neuron.getSlots() returned null");
+        assertFalse(slots.isEmpty(), "No slots after first drive; check slotting path");
+        assertEquals(1, slots.size(), "Test assumes a single slot after first drive");
+        return slots.values().iterator().next();
+    }
+
+    @Test
+    public void frozenFlagTogglesOnFreezeUnfreeze() {
+        // Single-neuron layer for deterministic behavior
+        Layer layer = new Layer(/*excitatory=*/1, /*inhibitory=*/0, /*modulatory=*/0);
+        Neuron neuron = layer.getNeurons().get(0);
+
+        // Create exactly one slot
+        Weight slot = establishSingleSlot(layer, neuron, 0.60);
+
+        // Freeze via neuron helper
+        boolean froze = neuron.freezeLastSlot();
+        assertTrue(froze, "freezeLastSlot() should succeed");
+        assertTrue(slot.isFrozen(), "Slot should report frozen");
+
+        // Unfreeze via neuron helper
+        boolean unfroze = neuron.unfreezeLastSlot();
+        assertTrue(unfroze, "unfreezeLastSlot() should succeed");
+        assertFalse(slot.isFrozen(), "Slot should report unfrozen");
+    }
+
+    @Test
+    public void frozenStopsAdaptationAndResumesAfterUnfreeze() {
+        Layer layer = new Layer(/*excitatory=*/1, /*inhibitory=*/0, /*modulatory=*/0);
+        Neuron neuron = layer.getNeurons().get(0);
+
+        // Establish baseline slot + values
+        Weight slot = establishSingleSlot(layer, neuron, 0.55);
+        double strength0 = slot.getStrengthValue();
+        double theta0    = slot.getThresholdValue();
+
+        // Freeze the last-used slot, then drive with a value that would normally adapt
+        assertTrue(neuron.freezeLastSlot());
+        layer.forward(0.95);
+        layer.endTick();
+
+        // While frozen, reinforcement + threshold updates should be suppressed
+        assertEquals(strength0, slot.getStrengthValue(), 1e-12, "Strength should not change while frozen");
+        assertEquals(theta0, slot.getThresholdValue(), 1e-12, "Threshold should not change while frozen");
+
+        // Unfreeze and drive again — adaptation should resume
+        assertTrue(neuron.unfreezeLastSlot());
+        layer.forward(0.85);
+        layer.endTick();
+
+        assertTrue(slot.getStrengthValue() > strength0, "Strength should increase after unfreeze");
+        // Threshold may move up or down depending on your rule; just assert it can change:
+        assertNotEquals(theta0, slot.getThresholdValue(), 0.0, "Threshold should be allowed to change after unfreeze");
     }
 
     private static boolean isFrozen(Object slot) throws Exception {
@@ -107,63 +168,10 @@ public class FrozenSlotsTest {
     }
 
     // Get the single existing slot after first drive (map is Integer->Weight)
-    private static Object getOnlySlot(Neuron neuron) {
-        @SuppressWarnings("unchecked")
-        Map<Integer, Object> slots = (Map<Integer, Object>) neuron.getSlots();
+    private static ai.nektron.grownet.Weight getOnlySlot(Neuron neuron) {
+        Map<Integer, ai.nektron.grownet.Weight> slots = neuron.getSlots();
         assertNotNull(slots, "Neuron.getSlots() returned null");
         assertFalse(slots.isEmpty(), "Neuron has no slots; did you drive it at least once?");
         return slots.values().iterator().next();
-    }
-
-    // ---------- tests ----------
-
-    @Test
-    public void frozenFlagTogglesOnFreezeUnfreeze() throws Exception {
-        // Single-neuron layer for a controlled drive
-        Layer layer = new Layer(/*excit*/1, /*inh*/0, /*mod*/0);
-        Neuron neuron = layer.getNeurons().get(0);
-
-        // First drive => select/create FIRST-anchor slot
-        layer.forward(0.6);
-        layer.endTick();
-
-        Object slot = getOnlySlot(neuron);
-
-        // Freeze
-        assertTrue(callFreezeLastSlotIfPresent(neuron, slot), "freezeLastSlot()/freeze() failed");
-        assertTrue(isFrozen(slot), "Slot should be frozen");
-
-        // Unfreeze
-        assertTrue(callUnfreezeLastSlotIfPresent(neuron, slot), "unfreezeLastSlot()/unfreeze() failed");
-        assertFalse(isFrozen(slot), "Slot should be unfrozen");
-    }
-
-    @Test
-    public void frozenStopsAdaptationAndResumesAfterUnfreeze() throws Exception {
-        Layer layer = new Layer(/*excit*/1, /*inh*/0, /*mod*/0);
-        Neuron neuron = layer.getNeurons().get(0);
-
-        // Establish slot and baseline values
-        layer.forward(0.55);
-        layer.endTick();
-        Object slot = getOnlySlot(neuron);
-        double strength0 = getStrength(slot);
-        double theta0 = getTheta(slot);
-
-        // Freeze and drive with a value that would normally adapt
-        assertTrue(callFreezeLastSlotIfPresent(neuron, slot));
-        layer.forward(0.95);
-        layer.endTick();
-
-        // While frozen, both strength and theta should remain unchanged
-        assertEquals(strength0, getStrength(slot), 1e-12, "Strength should not change while frozen");
-        assertEquals(theta0, getTheta(slot), 1e-12, "Theta should not change while frozen");
-
-        // Unfreeze and drive again — adaptation should resume (strength increases)
-        assertTrue(callUnfreezeLastSlotIfPresent(neuron, slot));
-        layer.forward(0.85);
-        layer.endTick();
-
-        assertTrue(getStrength(slot) > strength0, "Strength should increase after unfreeze");
     }
 }
