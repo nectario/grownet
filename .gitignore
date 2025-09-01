@@ -6,3 +6,7 @@
 **/cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
+
+# Python cache files
+__pycache__/
+*.pyc

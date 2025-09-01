@@ -23,9 +23,11 @@ class Region:
         self.layers: List[Any] = []          # Any to keep static analyzers calm
         self.input_ports: Dict[str, List[int]] = {}
         self.output_ports: Dict[str, List[int]] = {}
+
         # Edge layers per port (created lazily on bind)
         self.input_edges: Dict[str, int] = {}
         self.output_edges: Dict[str, int] = {}
+
         # Region-scope bus (optional; some codebases keep only per-layer buses)
         self.bus = None
         self.rng = random.Random(1234)
@@ -69,6 +71,7 @@ class Region:
         src_layer = self.layers[source_index]
         dst_layer = self.layers[dest_index]
         count = 0
+
         # Layer exposes get_neurons(); neurons expose connect(target, feedback=False)
         for src_neuron in getattr(src_layer, "get_neurons")():
             for dst_neuron in getattr(dst_layer, "get_neurons")():
@@ -86,6 +89,7 @@ class Region:
         idx = self.input_edges.get(port)
         if idx is not None:
             return idx
+
         # Minimal scalar input edge: a 1-neuron layer that forwards to internal graph.
         edge_idx = self.add_layer(1, 0, 0)
         self.input_edges[port] = edge_idx
@@ -96,6 +100,7 @@ class Region:
         idx = self.output_edges.get(port)
         if idx is not None:
             return idx
+
         # Minimal scalar output edge: a 1-neuron layer acting as a sink.
         edge_idx = self.add_layer(1, 0, 0)
         self.output_edges[port] = edge_idx
@@ -108,6 +113,7 @@ class Region:
         it forward to the remaining targets (convenience path).
         """
         self.input_ports[port] = list(layer_indices)
+
         # Convenience: if user passes a shape-aware input layer as a bound target,
         # treat that layer as the edge for this port and wire it forward.
         try:
@@ -124,11 +130,13 @@ class Region:
                     break
         if edge_idx is not None:
             self.input_edges[port] = edge_idx
+
             # Wire edge to any other attached layers (excluding itself)
             for layer_index in layer_indices:
                 if layer_index != edge_idx:
                     self.connect_layers(edge_idx, layer_index, 1.0, False)
         else:
+
             # Scalar edge layer path
             in_edge = self.ensure_input_edge(port)
             for layer_index in layer_indices:
@@ -136,11 +144,13 @@ class Region:
 
     def bind_input_2d(self, port: str, height: int, width: int, gain: float, epsilon_fire: float, attach_layers: List[int]) -> None:
         from input_layer_2d import InputLayer2D
+
         # create or reuse edge
         edge_idx = self.input_edges.get(port)
         if edge_idx is None or not isinstance(self.layers[edge_idx], InputLayer2D):
             edge_idx = self.add_input_layer_2d(height, width, gain, epsilon_fire)
             self.input_edges[port] = edge_idx
+
         # wire edge → attached layers
         for layer_index in attach_layers:
             self.connect_layers(edge_idx, layer_index, 1.0, False)
@@ -149,6 +159,7 @@ class Region:
     def bind_output(self, port: str, layer_indices: List[int]) -> None:
         self.output_ports[port] = list(layer_indices)
         out_edge = self.ensure_output_edge(port)
+
         for layer_index in layer_indices:
             self.connect_layers(layer_index, out_edge, 1.0, False)
 
@@ -208,6 +219,7 @@ class Region:
             raise KeyError(f"No InputEdge for port '{port}'. Call bind_input(...) first.")
 
         self.layers[edge_idx].forward(value)
+
         # Default accounting: one event per port
         metrics.inc_delivered_events(1)
 
@@ -250,6 +262,7 @@ class Region:
         else:
             raise ValueError(f"InputEdge for '{port}' is not 2D (expected InputLayer2D).")
         metrics.inc_delivered_events(1)
+
         # Optional compatibility shim for tests that count bound layers
         try:
             import os
@@ -302,6 +315,7 @@ class Region:
                     try:
                         prune_summary.prunedSynapses += int(result)
                     except (TypeError, ValueError):
+
                         # If an implementation returns a non-numeric/None, ignore it.
                         pass
         return prune_summary

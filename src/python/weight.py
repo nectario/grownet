@@ -56,8 +56,10 @@ class Weight:
             self.seen_first = True
 
         fired = (abs(value_float) > self.theta) or (self.strength > self.theta)
+
         # EMA of recent fires (treat True as 1.0, False as 0.0)
         self.ema_rate = (1.0 - beta) * self.ema_rate + beta * (1.0 if fired else 0.0)
+
         # drift threshold toward target spike rate
         self.theta += eta * (self.ema_rate - r_star)
         return fired

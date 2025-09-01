@@ -10,6 +10,7 @@ class OutputNeuron(Neuron):
         self.name = neuron_id
         self.smoothing = float(smoothing)
         self.last_emitted = 0.0
+
         # Expected in your project: slots map, bus reference, etc.
         self.slots = {}
         self.outgoing = []
@@ -17,6 +18,7 @@ class OutputNeuron(Neuron):
 
     # ---- project hooks (these exist in your full implementation) ----
     def on_input(self, value: float) -> bool:
+
         # User's full implementation will decide when to emit; here just capture.
         self.last_emitted = value
         return True
@@ -25,6 +27,7 @@ class OutputNeuron(Neuron):
         self.last_emitted = amplitude
 
     def end_tick(self) -> None:
+
         # decay toward zero like Java/C++
         self.last_emitted *= (1.0 - self.smoothing)
 

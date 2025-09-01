@@ -1,6 +1,7 @@
 # src/mojo/region.mojo
 
 from .region_metrics import RegionMetrics
+
 # Import/forward-declare your types as needed:
 # from .layer import Layer
 # from .input_layer_2d import InputLayer2D
@@ -45,6 +46,7 @@ struct Region:
             self.layers[edge_index].forward(value)
             metrics.inc_delivered_events()
         else:
+
             # Fallback to original: fan directly into bound layers (if any)
             let maybe_bound = self.input_ports.get(port)
             if maybe_bound is not None:

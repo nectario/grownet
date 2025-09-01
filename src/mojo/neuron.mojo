@@ -9,6 +9,7 @@ struct Neuron:
     var outgoing: list[Synapse]  # declared in file using this struct
     var have_last_input: Bool = False
     var last_input_value: Float64 = 0.0
+
     # temporal focus state
     var focus_anchor: Float64 = 0.0
     var focus_set: Bool = False
@@ -55,5 +56,6 @@ struct Neuron:
         return fired
 
     fn on_output(mut self, amplitude: Float64) -> None:
+
         # Base neuron: no-op; subclasses override.
         pass
