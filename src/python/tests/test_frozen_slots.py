@@ -2,12 +2,12 @@ import pytest
 from region import Region
 
 
-def _get_first_neuron(region: Region, layer_index: int):
+def get_first_neuron(region: Region, layer_index: int):
     """Helper to read the first neuron of a layer."""
     return region.get_layers()[layer_index].get_neurons()[0]
 
 
-def _last_slot_of(neuron):
+def last_slot_of(neuron):
     """
     Robustly fetch the most recently used slot object.
     Falls back to any slot if the convenience pointer is absent.
@@ -34,8 +34,8 @@ def test_frozen_slot_scalar_stops_adaptation_and_unfreeze_resumes():
 
     # First tick establishes FIRST anchor + picks/creates a slot.
     r.tick("x", 0.6)
-    n = _get_first_neuron(r, h)
-    s = _last_slot_of(n)
+    n = get_first_neuron(r, h)
+    s = last_slot_of(n)
 
     # Record baseline before freezing.
     strength0 = float(s.strength)
@@ -66,7 +66,7 @@ def test_frozen_slot_spatial_2d_stops_adaptation_and_unfreeze_resumes():
     hid = r.add_layer(excitatory_count=1, inhibitory_count=0, modulatory_count=0)
 
     # Enable spatial slotting on the destination neuron.
-    n = _get_first_neuron(r, hid)
+    n = get_first_neuron(r, hid)
     n.slot_cfg.spatial_enabled = True
     n.slot_cfg.row_bin_width_pct = 100.0
     n.slot_cfg.col_bin_width_pct = 100.0
@@ -80,7 +80,7 @@ def test_frozen_slot_spatial_2d_stops_adaptation_and_unfreeze_resumes():
     frame[1][1] = 1.0
 
     r.tick_2d("img", frame)  # establish spatial slot
-    s = _last_slot_of(n)
+    s = last_slot_of(n)
     strength0 = float(s.strength)
     theta0 = float(s.theta)
 
