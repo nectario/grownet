@@ -13,7 +13,7 @@ struct InputNeuron(Neuron):
             slot = self.slots[0]
 
         slot.reinforce(self.bus.modulation_factor)
-        let fired = slot.update_threshold(value)
+        var fired = slot.update_threshold(value)
         if fired:
             self.fire(value)
 

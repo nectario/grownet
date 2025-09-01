@@ -37,8 +37,8 @@ struct OutputLayer2D:
 
     fn propagate_from(mut self, source_index: Int, value: Float64) -> None:
         # Sinks are passive; we merely record output activity.
-        let y = source_index / self.width
-        let x = source_index % self.width
+        var y = source_index / self.width
+        var x = source_index % self.width
         var s = self.states[source_index]
         s.last_emitted = value
         self.states[source_index] = s
@@ -48,8 +48,8 @@ struct OutputLayer2D:
         # Simple exponential decay on pixel values to simulate persistence.
         var i = 0
         while i < self.height * self.width:
-            let y = i / self.width
-            let x = i % self.width
+            var y = i / self.width
+            var x = i % self.width
             self.pixels[y][x] = self.pixels[y][x] * (1.0 - self.smoothing)
             i += 1
 

@@ -23,7 +23,7 @@ struct OutputNeuron(Neuron):
             slot = self.slots[0]
 
         slot.reinforce(self.bus.modulation_factor)
-        let fired = slot.update_threshold(value)
+        var fired = slot.update_threshold(value)
         if fired:
             self.on_output(value)
         self.have_last_input = True

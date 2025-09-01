@@ -13,7 +13,7 @@ struct InputLayerND:
         var i: Int = 0
         var total: Int = 1
         while i < shape.size:
-            let dim = shape[i]
+            var dim = shape[i]
             if dim <= 0:
                 raise Exception("shape dims must be > 0")
             self.shape.append(dim)

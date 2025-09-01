@@ -25,7 +25,7 @@ struct Neuron:
 
     fn connect(mut self, target_index: Int, feedback: Bool = False) -> None:
         from synapse import Synapse
-        let syn = Synapse(target_index, feedback)
+        var syn = Synapse(target_index, feedback)
         self.outgoing.append(syn)
 
     fn on_input(mut self, value: Float64, modulation_factor: Float64) -> Bool:
@@ -33,8 +33,8 @@ struct Neuron:
             self.focus_anchor = value
             self.focus_set = True
 
-        let bin_width_pct: Float64 = 10.0
-        let epsilon_scale: Float64 = 1e-6
+        var bin_width_pct: Float64 = 10.0
+        var epsilon_scale: Float64 = 1e-6
         var slot_identifier: Int = self.slot_engine.select_anchor_slot_id(
             self.focus_anchor, value, bin_width_pct, epsilon_scale
         )
@@ -50,7 +50,7 @@ struct Neuron:
 
         var selected_weight = self.slots[slot_identifier]
         selected_weight.reinforce(modulation_factor)
-        let fired: Bool = selected_weight.update_threshold(value)
+        var fired: Bool = selected_weight.update_threshold(value)
         self.last_fired = fired
         self.slots[slot_identifier] = selected_weight
         return fired

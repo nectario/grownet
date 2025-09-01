@@ -34,7 +34,7 @@ struct Layer:
     fn forward(mut self, value: Float64) -> list[Spike]:
         var spikes = []
         # Modulation factor read once per neuron evaluate.
-        let mod_factor = self.bus.modulation_factor
+        var mod_factor = self.bus.modulation_factor
 
         var idx = 0
         for neuron in self.neurons_inh:

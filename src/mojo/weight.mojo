@@ -25,11 +25,11 @@ struct Weight:
     fn update_threshold(mut self, input_value: Float64) -> Bool:
         # T0: imprint
         if not self.seen_first:
-            let mag = MathUtils.abs_f64(input_value)
+            var mag = MathUtils.abs_f64(input_value)
             self.theta = mag * (1.0 + self.epsilon_fire)
             self.seen_first = True
         # Fire decision
-        let fired = self.strength > self.theta
+        var fired = self.strength > self.theta
         # EMA + adaptive theta
         self.ema_rate = (1.0 - self.ema_beta) * self.ema_rate + self.ema_beta * (1.0 if fired else 0.0)
         self.theta = self.theta + self.eta * (self.ema_rate - self.r_star)
