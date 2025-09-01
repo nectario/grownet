@@ -56,49 +56,9 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
     auto* dstOut = dynamic_cast<OutputLayer2D*>(layers[destIndex].get());
     auto* dstAny = layers[destIndex].get();
 
-    const int H = static_cast<int>(src->getNeurons().size());
-    // Derive height/width from neuron count if possible; InputLayer2D doesn't expose accessors in header
-    // We can approximate width by scanning OutputLayer2D when available or assume square window if not available.
-    // Instead, compute width by probing first row sizes from construction: we don't have direct access → infer via common pattern
-    // Safer: walk row by row by trial division: we know src->index(row,col) = row * width + col, but width is private.
-    // We'll infer width by searching for the smallest w > 0 such that H % w == 0 and src neuron ids match pattern.
-    int widthGuess = 0;
-    {
-        // Try to parse neuron ids like "IN[r,c]"
-        auto& neurons = src->getNeurons();
-        for (int i = 1; i < static_cast<int>(neurons.size()) && i < 1024; ++i) {
-            // find when row increments (col resets to 0)
-            // heuristic: when id contains ",0]" it's start of a row
-            auto id0 = neurons[0]->getId();
-            auto idi = neurons[i]->getId();
-            (void)id0; (void)idi;
-        }
-    }
-
-    // As InputLayer2D constructor uses height/width, we can reconstruct width by scanning destination OutputLayer2D if available.
-    // Fallback: assume square grid if we can't deduce (only affects origin stepping; windows still bounded by neuron count).
-    int width = 1;
-    int height = 0;
-    {
-        // Try to detect width by checking when indices would wrap: use OutputLayer2D if available
-        if (auto* out = dstOut) {
-            // Derive dimensions from output frame
-            const auto& frame = out->getFrame();
-            height = static_cast<int>(frame.size());
-            width  = height > 0 ? static_cast<int>(frame[0].size()) : 1;
-        } else {
-            // Fallback: find a plausible width by checking for square-ish shape
-            width = 1;
-            while (width * width < static_cast<int>(src->getNeurons().size())) ++width;
-            if (width <= 0) width = 1;
-            height = static_cast<int>(src->getNeurons().size()) / width;
-            if (height * width != static_cast<int>(src->getNeurons().size())) {
-                // If not divisible, clamp height to 1 row
-                height = 1;
-                width = static_cast<int>(src->getNeurons().size());
-            }
-        }
-    }
+    // Use explicit accessors on InputLayer2D
+    const int height = src->getHeight();
+    const int width  = src->getWidth();
 
     const int kh = kernelH;
     const int kw = kernelW;
@@ -168,9 +128,15 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
                 }
             });
         } else {
-            auto* dest = dstAny;
-            srcNeurons[i]->registerFireHook([dest, i](Neuron* /*who*/, double amplitude) {
-                if (dest) dest->propagateFrom(i, amplitude);
+            auto* destLayer = dstAny;
+            srcNeurons[i]->registerFireHook([destLayer](Neuron* /*who*/, double amplitude) {
+                if (!destLayer) return;
+                auto& neurons = destLayer->getNeurons();
+                for (auto& n : neurons) {
+                    if (!n) continue;
+                    bool fired = n->onInput(amplitude);
+                    if (fired) n->onOutput(amplitude);
+                }
             });
         }
     }

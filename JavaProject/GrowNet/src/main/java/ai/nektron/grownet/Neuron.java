@@ -60,21 +60,9 @@ public class Neuron {
      * Route a scalar in, learn locally, maybe fire. Returns true if fired.
      */
     public boolean onInput(double value) {
-        // choose / create slot
-        final int slotId = haveLastInput
-                ? slotEngine.slotId(lastInputValue, value, slots.size())
-                : 0; // imprint
-        Weight slot = slots.get(slotId);
-        if (slot == null) {
-            if (slotLimit >= 0 && slots.size() >= slotLimit) {
-                // simple reuse policy: recycle the first slot
-                int first = slots.keySet().iterator().next();
-                slot = slots.get(first);
-            } else {
-                slot = new Weight();
-                slots.put(slotId, slot);
-            }
-        }
+        // V4 Temporal Focus (FIRST anchor): choose/create slot and clamp by slotLimit
+        final int slotId = slotEngine.selectOrCreateSlot(this, value, /*cfg*/ null);
+        Weight slot = slots.get(slotId); // existence ensured by SlotEngine
 
         // learn under neuromodulation
         slot.reinforce(bus.getModulationFactor());

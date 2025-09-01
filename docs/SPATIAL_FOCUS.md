@@ -36,7 +36,7 @@ edges = region.connect_layers_windowed(
 
 - If destination is `OutputLayer2D`: each window forwards all its source pixels to the output neuron at the window’s center.
 - Otherwise: allowed source pixels forward to `Layer.propagate_from_2d(...)`, which computes `(row,col)` and calls `on_input_2d` per neuron.
-- Returns a deterministic count of “wires” (subscription hooks) created.
+- Return value semantics: returns the number of unique source subscriptions (i.e., distinct source pixels that participate in at least one window). It is not the raw number of (src,dst) edges created.
 
 ## Spatial metrics (optional)
 
@@ -47,6 +47,19 @@ Set `GROWNET_ENABLE_SPATIAL_METRICS=1` (or set `Region.enable_spatial_metrics = 
 - `bbox` tuple `(row_min, row_max, col_min, col_max)`
 
 Metrics prefer the furthest‑downstream `OutputLayer2D` frame; if no non‑zero output is present, they fall back to the input frame.
+
+### Even kernels & “same” padding — center rule
+
+When `padding="same"` and the kernel has an even size (e.g., `2×2`, `4×4`), the “center” of a window is defined by flooring the midpoint and then clamping to image bounds:
+
+- center row = `r0 + kh // 2`
+- center col = `c0 + kw // 2`
+
+These indices are clamped to bounds: `row ∈ [0, H-1]`, `col ∈ [0, W-1]`. For `"valid"` padding the same center rule applies within each valid window.
+
+### C++ parity notes
+
+`Region::connectLayersWindowed` implements deterministic `InputLayer2D → OutputLayer2D` mapping using the center rule above. For non‑`OutputLayer2D` destinations it currently connects each participating source pixel to all destination neurons (deterministic fan‑out) as a stopgap until selective 2D context propagation is added.
 
 ### Quick demo
 
