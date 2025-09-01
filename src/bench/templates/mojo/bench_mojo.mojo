@@ -17,7 +17,7 @@ fn main() -> None:
 
     var i = 0
     while i < sys.argc:
-        let a = sys.argv[i]
+        var a = sys.argv[i]
         if a == "--scenario" and i + 1 < sys.argc:
             i += 1
             scenario = sys.argv[i]
@@ -26,9 +26,9 @@ fn main() -> None:
         i += 1
 
     # Placeholder end-to-end loop; replace with real Region calls once wired.
-    let frames: Int64 = 100
-    let h: Int64 = 64
-    let w: Int64 = 64
+    var frames: Int64 = 100
+    var h: Int64 = 64
+    var w: Int64 = 64
 
     var rng = Xoroshiro128Plus(1234)
     var t0 = _ns()
@@ -44,7 +44,7 @@ fn main() -> None:
             y += 1
         f += 1
     var t1 = _ns()
-    let ms = (t1 - t0).float64() / 1_000_000.0
+    var ms = (t1 - t0).float64() / 1_000_000.0
 
     if emit_json:
         print("{\"impl\":\"mojo\",\"scenario\":\"", scenario, "\",\"runs\":1,",

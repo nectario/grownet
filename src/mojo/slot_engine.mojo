@@ -7,12 +7,12 @@ struct SlotEngine:
         # Simple fixed-width %delta binning (>=0 maps to even, <0 to odd).
         var delta_percent: Float64 = 0.0
         if last_input != 0.0:
-            let num = current_input - last_input
+            var num = current_input - last_input
             delta_percent = (num if num >= 0.0 else -num) / (last_input if last_input >= 0.0 else -last_input) * 100.0
-        let bin_index = Int(delta_percent / self.percent_step)
+        var bin_index = Int(delta_percent / self.percent_step)
 
         # Encode sign
-        let sign_bit = 0 if current_input >= last_input else 1
+        var sign_bit = 0 if current_input >= last_input else 1
         return bin_index * 2 + sign_bit
 
     fn select_anchor_slot_id(
@@ -30,6 +30,6 @@ struct SlotEngine:
         var delta: Float64 = input_value - focus_anchor
         if delta < 0.0:
             delta = -delta
-        let delta_pct: Float64 = 100.0 * delta / scale
-        let width: Float64 = if bin_width_pct > 0.1 then bin_width_pct else 0.1
+        var delta_pct: Float64 = 100.0 * delta / scale
+        var width: Float64 = if bin_width_pct > 0.1 then bin_width_pct else 0.1
         return Int(delta_pct / width)

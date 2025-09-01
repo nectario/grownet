@@ -7,9 +7,9 @@ fn check(cond: Bool, msg: String):
 
 fn test_single_tick_no_tracts():
     var region = Region("t")
-    let input_idx = region.add_layer(1, 0, 0)
+    var input_idx = region.add_layer(1, 0, 0)
     region.bind_input("x", [input_idx])
-    let m = region.tick("x", 0.42)   # use public method if available
+    var m = region.tick("x", 0.42)   # use public method if available
     print("[MOJO] singleTickNoTracts -> ", m)
     check(m.deliveredEvents == 1, "deliveredEvents == 1")
     check(m.totalSlots >= 1, "totalSlots >= 1")
@@ -17,19 +17,19 @@ fn test_single_tick_no_tracts():
 
 fn test_connect_layers_full_mesh():
     var region = Region("t")
-    let src = region.add_layer(2,0,0)
-    let dst = region.add_layer(3,0,0)
-    let edges = region.connect_layers(src, dst, 1.0, False)
+    var src = region.add_layer(2,0,0)
+    var dst = region.add_layer(3,0,0)
+    var edges = region.connect_layers(src, dst, 1.0, False)
     print("[MOJO] connect_layers edges=", edges)
     check(edges == 2*3, "edges must be 6")
 
 fn test_image_input_event_count():
     var region = Region("t")
-    let in_idx = region.add_input_layer_2d(2,2,1.0,0.01)
+    var in_idx = region.add_input_layer_2d(2,2,1.0,0.01)
     region.bind_input("pixels", [in_idx])
     # assuming tick_image is exposed; otherwise, forward_image on input layer + end_tick
-    let frame = [[0.0, 1.0], [0.0, 0.0]]
-    let m = region.tick_image("pixels", frame)
+    var frame = [[0.0, 1.0], [0.0, 0.0]]
+    var m = region.tick_image("pixels", frame)
     print("[MOJO] imageInputEventCount -> ", m)
     check(m.deliveredEvents == 1, "image tick counts as one event")
 

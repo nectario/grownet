@@ -21,8 +21,8 @@ struct InputLayer2D:
         while row < self.height:
             var col = 0
             while col < self.width:
-                let pixel_value = frame[row][col]
-                let sub = self.core.forward(pixel_value)
+                var pixel_value = frame[row][col]
+                var sub = self.core.forward(pixel_value)
                 # Offset not tracked (flat mapping); keep amplitudes only.
                 for s in sub:
                     spikes.append(s)

@@ -40,15 +40,15 @@ struct Region:
         var metrics = RegionMetrics()
 
         # Prefer delivery to InputEdge if present
-        let maybe_edge = self.input_edges.get(port)
+        var maybe_edge = self.input_edges.get(port)
         if maybe_edge is not None:
-            let edge_index = maybe_edge
+            var edge_index = maybe_edge
             self.layers[edge_index].forward(value)
             metrics.inc_delivered_events()
         else:
 
             # Fallback to original: fan directly into bound layers (if any)
-            let maybe_bound = self.input_ports.get(port)
+            var maybe_bound = self.input_ports.get(port)
             if maybe_bound is not None:
                 for entry_layer_index in maybe_bound:
                     self.layers[entry_layer_index].forward(value)
@@ -77,10 +77,10 @@ struct Region:
 fn tick_2d(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
     var metrics = RegionMetrics()
 
-    let maybe_edge = self.input_edges.get(port)
+    var maybe_edge = self.input_edges.get(port)
     if maybe_edge is None:
         raise Exception("No InputEdge for port '" + port + "'. Call bind_input_2d(...) first.")
-    let edge_index = maybe_edge
+    var edge_index = maybe_edge
 
     # Expect the edge layer to implement forward_image(...)
     self.layers[edge_index].forward_image(frame)
