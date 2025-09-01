@@ -6,16 +6,19 @@ class InputNeuron(Neuron):
         super().__init__(neuron_id, bus=None, slot_cfg=None, slot_limit=1)  # single-slot sink
         self.gain = float(gain)
         self.epsilon_fire = float(epsilon_fire)
+
         # ensure slot 0 exists
         self.slots[0] = Weight()
 
     def on_input(self, value):
         effective = self.gain * float(value)
         slot = self.slots[0]
+
         # T0 threshold init
         if not slot.is_first_seen():
             slot.set_threshold_value(max(0.0, abs(effective) * (1.0 - self.epsilon_fire)))
             slot.set_first_seen(True)
+
         # reinforcement with modulation
         mod = 1.0
         if self.get_bus() is not None:
@@ -29,5 +32,6 @@ class InputNeuron(Neuron):
         return fired
 
     def on_output(self, amplitude):
+
         # input neurons don't fan out by themselves; # Layer/Tract handles routing
         pass

@@ -14,6 +14,7 @@ class Neuron:
         self.outgoing = []  # list of target neurons
         self.have_last_input = False
         self.last_input_value = 0.0
+
         # temporal focus state
         self.focus_anchor = 0.0
         self.focus_set = False
@@ -35,9 +36,11 @@ class Neuron:
         return self.outgoing
 
     def connect(self, target, feedback=False, is_feedback=None):
+
         # Accept both `feedback` and `is_feedback` (compat alias)
         if is_feedback is not None:
             feedback = bool(is_feedback)
+
         # For now we store target only; feedback flag reserved for future use.
         self.outgoing.append(target)
         return target
@@ -65,8 +68,10 @@ class Neuron:
     # ---------- core behaviour ----------
     def on_input(self, value):
         """Select/reinforce a slot, update threshold, and optionally fire."""
+
         # Choose (or create) slot, reinforce with current modulation, update θ, decide to fire
         if self.slot_limit >= 0 and len(self.slots) >= self.slot_limit:
+
             # if saturated, reuse slot 0
             if 0 not in self.slots:
                 self.slots[0] = Weight()
@@ -91,6 +96,7 @@ class Neuron:
         return fired
 
     def fire(self, input_value):
+
         # Default (=excitatory): propagate to outgoing neurons
         for target_neuron in list(self.outgoing):
             target_neuron.on_input(input_value)
@@ -98,10 +104,12 @@ class Neuron:
             hook(self, input_value)
 
     def on_output(self, amplitude):
+
         # default no-op (specialized by output neurons)
         pass
 
     def end_tick(self):
+
         # default: nothing; subclasses may implement decay, etc.
         pass
 
