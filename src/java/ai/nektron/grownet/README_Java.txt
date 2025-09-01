@@ -1,0 +1,1 @@
+This folder also contains Input/OutputNeuron and 2D layer classes from the previous pack.

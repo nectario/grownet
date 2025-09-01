@@ -144,7 +144,8 @@ class Region:
 
         # Compute allowed source indices and (optionally) sink map for OutputLayer2D
         allowed: set[int] = set()
-        sink_map: dict[int, list[int]] = {}
+        sink_map: dict[int, set[int]] = {}
+        # We'll return the number of unique source subscriptions installed.
         wires = 0
 
         if isinstance(dst_layer, OutputLayer2D):
@@ -162,11 +163,12 @@ class Region:
                     for cc2 in range(cc0, cc1):
                         src_idx = rr * W + cc2
                         allowed.add(src_idx)
-                        sink_map.setdefault(src_idx, []).append(center_idx)
-                        wires += 1
+                        sink_map.setdefault(src_idx, set()).add(center_idx)
             # Create a tract that delivers directly to mapped output neurons
             from tract import Tract
-            Tract(src_layer, dst_layer, self.bus, feedback, None, allowed_source_indices=allowed, sink_map=sink_map)
+            Tract(src_layer, dst_layer, self.bus, feedback, None,
+                  allowed_source_indices=allowed, sink_map=sink_map)
+            wires = len(allowed)
         else:
             # For generic layers, allow all pixels that participate in any window;
             # destination layer will fan to its neurons with 2D context.
@@ -178,9 +180,10 @@ class Region:
                 for rr in range(rr0, rr1):
                     for cc2 in range(cc0, cc1):
                         allowed.add(rr * W + cc2)
-                        wires += 1
             from tract import Tract
-            Tract(src_layer, dst_layer, self.bus, feedback, None, allowed_source_indices=allowed)
+            Tract(src_layer, dst_layer, self.bus, feedback, None,
+                  allowed_source_indices=allowed)
+            wires = len(allowed)
 
         return wires
 

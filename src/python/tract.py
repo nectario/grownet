@@ -6,7 +6,7 @@ class Tract:
     def __init__(self, src_layer, dst_layer, region_bus=None, feedback=False,
                  probability: float | None = None,
                  allowed_source_indices: set[int] | None = None,
-                 sink_map: dict[int, list[int]] | None = None):
+                 sink_map: dict[int, list[int] | set[int]] | None = None):
         self.src = src_layer
         self.dst = dst_layer
         self.region_bus = region_bus
@@ -32,7 +32,8 @@ class Tract:
         if targets:
             try:
                 neurons = self.dst.get_neurons()
-                for t_idx in targets:
+                # Deduplicate in case a center was added multiple times.
+                for t_idx in (targets if isinstance(targets, set) else set(targets)):
                     if 0 <= t_idx < len(neurons):
                         n = neurons[t_idx]
                         fired = n.on_input(value)

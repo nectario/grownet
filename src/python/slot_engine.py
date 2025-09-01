@@ -69,7 +69,8 @@ class SlotEngine:
         ar, ac = int(anchor_rc[0]), int(anchor_rc[1])
         cr, cc = int(current_rc[0]), int(current_rc[1])
 
-        eps = max(1e-12, float(getattr(self.cfg, "epsilon_scale", 1e-6)))
+        # Use a sensible spatial epsilon to avoid exploding bins at ORIGIN (0,0).
+        eps = max(1.0, float(getattr(self.cfg, "epsilon_scale", 1.0)))
         denom_r = max(abs(ar), eps)
         denom_c = max(abs(ac), eps)
 

@@ -61,3 +61,37 @@ def test_spatial_metrics_centroid_and_bbox(monkeypatch):
     r0, r1, c0, c1 = m.bbox
     assert r0 <= r1 and c0 <= c1
 
+
+def test_connect_layers_windowed_returns_unique_subscriptions():
+    region = Region("wires_count")
+    l_in = region.add_input_layer_2d(4, 4, 1.0, 0.01)
+    l_out = region.add_output_layer_2d(4, 4, smoothing=0.0)
+    # Single valid 4x4 window → every pixel participates exactly once.
+    wires = region.connect_layers_windowed(
+        l_in, l_out, kernel_h=4, kernel_w=4, stride_h=1, stride_w=1, padding="valid"
+    )
+    assert wires == 16
+
+
+def test_sink_map_dedup_for_output_layer():
+    from tract import Tract
+
+    class DummyNeuron:
+        def __init__(self): self.calls = 0
+        def on_input(self, v): self.calls += 1; return False
+        def on_output(self, v): pass
+
+    class DummyDst:
+        def __init__(self, n=10): self._neurons = [DummyNeuron() for _ in range(n)]
+        def get_neurons(self): return self._neurons
+
+    class DummySrc:
+        def get_neurons(self): return []
+
+    dst = DummyDst()
+    # Duplicate same center three times for a single source index
+    t = Tract(DummySrc(), dst, None, False, None,
+              allowed_source_indices=None,
+              sink_map={5: [3, 3, 3]})
+    t.on_source_fired(5, 1.0)
+    assert dst.get_neurons()[3].calls == 1
