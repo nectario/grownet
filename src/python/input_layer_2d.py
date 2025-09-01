@@ -4,13 +4,18 @@ from layer import Layer
 class InputLayer2D(Layer):
     """Shape-aware entry layer: one InputNeuron per pixel."""
     def __init__(self, height, width, gain, epsilon_fire):
+
         # create empty layer (no default neurons)
         self.bus = super().get_bus() if hasattr(self, "bus") else None  # placeholder
+
         # we cannot call super().__init__ because it would create mixed neurons;
         # instead, initialize skeleton fields as in Layer
+
         Layer.__init__(self, 0, 0, 0)
+
         self.height = int(height)
         self.width = int(width)
+
         # fill grid with InputNeurons
         for row_idx in range(self.height):
             for col_idx in range(self.width):
@@ -22,6 +27,7 @@ class InputLayer2D(Layer):
         return int(y) * self.width + int(x)
 
     def forward_image(self, frame_2d):
+
         """Deliver a 2D frame (row-major) to matching input neurons."""
         height_limit = min(self.height, len(frame_2d))
         for row_idx in range(height_limit):
