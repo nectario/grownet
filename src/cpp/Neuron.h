@@ -79,6 +79,23 @@ public:
 
     // Spatial variant (defaults to scalar path)
     virtual bool onInput2D(double value, int row, int col) { (void)row; (void)col; return onInput(value); }
+
+    // Remember last slot id for convenience freezing (set by SlotEngine)
+    int lastSlotId { -1 };
+    void setLastSlotId(int id) { lastSlotId = id; }
+    int  getLastSlotId() const { return lastSlotId; }
+    bool freezeLastSlot() {
+        auto it = slots.find(lastSlotId);
+        if (it == slots.end()) return false;
+        it->second.freeze();
+        return true;
+    }
+    bool unfreezeLastSlot() {
+        auto it = slots.find(lastSlotId);
+        if (it == slots.end()) return false;
+        it->second.unfreeze();
+        return true;
+    }
 };
 
 } // namespace grownet

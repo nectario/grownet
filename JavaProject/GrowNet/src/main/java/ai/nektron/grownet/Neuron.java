@@ -20,6 +20,7 @@ public class Neuron {
 
     // slot memory: key = slot id, val = weight
     protected final Map<Integer, Weight> slots = new HashMap<>();
+    protected Integer lastSlotId = null; // remember most recent slot id
 
     // explicit synapses (kept for future, even if Tract handles layer–layer routing)
     protected final List<Synapse> outgoing = new ArrayList<>();
@@ -62,6 +63,7 @@ public class Neuron {
     public boolean onInput(double value) {
         // V4 Temporal Focus (FIRST anchor): choose/create slot and clamp by slotLimit
         final int slotId = slotEngine.selectOrCreateSlot(this, value, /*cfg*/ null);
+        lastSlotId = slotId;
         Weight slot = slots.get(slotId); // existence ensured by SlotEngine
 
         // learn under neuromodulation
@@ -77,6 +79,23 @@ public class Neuron {
         haveLastInput  = true;
         lastInputValue = value;
         return fired;
+    }
+
+    // -------- Frozen-slot convenience --------
+    public boolean freezeLastSlot() {
+        if (lastSlotId == null) return false;
+        Weight w = slots.get(lastSlotId);
+        if (w == null) return false;
+        w.freeze();
+        return true;
+    }
+
+    public boolean unfreezeLastSlot() {
+        if (lastSlotId == null) return false;
+        Weight w = slots.get(lastSlotId);
+        if (w == null) return false;
+        w.unfreeze();
+        return true;
     }
 
     /**

@@ -26,6 +26,10 @@ public:
 
     int index(int row, int col) const { return row * width + col; }
 
+    // Accessors used by Region for deterministic windowed wiring
+    int getHeight() const { return height; }
+    int getWidth()  const { return width;  }
+
     void propagateFrom(int sourceIndex, double value) override {
         if (sourceIndex < 0 || sourceIndex >= static_cast<int>(getNeurons().size())) return;
         auto outputNeuron = std::static_pointer_cast<OutputNeuron>(getNeurons()[sourceIndex]);

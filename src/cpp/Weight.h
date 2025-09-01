@@ -14,6 +14,8 @@ struct Weight {
     double thresholdValue { 0.0 };
     double emaRate { 0.0 };
     bool   firstSeen { false };
+    // Frozen-slot support (opt-in): when true, skip learning/θ updates
+    bool   frozen { false };
 
     // constants
     static constexpr int    HIT_SATURATION = 10'000;
@@ -27,6 +29,7 @@ struct Weight {
     }
 
     void reinforce(double modulationFactor) {
+        if (frozen) return;
         if (reinforcementCount >= HIT_SATURATION) return;
         double step = stepValue * modulationFactor;
         strengthValue = smoothClamp(strengthValue + step, -1.0, 1.0);
@@ -35,6 +38,9 @@ struct Weight {
 
     // T0 imprint + EMA-driven threshold drift; returns whether strength > threshold.
     bool updateThreshold(double inputValue) {
+        if (frozen) {
+            return (std::abs(inputValue) > thresholdValue) || (strengthValue > thresholdValue);
+        }
         if (!firstSeen) {
             thresholdValue = std::abs(inputValue) * (1.0 + EPS);
             firstSeen = true;
@@ -45,6 +51,11 @@ struct Weight {
         thresholdValue = thresholdValue + ETA * (emaRate - RSTAR);
         return fired;
     }
+
+    // Frozen controls
+    void freeze()   { frozen = true; }
+    void unfreeze() { frozen = false; }
+    bool isFrozen() const { return frozen; }
 
     // accessors often handy in higher-level code
     double getStrengthValue() const { return strengthValue; }

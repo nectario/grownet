@@ -28,6 +28,13 @@ public final class Weight {
     /** Whether we have imprinted the first-seen threshold. */
     private boolean firstSeen = false;
 
+    // --- Frozen-slot support (opt-in) ---
+    private boolean frozen = false;
+
+    public void freeze()   { this.frozen = true; }
+    public void unfreeze() { this.frozen = false; }
+    public boolean isFrozen() { return frozen; }
+
     // -------- constants (tune later if needed) --------
 
     public static final int    HIT_SATURATION = 10_000;
@@ -48,6 +55,7 @@ public final class Weight {
 
     /** Locally reinforce the weight (scaled by neuromodulation factor). */
     public void reinforce(double modulationFactor) {
+        if (frozen) return;
         if (reinforcementCount >= HIT_SATURATION) return;
 
         final double effectiveStep = stepValue * modulationFactor;
@@ -60,6 +68,10 @@ public final class Weight {
      * return whether the weight "fires" under that threshold.
      */
     public boolean updateThreshold(double inputValue) {
+        if (frozen) {
+            final double v = inputValue;
+            return (Math.abs(v) > thresholdValue) || (strengthValue > thresholdValue);
+        }
         // First-seen imprint (one-time)
         if (!firstSeen) {
             thresholdValue = Math.abs(inputValue) * (1.0 + EPS);

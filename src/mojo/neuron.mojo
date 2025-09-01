@@ -15,6 +15,7 @@ struct Neuron:
     var focus_set: Bool = False
     var focus_lock_until_tick: Int = 0
     var last_fired: Bool = False
+    var last_slot_id: Int = -1  # remember last selected slot id
 
     # spatial focus anchors (Phase B)
     var anchor_row: Int = -1
@@ -42,6 +43,7 @@ struct Neuron:
         var slot_identifier: Int = self.slot_engine.select_anchor_slot_id(
             self.focus_anchor, value, bin_width_pct, epsilon_scale
         )
+        self.last_slot_id = slot_identifier
 
         if not self.slots.contains(slot_identifier):
             if self.slot_limit >= 0 and Int(self.slots.size()) >= self.slot_limit:
@@ -67,3 +69,23 @@ struct Neuron:
     fn on_input_2d(mut self, value: Float64, row: Int, col: Int, modulation_factor: Float64) -> Bool:
         # Default: reuse scalar path
         return self.on_input(value, modulation_factor)
+
+    fn freeze_last_slot(mut self) -> Bool:
+        if self.last_slot_id < 0:
+            return False
+        if not self.slots.contains(self.last_slot_id):
+            return False
+        var w = self.slots[self.last_slot_id]
+        w.freeze()
+        self.slots[self.last_slot_id] = w
+        return True
+
+    fn unfreeze_last_slot(mut self) -> Bool:
+        if self.last_slot_id < 0:
+            return False
+        if not self.slots.contains(self.last_slot_id):
+            return False
+        var w = self.slots[self.last_slot_id]
+        w.unfreeze()
+        self.slots[self.last_slot_id] = w
+        return True

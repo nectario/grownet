@@ -71,7 +71,10 @@ public:
     int addOutputLayer2D(int h, int w, double smoothing);
 
     Tract& connectLayers(int sourceIndex, int destIndex, double probability, bool feedback=false);
-    // Windowed deterministic wiring (spatial focus helper). Returns number of edges created.
+    // Windowed deterministic wiring (spatial focus helper).
+    // Return value: number of UNIQUE source subscriptions (i.e., the count of
+    // distinct source pixels that participate in ≥1 window). It is NOT the raw
+    // number of (src,dst) edges created.
     int connectLayersWindowed(int sourceIndex, int destIndex,
                               int kernelH, int kernelW,
                               int strideH=1, int strideW=1,

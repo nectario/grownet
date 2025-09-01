@@ -7,6 +7,8 @@ struct Weight:
     var theta: Float64 = 0.0
     var ema_rate: Float64 = 0.0
     var seen_first: Bool = False
+    # Frozen-slot support (opt-in)
+    var frozen: Bool = False
 
     # Learning hyper-params (kept local for stability)
     var step_val: Float64 = 0.01
@@ -16,6 +18,8 @@ struct Weight:
     var epsilon_fire: Float64 = 0.01
 
     fn reinforce(mut self, modulation_factor: Float64) -> None:
+        if self.frozen:
+            return
         if self.hit_count >= 10000:
             return
         var effective = self.step_val * modulation_factor
@@ -23,6 +27,9 @@ struct Weight:
         self.hit_count += 1
 
     fn update_threshold(mut self, input_value: Float64) -> Bool:
+        if self.frozen:
+            var v = input_value
+            return (MathUtils.abs_f64(v) > self.theta) or (self.strength > self.theta)
         # T0: imprint
         if not self.seen_first:
             var mag = MathUtils.abs_f64(input_value)
@@ -34,3 +41,12 @@ struct Weight:
         self.ema_rate = (1.0 - self.ema_beta) * self.ema_rate + self.ema_beta * (1.0 if fired else 0.0)
         self.theta = self.theta + self.eta * (self.ema_rate - self.r_star)
         return fired
+
+    fn freeze(mut self) -> None:
+        self.frozen = True
+
+    fn unfreeze(mut self) -> None:
+        self.frozen = False
+
+    fn is_frozen(self) -> Bool:
+        return self.frozen

@@ -2,8 +2,18 @@
 #include "InputLayerND.h"
 #include <random>
 #include <cstdlib>
+#include <stdexcept>
+#include <unordered_set>
+#include <algorithm>
+#include <cstdint>
 
 namespace grownet {
+
+// Helper: pack two 32-bit ints into an unsigned 64-bit key (for dedupe sets).
+static inline unsigned long long pack_u32_pair(int a, int b) {
+    return ((static_cast<unsigned long long>(a) & 0xFFFFFFFFULL) << 32)
+         |  (static_cast<unsigned long long>(b) & 0xFFFFFFFFULL);
+}
 
 Region::Region(std::string name) : name(std::move(name)) {}
 
@@ -83,64 +93,73 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
         }
     }
 
-    // Build allowed source set and (when dst is OutputLayer2D) mapping from srcIdx -> {centerIdx}
-    std::vector<char> allowedMask(static_cast<size_t>(height * width), 0);
-    std::unordered_map<int, std::vector<int>> sinkMap;
+    // Build allowed source set; if dest is OutputLayer2D, connect (src -> center) with dedupe.
+    std::vector<char> allowedMask(static_cast<size_t>(height) * static_cast<size_t>(width), 0);
+    auto& srcNeurons = src->getNeurons();
+    auto& dstNeurons = layers[destIndex]->getNeurons();
 
-    for (auto [r0, c0] : origins) {
-        const int rr0 = std::max(0, r0);
-        const int cc0 = std::max(0, c0);
-        const int rr1 = std::min(height, r0 + kh);
-        const int cc1 = std::min(width,  c0 + kw);
-        if (rr0 >= rr1 || cc0 >= cc1) continue;
-        int cr = std::min(height - 1, std::max(0, r0 + kh / 2));
-        int cc = std::min(width  - 1, std::max(0, c0 + kw / 2));
-        const int centerIdx = cr * width + cc;
-        for (int rr = rr0; rr < rr1; ++rr) {
-            for (int cc2 = cc0; cc2 < cc1; ++cc2) {
-                const int srcIdx = rr * width + cc2;
-                allowedMask[srcIdx] = 1;
-                if (dstOut) {
-                    auto& vec = sinkMap[srcIdx];
-                    // dedup small vector
-                    if (std::find(vec.begin(), vec.end(), centerIdx) == vec.end()) vec.push_back(centerIdx);
+    if (dstOut) {
+        std::unordered_set<unsigned long long> made; // dedup (srcIdx, centerIdx)
+        for (auto [r0, c0] : origins) {
+            const int rr0 = std::max(0, r0), cc0 = std::max(0, c0);
+            const int rr1 = std::min(height, r0 + kh), cc1 = std::min(width, c0 + kw);
+            if (rr0 >= rr1 || cc0 >= cc1) continue;
+
+            // Compute center in source coordinates (floor midpoint), then clamp to DEST shape.
+            const int srcCenterR = std::min(height - 1, std::max(0, r0 + kh / 2));
+            const int srcCenterC = std::min(width  - 1, std::max(0, c0 + kw / 2));
+            const int dstH = dstOut->getHeight();
+            const int dstW = dstOut->getWidth();
+            const int centerR = std::min(dstH - 1, std::max(0, srcCenterR));
+            const int centerC = std::min(dstW - 1, std::max(0, srcCenterC));
+            const int centerIdx = centerR * dstW + centerC;
+
+            for (int rr = rr0; rr < rr1; ++rr) {
+                for (int cc2 = cc0; cc2 < cc1; ++cc2) {
+                    const int srcIdx = rr * width + cc2;
+                    allowedMask[srcIdx] = 1;
+
+                    const unsigned long long key = pack_u32_pair(srcIdx, centerIdx);
+                    if (!made.insert(key).second) continue;
+
+                    if (srcIdx >= 0 && srcIdx < static_cast<int>(srcNeurons.size()) &&
+                        centerIdx >= 0 && centerIdx < static_cast<int>(dstNeurons.size())) {
+                        auto s = srcNeurons[srcIdx];
+                        auto t = dstNeurons[centerIdx];
+                        if (s && t) s->connect(t.get(), feedback);
+                    }
+                }
+            }
+        }
+    } else {
+        // Generic destination: connect each participating source pixel to ALL destination neurons.
+        for (auto [r0, c0] : origins) {
+            const int rr0 = std::max(0, r0), cc0 = std::max(0, c0);
+            const int rr1 = std::min(height, r0 + kh), cc1 = std::min(width, c0 + kw);
+            if (rr0 >= rr1 || cc0 >= cc1) continue;
+            for (int rr = rr0; rr < rr1; ++rr) {
+                for (int cc2 = cc0; cc2 < cc1; ++cc2) {
+                    const int srcIdx = rr * width + cc2;
+                    if (!allowedMask[srcIdx]) {
+                        // first time we see this source: connect to all destinations
+                        allowedMask[srcIdx] = 1;
+                        if (srcIdx >= 0 && srcIdx < static_cast<int>(srcNeurons.size())) {
+                            auto s = srcNeurons[srcIdx];
+                            if (s) {
+                                for (auto& t : dstNeurons) {
+                                    if (t) s->connect(t.get(), feedback);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
+    // Count unique source subscriptions
     int wires = 0;
-    auto& srcNeurons = src->getNeurons();
-    for (int i = 0; i < static_cast<int>(allowedMask.size()) && i < static_cast<int>(srcNeurons.size()); ++i) {
-        if (!allowedMask[i]) continue;
-        ++wires;
-        if (dstOut) {
-            // Capture centers for this source
-            auto centers = sinkMap[i];
-            auto* dest = dstOut; // raw pointer capture
-            srcNeurons[i]->registerFireHook([dest, centers](Neuron* /*who*/, double amplitude) {
-                auto& neurons = dest->getNeurons();
-                for (int ci : centers) {
-                    if (ci < 0 || ci >= static_cast<int>(neurons.size())) continue;
-                    auto n = neurons[ci];
-                    bool fired = n->onInput(amplitude);
-                    if (fired) n->onOutput(amplitude);
-                }
-            });
-        } else {
-            auto* destLayer = dstAny;
-            srcNeurons[i]->registerFireHook([destLayer](Neuron* /*who*/, double amplitude) {
-                if (!destLayer) return;
-                auto& neurons = destLayer->getNeurons();
-                for (auto& n : neurons) {
-                    if (!n) continue;
-                    bool fired = n->onInput(amplitude);
-                    if (fired) n->onOutput(amplitude);
-                }
-            });
-        }
-    }
-
+    for (char m : allowedMask) if (m) ++wires;
     return wires;
 }
 

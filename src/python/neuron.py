@@ -21,6 +21,8 @@ class Neuron:
         self.focus_lock_until_tick = 0
         self.fired_last = False
         self.fire_hooks = []  # callbacks: fn(neuron, value)
+        # Remember last selected slot for convenience freeze controls
+        self._last_slot = None
 
         # spatial focus anchors (row/col) — set lazily when spatial is enabled
         self.focus_anchor_row = None  # type: int | None
@@ -82,6 +84,7 @@ class Neuron:
             slot = self.slots[0]
         else:
             slot = self.slot_engine.select_or_create_slot(self, value)
+        self._last_slot = slot
 
         # reinforcement scaled by modulation
         mod = 1.0
@@ -131,6 +134,7 @@ class Neuron:
 
         # choose/create spatial slot
         slot = self.slot_engine.select_or_create_slot_2d(self, int(row), int(col))
+        self._last_slot = slot
 
         # reinforcement scaled by modulation
         mod = 1.0
@@ -155,3 +159,24 @@ class Neuron:
         before = len(self.outgoing)
         self.outgoing = []
         return before
+
+    # ---------- frozen-slot convenience ----------
+    def freeze_last_slot(self) -> bool:
+        s = getattr(self, "_last_slot", None)
+        if s is None:
+            return False
+        try:
+            s.freeze()
+            return True
+        except Exception:
+            return False
+
+    def unfreeze_last_slot(self) -> bool:
+        s = getattr(self, "_last_slot", None)
+        if s is None:
+            return False
+        try:
+            s.unfreeze()
+            return True
+        except Exception:
+            return False

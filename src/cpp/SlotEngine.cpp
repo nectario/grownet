@@ -29,6 +29,8 @@ Weight& SlotEngine::selectOrCreateSlot(Neuron& neuron, double inputValue) const 
             iter = slots.emplace(desiredId, Weight{}).first;
         }
     }
+    // record last used slot for convenience freezing
+    neuron.setLastSlotId(iter->first);
     return iter->second;
 }
 

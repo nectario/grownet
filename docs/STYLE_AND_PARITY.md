@@ -11,3 +11,9 @@
 - Metrics: `RegionMetrics` with helpers (`incDeliveredEvents/addSlots/addSynapses`) only—no direct field pokes.
 
 - Ports are **edges**: bind creates/ensures an edge layer; tick2D/tickND require an appropriate edge bound to the port.
+
+## Buses (Lateral/Region)
+
+- Semantics are unified across languages: inhibition decays multiplicatively each tick (default decay 0.90), and modulation resets to 1.0 each tick.
+- Java: `LateralBus.decay()` uses `inhibitionFactor *= inhibitionDecay` (default 0.90) and resets `modulationFactor = 1.0`. `RegionBus` inherits the same behavior.
+- Python/C++: follow the same policy; tests expect `expected_inh = initial_inhibition * 0.9` after one tick.
