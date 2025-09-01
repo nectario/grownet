@@ -394,7 +394,7 @@ class Region:
         try:
             import os
             if self.enable_spatial_metrics or os.environ.get("GROWNET_ENABLE_SPATIAL_METRICS") == "1":
-                self._compute_spatial_metrics(metrics, frame)
+                self.compute_spatial_metrics(metrics, frame)
         except Exception:
             pass
 
@@ -444,7 +444,7 @@ class Region:
         return self.bus
 
     # ---------------- internal helpers ----------------
-    def _compute_spatial_metrics(self, metrics: RegionMetrics, input_frame) -> None:
+    def compute_spatial_metrics(self, metrics: RegionMetrics, input_frame) -> None:
         """Compute activePixels, centroid, and bbox from the best available 2D layer.
 
         Prefer the furthest downstream OutputLayer2D frame this tick; if no non-zero
@@ -467,7 +467,7 @@ class Region:
             chosen = input_frame
 
         # If chosen is entirely zeros, but input has non-zeros, prefer input
-        def _is_all_zero(img):
+        def is_all_zero(img):
             try:
                 for row in img:
                     for v in row:
@@ -477,7 +477,7 @@ class Region:
             except Exception:
                 return True
 
-        if chosen is not input_frame and _is_all_zero(chosen) and not _is_all_zero(input_frame):
+        if chosen is not input_frame and is_all_zero(chosen) and not is_all_zero(input_frame):
             chosen = input_frame
 
         # Compute metrics
