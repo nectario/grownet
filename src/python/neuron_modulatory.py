@@ -3,6 +3,7 @@ from neuron import Neuron
 class ModulatoryNeuron(Neuron):
     def fire(self, input_value):
         if self.get_bus() is not None:
+
             # increase learning rate momentarily
             self.get_bus().set_modulation(1.5)
         for hook in self.fire_hooks:
