@@ -46,10 +46,136 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
                                   int strideH, int strideW,
                                   const std::string& padding,
                                   bool feedback) {
-    // Minimal parity stub: prefer to wire via Tract deterministically in a future pass.
-    (void)sourceIndex; (void)destIndex; (void)kernelH; (void)kernelW;
-    (void)strideH; (void)strideW; (void)padding; (void)feedback;
-    return 0;
+    if (sourceIndex < 0 || sourceIndex >= static_cast<int>(layers.size()))
+        throw std::out_of_range("sourceIndex out of range");
+    if (destIndex < 0 || destIndex >= static_cast<int>(layers.size()))
+        throw std::out_of_range("destIndex out of range");
+
+    auto* src = dynamic_cast<InputLayer2D*>(layers[sourceIndex].get());
+    if (!src) throw std::invalid_argument("connectLayersWindowed requires src to be InputLayer2D");
+    auto* dstOut = dynamic_cast<OutputLayer2D*>(layers[destIndex].get());
+    auto* dstAny = layers[destIndex].get();
+
+    const int H = static_cast<int>(src->getNeurons().size());
+    // Derive height/width from neuron count if possible; InputLayer2D doesn't expose accessors in header
+    // We can approximate width by scanning OutputLayer2D when available or assume square window if not available.
+    // Instead, compute width by probing first row sizes from construction: we don't have direct access → infer via common pattern
+    // Safer: walk row by row by trial division: we know src->index(row,col) = row * width + col, but width is private.
+    // We'll infer width by searching for the smallest w > 0 such that H % w == 0 and src neuron ids match pattern.
+    int widthGuess = 0;
+    {
+        // Try to parse neuron ids like "IN[r,c]"
+        auto& neurons = src->getNeurons();
+        for (int i = 1; i < static_cast<int>(neurons.size()) && i < 1024; ++i) {
+            // find when row increments (col resets to 0)
+            // heuristic: when id contains ",0]" it's start of a row
+            auto id0 = neurons[0]->getId();
+            auto idi = neurons[i]->getId();
+            (void)id0; (void)idi;
+        }
+    }
+
+    // As InputLayer2D constructor uses height/width, we can reconstruct width by scanning destination OutputLayer2D if available.
+    // Fallback: assume square grid if we can't deduce (only affects origin stepping; windows still bounded by neuron count).
+    int width = 1;
+    int height = 0;
+    {
+        // Try to detect width by checking when indices would wrap: use OutputLayer2D if available
+        if (auto* out = dstOut) {
+            // Derive dimensions from output frame
+            const auto& frame = out->getFrame();
+            height = static_cast<int>(frame.size());
+            width  = height > 0 ? static_cast<int>(frame[0].size()) : 1;
+        } else {
+            // Fallback: find a plausible width by checking for square-ish shape
+            width = 1;
+            while (width * width < static_cast<int>(src->getNeurons().size())) ++width;
+            if (width <= 0) width = 1;
+            height = static_cast<int>(src->getNeurons().size()) / width;
+            if (height * width != static_cast<int>(src->getNeurons().size())) {
+                // If not divisible, clamp height to 1 row
+                height = 1;
+                width = static_cast<int>(src->getNeurons().size());
+            }
+        }
+    }
+
+    const int kh = kernelH;
+    const int kw = kernelW;
+    const int sh = std::max(1, strideH);
+    const int sw = std::max(1, strideW);
+    const bool same = (padding == "same" || padding == "SAME");
+
+    std::vector<std::pair<int,int>> origins; origins.reserve(128);
+    if (same) {
+        const int pr = std::max(0, (kh - 1) / 2);
+        const int pc = std::max(0, (kw - 1) / 2);
+        for (int r = -pr; r + kh <= height + pr + pr; r += sh) {
+            for (int c = -pc; c + kw <= width + pc + pc; c += sw) {
+                origins.emplace_back(r, c);
+            }
+        }
+    } else {
+        for (int r = 0; r + kh <= height; r += sh) {
+            for (int c = 0; c + kw <= width; c += sw) {
+                origins.emplace_back(r, c);
+            }
+        }
+    }
+
+    // Build allowed source set and (when dst is OutputLayer2D) mapping from srcIdx -> {centerIdx}
+    std::vector<char> allowedMask(static_cast<size_t>(height * width), 0);
+    std::unordered_map<int, std::vector<int>> sinkMap;
+
+    for (auto [r0, c0] : origins) {
+        const int rr0 = std::max(0, r0);
+        const int cc0 = std::max(0, c0);
+        const int rr1 = std::min(height, r0 + kh);
+        const int cc1 = std::min(width,  c0 + kw);
+        if (rr0 >= rr1 || cc0 >= cc1) continue;
+        int cr = std::min(height - 1, std::max(0, r0 + kh / 2));
+        int cc = std::min(width  - 1, std::max(0, c0 + kw / 2));
+        const int centerIdx = cr * width + cc;
+        for (int rr = rr0; rr < rr1; ++rr) {
+            for (int cc2 = cc0; cc2 < cc1; ++cc2) {
+                const int srcIdx = rr * width + cc2;
+                allowedMask[srcIdx] = 1;
+                if (dstOut) {
+                    auto& vec = sinkMap[srcIdx];
+                    // dedup small vector
+                    if (std::find(vec.begin(), vec.end(), centerIdx) == vec.end()) vec.push_back(centerIdx);
+                }
+            }
+        }
+    }
+
+    int wires = 0;
+    auto& srcNeurons = src->getNeurons();
+    for (int i = 0; i < static_cast<int>(allowedMask.size()) && i < static_cast<int>(srcNeurons.size()); ++i) {
+        if (!allowedMask[i]) continue;
+        ++wires;
+        if (dstOut) {
+            // Capture centers for this source
+            auto centers = sinkMap[i];
+            auto* dest = dstOut; // raw pointer capture
+            srcNeurons[i]->registerFireHook([dest, centers](Neuron* /*who*/, double amplitude) {
+                auto& neurons = dest->getNeurons();
+                for (int ci : centers) {
+                    if (ci < 0 || ci >= static_cast<int>(neurons.size())) continue;
+                    auto n = neurons[ci];
+                    bool fired = n->onInput(amplitude);
+                    if (fired) n->onOutput(amplitude);
+                }
+            });
+        } else {
+            auto* dest = dstAny;
+            srcNeurons[i]->registerFireHook([dest, i](Neuron* /*who*/, double amplitude) {
+                if (dest) dest->propagateFrom(i, amplitude);
+            });
+        }
+    }
+
+    return wires;
 }
 
 

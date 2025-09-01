@@ -5,6 +5,13 @@
 python src/python/image_io_demo.py
 ```
 
+### Spatial focus demo (moving dot)
+
+```bash
+# from repo root
+PYTHONPATH=src/python python src/python/demos/spatial_focus_demo.py
+```
+
 ## Java (Maven/IntelliJ)
 - Set main class: `ai.nektron.grownet.ImageIODemo`
 - Ensure Region has the Java patch (`tickImage`, `addInputLayer2D`, `addOutputLayer2D`).
