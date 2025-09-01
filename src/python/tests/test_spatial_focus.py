@@ -55,6 +55,7 @@ def test_spatial_metrics_centroid_and_bbox(monkeypatch):
     m = region.tick_2d("img", frame)
 
     assert m.active_pixels >= 1
+
     # Weighted centroid should lie near the (1,1) neighborhood
     assert 0.0 <= m.centroid_row <= 2.0
     assert 0.0 <= m.centroid_col <= 2.0
@@ -66,6 +67,7 @@ def test_connect_layers_windowed_returns_unique_subscriptions():
     region = Region("wires_count")
     l_in = region.add_input_layer_2d(4, 4, 1.0, 0.01)
     l_out = region.add_output_layer_2d(4, 4, smoothing=0.0)
+
     # Single valid 4x4 window → every pixel participates exactly once.
     wires = region.connect_layers_windowed(
         l_in, l_out, kernel_h=4, kernel_w=4, stride_h=1, stride_w=1, padding="valid"
@@ -89,6 +91,7 @@ def test_sink_map_dedup_for_output_layer():
         def get_neurons(self): return []
 
     dst = DummyDst()
+
     # Duplicate same center three times for a single source index
     t = Tract(DummySrc(), dst, None, False, None,
               allowed_source_indices=None,

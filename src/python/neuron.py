@@ -107,6 +107,7 @@ class Neuron:
         # Default (=excitatory): propagate to outgoing neurons
         for target_neuron in list(self.outgoing):
             target_neuron.on_input(input_value)
+
         for hook in self.fire_hooks:
             hook(self, input_value)
 
