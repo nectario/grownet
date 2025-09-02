@@ -22,7 +22,8 @@ static void test_connect_layers_full_mesh() {
     Region region("t");
     int src = region.addLayer(2,0,0);
     int dst = region.addLayer(3,0,0);
-    Tract& t = region.connectLayers(src, dst, 1.0, false);
+    // We only need the side effect (subscriptions); ignore the return ref.
+    (void)region.connectLayers(src, dst, 1.0, false);
     // Aggregate structure via a tick (port may be unbound; still aggregates structure)
     RegionMetrics m = region.tick("x", 0.0);
     std::cout << "[C++] connectLayersFullMesh totalSynapses=" << m.totalSynapses << std::endl;

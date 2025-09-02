@@ -31,6 +31,8 @@ static void test_pulse_checks() {
     bus.setInhibitionFactor(0.7);
 
     RegionMetrics m = region.tick("x", 0.5);
+    // Silence -Wunused-but-set-variable in this smoke test.
+    (void)m;
     std::cout << "[C++] pulseChecks post(mod=" << bus.getModulationFactor()
               << ", inh=" << bus.getInhibitionFactor() << ")" << std::endl;
 
