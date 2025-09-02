@@ -1,8 +1,10 @@
 /* Out-of-line spatial slot selection to avoid Neuron header cycles. */
 #include "SlotEngine.h"
-#include "Neuron.h"
+#include "Neuron.h"      // needs full Neuron for anchorRow/anchorCol/getSlots
 #include <algorithm>
-#include <climits>
+#include <cmath>
+#include <limits>
+#include <utility>
 
 namespace grownet {
 
@@ -36,6 +38,19 @@ Weight& SlotEngine::selectOrCreateSlot(Neuron& neuron, double inputValue) const 
     return iter->second;
 }
 
+// Keep the math here so the header stays declaration-only.
+std::pair<int,int> SlotEngine::slotId2D(int anchorRow, int anchorCol, int row, int col) const {
+    const double eps    = std::max(1e-12, cfg.epsilonScale);
+    const double denomR = std::max(std::abs(static_cast<double>(anchorRow)), eps);
+    const double denomC = std::max(std::abs(static_cast<double>(anchorCol)), eps);
+    const double dpr    = std::abs(static_cast<double>(row - anchorRow)) / denomR * 100.0;
+    const double dpc    = std::abs(static_cast<double>(col - anchorCol)) / denomC * 100.0;
+    const double bwR    = std::max(0.1, cfg.binWidthPct);
+    const double bwC    = std::max(0.1, cfg.binWidthPct);
+    return { static_cast<int>(std::floor(dpr / bwR)),
+             static_cast<int>(std::floor(dpc / bwC)) };
+}
+
 Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const {
     // FIRST-anchor semantics on (row,col)
     if (neuron.anchorRow < 0 || neuron.anchorCol < 0) {
@@ -44,7 +59,7 @@ Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const
     }
 
     auto rc = slotId2D(neuron.anchorRow, neuron.anchorCol, row, col);
-    const int limit = (cfg.slotLimit > 0) ? cfg.slotLimit : INT_MAX;
+    const int limit = (cfg.slotLimit > 0) ? cfg.slotLimit : std::numeric_limits<int>::max();
     const int rb = std::min(rc.first,  limit - 1);
     const int cb = std::min(rc.second, limit - 1);
     const int key = rb * 100000 + cb; // simple packing
