@@ -29,8 +29,9 @@ int main() {
         }
     }
 
-    PruneSummary summary = region.prune(10'000, 0.05, 10'000, 0.05);
-    std::cout << "Prune summary: prunedSynapses=" << summary.prunedSynapses
-              << " prunedEdges=" << summary.prunedEdges << std::endl;
+    // NOTE: Region::prune(...) is not available in this build; skipping in demo.
+    // PruneSummary summary = region.prune(10'000, 0.05, 10'000, 0.05);
+    // std::cout << "Prune summary: prunedSynapses=" << summary.prunedSynapses
+    //           << " prunedEdges=" << summary.prunedEdges << std::endl;
     return 0;
 }
