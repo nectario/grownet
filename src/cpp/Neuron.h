@@ -82,18 +82,18 @@ public:
 
     // Remember last slot id for convenience freezing (set by SlotEngine)
     int lastSlotId { -1 };
-    void setLastSlotId(int id) { lastSlotId = id; }
+    void setLastSlotId(int slotId) { lastSlotId = slotId; }
     int  getLastSlotId() const { return lastSlotId; }
     bool freezeLastSlot() {
-        auto it = slots.find(lastSlotId);
-        if (it == slots.end()) return false;
-        it->second.freeze();
+        auto slotIter = slots.find(lastSlotId);
+        if (slotIter == slots.end()) return false;
+        slotIter->second.freeze();
         return true;
     }
     bool unfreezeLastSlot() {
-        auto it = slots.find(lastSlotId);
-        if (it == slots.end()) return false;
-        it->second.unfreeze();
+        auto slotIter = slots.find(lastSlotId);
+        if (slotIter == slots.end()) return false;
+        slotIter->second.unfreeze();
         return true;
     }
 };

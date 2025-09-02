@@ -10,9 +10,9 @@
 namespace grownet {
 
 // Helper: pack two 32-bit ints into an unsigned 64-bit key (for dedupe sets).
-static inline unsigned long long pack_u32_pair(int a, int b) {
-    return ((static_cast<unsigned long long>(a) & 0xFFFFFFFFULL) << 32)
-         |  (static_cast<unsigned long long>(b) & 0xFFFFFFFFULL);
+static inline unsigned long long pack_u32_pair(int first, int second) {
+    return ((static_cast<unsigned long long>(first) & 0xFFFFFFFFULL) << 32)
+         |  (static_cast<unsigned long long>(second) & 0xFFFFFFFFULL);
 }
 
 Region::Region(std::string name) : name(std::move(name)) {}
@@ -22,13 +22,13 @@ int Region::addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCou
     return static_cast<int>(layers.size() - 1);
 }
 
-int Region::addInputLayer2D(int h, int w, double gain, double epsilonFire) {
-    layers.push_back(std::make_shared<InputLayer2D>(h, w, gain, epsilonFire));
+int Region::addInputLayer2D(int height, int width, double gain, double epsilonFire) {
+    layers.push_back(std::make_shared<InputLayer2D>(height, width, gain, epsilonFire));
     return static_cast<int>(layers.size() - 1);
 }
 
-int Region::addOutputLayer2D(int h, int w, double smoothing) {
-    layers.push_back(std::make_shared<OutputLayer2D>(h, w, smoothing));
+int Region::addOutputLayer2D(int height, int width, double smoothing) {
+    layers.push_back(std::make_shared<OutputLayer2D>(height, width, smoothing));
     return static_cast<int>(layers.size() - 1);
 }
 
@@ -70,25 +70,25 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
     const int height = src->getHeight();
     const int width  = src->getWidth();
 
-    const int kh = kernelH;
-    const int kw = kernelW;
-    const int sh = std::max(1, strideH);
-    const int sw = std::max(1, strideW);
+    const int kernelHeight = kernelH;
+    const int kernelWidth  = kernelW;
+    const int strideHeight = std::max(1, strideH);
+    const int strideWidth  = std::max(1, strideW);
     const bool same = (padding == "same" || padding == "SAME");
 
     std::vector<std::pair<int,int>> origins; origins.reserve(128);
     if (same) {
-        const int pr = std::max(0, (kh - 1) / 2);
-        const int pc = std::max(0, (kw - 1) / 2);
-        for (int r = -pr; r + kh <= height + pr + pr; r += sh) {
-            for (int c = -pc; c + kw <= width + pc + pc; c += sw) {
-                origins.emplace_back(r, c);
+        const int padRows = std::max(0, (kernelHeight - 1) / 2);
+        const int padCols = std::max(0, (kernelWidth - 1) / 2);
+        for (int row = -padRows; row + kernelHeight <= height + padRows + padRows; row += strideHeight) {
+            for (int col = -padCols; col + kernelWidth <= width + padCols + padCols; col += strideWidth) {
+                origins.emplace_back(row, col);
             }
         }
     } else {
-        for (int r = 0; r + kh <= height; r += sh) {
-            for (int c = 0; c + kw <= width; c += sw) {
-                origins.emplace_back(r, c);
+        for (int row = 0; row + kernelHeight <= height; row += strideHeight) {
+            for (int col = 0; col + kernelWidth <= width; col += strideWidth) {
+                origins.emplace_back(row, col);
             }
         }
     }
@@ -100,23 +100,23 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
 
     if (dstOut) {
         std::unordered_set<unsigned long long> made; // dedup (srcIdx, centerIdx)
-        for (auto [r0, c0] : origins) {
-            const int rr0 = std::max(0, r0), cc0 = std::max(0, c0);
-            const int rr1 = std::min(height, r0 + kh), cc1 = std::min(width, c0 + kw);
-            if (rr0 >= rr1 || cc0 >= cc1) continue;
+        for (auto [originRow, originCol] : origins) {
+            const int rowStart = std::max(0, originRow), colStart = std::max(0, originCol);
+            const int rowEnd = std::min(height, originRow + kernelHeight), colEnd = std::min(width, originCol + kernelWidth);
+            if (rowStart >= rowEnd || colStart >= colEnd) continue;
 
             // Compute center in source coordinates (floor midpoint), then clamp to DEST shape.
-            const int srcCenterR = std::min(height - 1, std::max(0, r0 + kh / 2));
-            const int srcCenterC = std::min(width  - 1, std::max(0, c0 + kw / 2));
-            const int dstH = dstOut->getHeight();
-            const int dstW = dstOut->getWidth();
-            const int centerR = std::min(dstH - 1, std::max(0, srcCenterR));
-            const int centerC = std::min(dstW - 1, std::max(0, srcCenterC));
-            const int centerIdx = centerR * dstW + centerC;
+            const int srcCenterRow = std::min(height - 1, std::max(0, originRow + kernelHeight / 2));
+            const int srcCenterCol = std::min(width  - 1, std::max(0, originCol + kernelWidth / 2));
+            const int destHeight = dstOut->getHeight();
+            const int destWidth  = dstOut->getWidth();
+            const int centerRow = std::min(destHeight - 1, std::max(0, srcCenterRow));
+            const int centerCol = std::min(destWidth  - 1, std::max(0, srcCenterCol));
+            const int centerIdx = centerRow * destWidth + centerCol;
 
-            for (int rr = rr0; rr < rr1; ++rr) {
-                for (int cc2 = cc0; cc2 < cc1; ++cc2) {
-                    const int srcIdx = rr * width + cc2;
+            for (int rowIdx = rowStart; rowIdx < rowEnd; ++rowIdx) {
+                for (int colIdx = colStart; colIdx < colEnd; ++colIdx) {
+                    const int srcIdx = rowIdx * width + colIdx;
                     allowedMask[srcIdx] = 1;
 
                     const unsigned long long key = pack_u32_pair(srcIdx, centerIdx);
@@ -124,30 +124,30 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
 
                     if (srcIdx >= 0 && srcIdx < static_cast<int>(srcNeurons.size()) &&
                         centerIdx >= 0 && centerIdx < static_cast<int>(dstNeurons.size())) {
-                        auto s = srcNeurons[srcIdx];
-                        auto t = dstNeurons[centerIdx];
-                        if (s && t) s->connect(t.get(), feedback);
+                        auto sourceNeuron = srcNeurons[srcIdx];
+                        auto targetNeuron = dstNeurons[centerIdx];
+                        if (sourceNeuron && targetNeuron) sourceNeuron->connect(targetNeuron.get(), feedback);
                     }
                 }
             }
         }
     } else {
         // Generic destination: connect each participating source pixel to ALL destination neurons.
-        for (auto [r0, c0] : origins) {
-            const int rr0 = std::max(0, r0), cc0 = std::max(0, c0);
-            const int rr1 = std::min(height, r0 + kh), cc1 = std::min(width, c0 + kw);
-            if (rr0 >= rr1 || cc0 >= cc1) continue;
-            for (int rr = rr0; rr < rr1; ++rr) {
-                for (int cc2 = cc0; cc2 < cc1; ++cc2) {
-                    const int srcIdx = rr * width + cc2;
+        for (auto [originRow, originCol] : origins) {
+            const int rowStart = std::max(0, originRow), colStart = std::max(0, originCol);
+            const int rowEnd = std::min(height, originRow + kernelHeight), colEnd = std::min(width, originCol + kernelWidth);
+            if (rowStart >= rowEnd || colStart >= colEnd) continue;
+            for (int rowIdx = rowStart; rowIdx < rowEnd; ++rowIdx) {
+                for (int colIdx = colStart; colIdx < colEnd; ++colIdx) {
+                    const int srcIdx = rowIdx * width + colIdx;
                     if (!allowedMask[srcIdx]) {
                         // first time we see this source: connect to all destinations
                         allowedMask[srcIdx] = 1;
                         if (srcIdx >= 0 && srcIdx < static_cast<int>(srcNeurons.size())) {
-                            auto s = srcNeurons[srcIdx];
-                            if (s) {
-                                for (auto& t : dstNeurons) {
-                                    if (t) s->connect(t.get(), feedback);
+                            auto sourceNeuron = srcNeurons[srcIdx];
+                            if (sourceNeuron) {
+                                for (auto& targetNeuron : dstNeurons) {
+                                    if (targetNeuron) sourceNeuron->connect(targetNeuron.get(), feedback);
                                 }
                             }
                         }
@@ -158,9 +158,9 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
     }
 
     // Count unique source subscriptions
-    int wires = 0;
-    for (char m : allowedMask) if (m) ++wires;
-    return wires;
+    int wireCount = 0;
+    for (char maskValue : allowedMask) if (maskValue) ++wireCount;
+    return wireCount;
 }
 
 
@@ -192,14 +192,14 @@ void Region::bindInput(const std::string& port, const std::vector<int>& layerInd
     }
 }
 
-void Region::bindInput2D(const std::string& port, int h, int w, double gain, double epsilonFire, const std::vector<int>& attachLayers) {
+void Region::bindInput2D(const std::string& port, int height, int width, double gain, double epsilonFire, const std::vector<int>& attachLayers) {
     // create or reuse 2D edge
     int edgeIndex;
     auto edgeIt = inputEdges.find(port);
     if (edgeIt != inputEdges.end() && dynamic_cast<InputLayer2D*>(layers[edgeIt->second].get()) != nullptr) {
         edgeIndex = edgeIt->second;
     } else {
-        edgeIndex = addInputLayer2D(h, w, gain, epsilonFire);
+        edgeIndex = addInputLayer2D(height, width, gain, epsilonFire);
         inputEdges[port] = edgeIndex;
     }
     // wire edge -> attached layers
@@ -309,14 +309,14 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
         if (doSpatial) {
             // Prefer furthest downstream OutputLayer2D
             const std::vector<std::vector<double>>* chosen = nullptr;
-            for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
-                auto out2d = dynamic_cast<OutputLayer2D*>((*it).get());
+            for (auto layerIter = layers.rbegin(); layerIter != layers.rend(); ++layerIter) {
+                auto out2d = dynamic_cast<OutputLayer2D*>((*layerIter).get());
                 if (out2d) { chosen = &out2d->getFrame(); break; }
             }
             auto isAllZero = [](const std::vector<std::vector<double>>& img) {
                 for (const auto& row : img) {
-                    for (double v : row) {
-                        if (v != 0.0) return false;
+                    for (double value : row) {
+                        if (value != 0.0) return false;
                     }
                 }
                 return true;
@@ -325,25 +325,25 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
             else if (isAllZero(*chosen) && !isAllZero(frame)) chosen = &frame;
 
             const auto& img = *chosen;
-            const int H = static_cast<int>(img.size());
-            const int W = H > 0 ? static_cast<int>(img[0].size()) : 0;
+            const int imageHeight = static_cast<int>(img.size());
+            const int imageWidth = imageHeight > 0 ? static_cast<int>(img[0].size()) : 0;
             long long active = 0;
             double total = 0.0, sumR = 0.0, sumC = 0.0;
             int rmin = 1e9, rmax = -1, cmin = 1e9, cmax = -1;
-            for (int r = 0; r < H; ++r) {
-                const auto& row = img[r];
-                const int limit = std::min(W, static_cast<int>(row.size()));
-                for (int c = 0; c < limit; ++c) {
-                    double v = row[c];
-                    if (v > 0.0) {
+            for (int rowIndex = 0; rowIndex < imageHeight; ++rowIndex) {
+                const auto& rowVec = img[rowIndex];
+                const int columnLimit = std::min(imageWidth, static_cast<int>(rowVec.size()));
+                for (int colIndex = 0; colIndex < columnLimit; ++colIndex) {
+                    double pixelValue = rowVec[colIndex];
+                    if (pixelValue > 0.0) {
                         ++active;
-                        total += v;
-                        sumR += r * v;
-                        sumC += c * v;
-                        if (r < rmin) rmin = r;
-                        if (r > rmax) rmax = r;
-                        if (c < cmin) cmin = c;
-                        if (c > cmax) cmax = c;
+                        total += pixelValue;
+                        sumR += rowIndex * pixelValue;
+                        sumC += colIndex * pixelValue;
+                        if (rowIndex < rmin) rmin = rowIndex;
+                        if (rowIndex > rmax) rmax = rowIndex;
+                        if (colIndex < cmin) cmin = colIndex;
+                        if (colIndex > cmax) cmax = colIndex;
                     }
                 }
             }

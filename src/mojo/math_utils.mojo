@@ -8,10 +8,10 @@ struct MathUtils:
             val = max_value
         return val
 
-    fn lerp(a: Float64, b: Float64, t: Float64) -> Float64:
-        return a + (b - a) * t
+    fn lerp(start: Float64, end: Float64, weight: Float64) -> Float64:
+        return start + (end - start) * weight
 
-    fn abs_f64(x: Float64) -> Float64:
-        if x < 0.0:
-            return -x
-        return x
+    fn abs_f64(value: Float64) -> Float64:
+        if value < 0.0:
+            return -value
+        return value

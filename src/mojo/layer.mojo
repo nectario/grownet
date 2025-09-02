@@ -18,18 +18,18 @@ struct Layer:
         self.neurons_inh = []
         self.neurons_mod = []
         self.bus = LateralBus()
-        var i = 0
-        while i < excitatory_count:
-            self.neurons_exc.append(ExcitatoryNeuron("E" + String(i)))
-            i += 1
-        i = 0
-        while i < inhibitory_count:
-            self.neurons_inh.append(InhibitoryNeuron("I" + String(i)))
-            i += 1
-        i = 0
-        while i < modulatory_count:
-            self.neurons_mod.append(ModulatoryNeuron("M" + String(i)))
-            i += 1
+        var neuron_index = 0
+        while neuron_index < excitatory_count:
+            self.neurons_exc.append(ExcitatoryNeuron("E" + String(neuron_index)))
+            neuron_index += 1
+        neuron_index = 0
+        while neuron_index < inhibitory_count:
+            self.neurons_inh.append(InhibitoryNeuron("I" + String(neuron_index)))
+            neuron_index += 1
+        neuron_index = 0
+        while neuron_index < modulatory_count:
+            self.neurons_mod.append(ModulatoryNeuron("M" + String(neuron_index)))
+            neuron_index += 1
 
     fn forward(mut self, value: Float64) -> list[Spike]:
         var spikes = []

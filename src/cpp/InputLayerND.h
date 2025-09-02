@@ -27,9 +27,9 @@ public:
         auto& neuronList = getNeurons();
         neuronList.reserve(size);
         SlotConfig cfg = SlotConfig::fixed(10.0);
-        for (int i = 0; i < size; ++i) {
+        for (int index = 0; index < size; ++index) {
             neuronList.push_back(std::make_shared<InputNeuron>(
-                std::string("IN[") + std::to_string(i) + "]",
+                std::string("IN[") + std::to_string(index) + "]",
                 getBus(), cfg, gain, epsilonFire));
         }
     }
@@ -47,9 +47,9 @@ public:
             throw std::invalid_argument("flat length != expected size");
         }
         auto& neuronList = getNeurons();
-        for (int i = 0; i < size; ++i) {
-            auto inputNeuron = std::static_pointer_cast<InputNeuron>(neuronList[i]);
-            inputNeuron->onInput(flat[i]);
+        for (int index = 0; index < size; ++index) {
+            auto inputNeuron = std::static_pointer_cast<InputNeuron>(neuronList[index]);
+            inputNeuron->onInput(flat[index]);
         }
     }
 

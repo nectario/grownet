@@ -20,8 +20,8 @@ struct RegionMetrics:
         return self._total_synapses
 
     # --- mutators/accumulators ---
-    fn inc_delivered_events(mut self, by: Int = 1) -> None:
-        self.delivered_events += by
+    fn inc_delivered_events(mut self, amount: Int = 1) -> None:
+        self.delivered_events += amount
 
     fn add_slots(mut self, count: Int) -> None:
         self._total_slots += count

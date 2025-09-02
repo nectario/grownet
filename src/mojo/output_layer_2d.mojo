@@ -17,41 +17,41 @@ struct OutputLayer2D:
         self.smoothing = smoothing
         self.core = Layer(height * width, 0, 0)
         self.pixels = []
-        var r = 0
-        while r < height:
+        var row_index = 0
+        while row_index < height:
             var row = []
-            var c = 0
-            while c < width:
+            var col_index = 0
+            while col_index < width:
                 row.append(0.0)
-                c += 1
+                col_index += 1
             self.pixels.append(row)
-            r += 1
+            row_index += 1
         self.states = []
-        var i = 0
-        while i < height * width:
+        var index = 0
+        while index < height * width:
             self.states.append(OutputNeuronState())
-            i += 1
+            index += 1
 
-    fn index(self, y: Int, x: Int) -> Int:
-        return y * self.width + x
+    fn index(self, row: Int, col: Int) -> Int:
+        return row * self.width + col
 
     fn propagate_from(mut self, source_index: Int, value: Float64) -> None:
         # Sinks are passive; we merely record output activity.
-        var y = source_index / self.width
-        var x = source_index % self.width
-        var s = self.states[source_index]
-        s.last_emitted = value
-        self.states[source_index] = s
-        self.pixels[y][x] = value
+        var row_index = source_index / self.width
+        var col_index = source_index % self.width
+        var neuron_state = self.states[source_index]
+        neuron_state.last_emitted = value
+        self.states[source_index] = neuron_state
+        self.pixels[row_index][col_index] = value
 
     fn end_tick(mut self) -> None:
         # Simple exponential decay on pixel values to simulate persistence.
-        var i = 0
-        while i < self.height * self.width:
-            var y = i / self.width
-            var x = i % self.width
-            self.pixels[y][x] = self.pixels[y][x] * (1.0 - self.smoothing)
-            i += 1
+        var index = 0
+        while index < self.height * self.width:
+            var row_index = index / self.width
+            var col_index = index % self.width
+            self.pixels[row_index][col_index] = self.pixels[row_index][col_index] * (1.0 - self.smoothing)
+            index += 1
 
     fn get_frame(self) -> list[list[Float64]]:
         return self.pixels

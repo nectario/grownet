@@ -36,14 +36,14 @@ struct SlotEngine:
 
     fn slot_id_2d(self, anchor_row: Int, anchor_col: Int, row: Int, col: Int,
                    row_bin_width_pct: Float64, col_bin_width_pct: Float64, epsilon_scale: Float64) -> (Int, Int):
-        var ar = Float64(anchor_row); var ac = Float64(anchor_col)
-        var rr = Float64(row);        var cc = Float64(col)
-        var denom_r = if ar >= 0.0 then ar else -ar
-        var denom_c = if ac >= 0.0 then ac else -ac
+        var anchor_row_val = Float64(anchor_row); var anchor_col_val = Float64(anchor_col)
+        var row_val = Float64(row);        var col_val = Float64(col)
+        var denom_r = if anchor_row_val >= 0.0 then anchor_row_val else -anchor_row_val
+        var denom_c = if anchor_col_val >= 0.0 then anchor_col_val else -anchor_col_val
         if denom_r < epsilon_scale: denom_r = epsilon_scale
         if denom_c < epsilon_scale: denom_c = epsilon_scale
-        var dpr = rr - ar; if dpr < 0.0: dpr = -dpr
-        var dpc = cc - ac; if dpc < 0.0: dpc = -dpc
+        var dpr = row_val - anchor_row_val; if dpr < 0.0: dpr = -dpr
+        var dpc = col_val - anchor_col_val; if dpc < 0.0: dpc = -dpc
         var rbin = Int((100.0 * dpr / denom_r) / (if row_bin_width_pct > 0.1 then row_bin_width_pct else 0.1))
         var cbin = Int((100.0 * dpc / denom_c) / (if col_bin_width_pct > 0.1 then col_bin_width_pct else 0.1))
         return (rbin, cbin)

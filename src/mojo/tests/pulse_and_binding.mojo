@@ -21,11 +21,11 @@ fn test_pulse_decay_on_bus():
 # Multi-layer binding placeholder: compiles and runs; assertion enabled once Region.tick implements delivery.
 fn test_multi_layer_input_binding_pending():
     var region = Region("t")
-    var l0 = region.add_layer(1,0,0)
-    var l1 = region.add_layer(1,0,0)
-    region.bind_input("x", [l0, l1])
-    var m = region.tick("x", 1.0)
-    print("[MOJO] multiLayerBinding delivered=", m.deliveredEvents)
+    var layer0 = region.add_layer(1,0,0)
+    var layer1 = region.add_layer(1,0,0)
+    region.bind_input("x", [layer0, layer1])
+    var metrics = region.tick("x", 1.0)
+    print("[MOJO] multiLayerBinding delivered=", metrics.deliveredEvents)
     # TODO: enable strict assertion when Region.tick aggregates events
     # check(m.deliveredEvents == 2, "deliveredEvents should equal 2 once Region.tick is complete")
 
