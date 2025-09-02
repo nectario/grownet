@@ -69,8 +69,8 @@ public final class Weight {
      */
     public boolean updateThreshold(double inputValue) {
         if (frozen) {
-            final double v = inputValue;
-            return (Math.abs(v) > thresholdValue) || (strengthValue > thresholdValue);
+            final double inputMagnitude = inputValue;
+            return (Math.abs(inputMagnitude) > thresholdValue) || (strengthValue > thresholdValue);
         }
         // First-seen imprint (one-time)
         if (!firstSeen) {

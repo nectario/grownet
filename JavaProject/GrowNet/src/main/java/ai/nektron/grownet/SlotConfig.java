@@ -58,29 +58,29 @@ public final class SlotConfig {
     public SlotConfig setAnchorMode(AnchorMode mode) { this.anchorMode = (mode == null ? AnchorMode.FIRST : mode); return this; }
 
     public double getBinWidthPct() { return clampPct(binWidthPct, 0.1, 1000.0); }
-    public SlotConfig setBinWidthPct(double v) { this.binWidthPct = clampPct(v, 0.1, 1000.0); return this; }
+    public SlotConfig setBinWidthPct(double value) { this.binWidthPct = clampPct(value, 0.1, 1000.0); return this; }
 
     public double getEpsilonScale() { return Math.max(1e-12, epsilonScale); }
-    public SlotConfig setEpsilonScale(double v) { this.epsilonScale = Math.max(1e-12, v); return this; }
+    public SlotConfig setEpsilonScale(double value) { this.epsilonScale = Math.max(1e-12, value); return this; }
 
     public double getRecenterThresholdPct() { return clampPct(recenterThresholdPct, 0.0, 10_000.0); }
-    public SlotConfig setRecenterThresholdPct(double v) { this.recenterThresholdPct = clampPct(v, 0.0, 10_000.0); return this; }
+    public SlotConfig setRecenterThresholdPct(double value) { this.recenterThresholdPct = clampPct(value, 0.0, 10_000.0); return this; }
 
     public int getRecenterLockTicks() { return Math.max(0, recenterLockTicks); }
-    public SlotConfig setRecenterLockTicks(int v) { this.recenterLockTicks = Math.max(0, v); return this; }
+    public SlotConfig setRecenterLockTicks(int ticks) { this.recenterLockTicks = Math.max(0, ticks); return this; }
 
     public double getAnchorBeta() { return clampPct(anchorBeta, 0.0, 1.0); }
-    public SlotConfig setAnchorBeta(double v) { this.anchorBeta = clampPct(v, 0.0, 1.0); return this; }
+    public SlotConfig setAnchorBeta(double value) { this.anchorBeta = clampPct(value, 0.0, 1.0); return this; }
 
     public double getOutlierGrowthThresholdPct() { return clampPct(outlierGrowthThresholdPct, 0.0, 1_000_000.0); }
-    public SlotConfig setOutlierGrowthThresholdPct(double v) { this.outlierGrowthThresholdPct = clampPct(v, 0.0, 1_000_000.0); return this; }
+    public SlotConfig setOutlierGrowthThresholdPct(double value) { this.outlierGrowthThresholdPct = clampPct(value, 0.0, 1_000_000.0); return this; }
 
     public int getSlotLimit() { return slotLimit; }
-    public SlotConfig setSlotLimit(int v) { this.slotLimit = (v < 0 ? -1 : v); return this; }
+    public SlotConfig setSlotLimit(int limit) { this.slotLimit = (limit < 0 ? -1 : limit); return this; }
 
-    private static double clampPct(double v, double lo, double hi) {
-        if (Double.isNaN(v) || Double.isInfinite(v)) return lo;
-        return Math.max(lo, Math.min(hi, v));
+    private static double clampPct(double value, double lowerBound, double upperBound) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) return lowerBound;
+        return Math.max(lowerBound, Math.min(upperBound, value));
     }
 
 }

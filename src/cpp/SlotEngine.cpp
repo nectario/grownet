@@ -58,18 +58,18 @@ Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const
         neuron.anchorCol = col;
     }
 
-    auto rc = slotId2D(neuron.anchorRow, neuron.anchorCol, row, col);
+    auto rowColPair = slotId2D(neuron.anchorRow, neuron.anchorCol, row, col);
     const int limit = (cfg.slotLimit > 0) ? cfg.slotLimit : std::numeric_limits<int>::max();
-    const int rb = std::min(rc.first,  limit - 1);
-    const int cb = std::min(rc.second, limit - 1);
-    const int key = rb * 100000 + cb; // simple packing
+    const int boundedRow = std::min(rowColPair.first,  limit - 1);
+    const int boundedCol = std::min(rowColPair.second, limit - 1);
+    const int key = boundedRow * 100000 + boundedCol; // simple packing
 
     auto& slots = neuron.getSlots();
-    auto it = slots.find(key);
-    if (it == slots.end()) {
-        it = slots.emplace(key, Weight{}).first;
+    auto slotIter = slots.find(key);
+    if (slotIter == slots.end()) {
+        slotIter = slots.emplace(key, Weight{}).first;
     }
-    return it->second;
+    return slotIter->second;
 }
 
 } // namespace grownet

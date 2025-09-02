@@ -28,8 +28,8 @@ struct Weight:
 
     fn update_threshold(mut self, input_value: Float64) -> Bool:
         if self.frozen:
-            var v = input_value
-            return (MathUtils.abs_f64(v) > self.theta) or (self.strength > self.theta)
+            var input_val = input_value
+            return (MathUtils.abs_f64(input_val) > self.theta) or (self.strength > self.theta)
         # T0: imprint
         if not self.seen_first:
             var mag = MathUtils.abs_f64(input_value)

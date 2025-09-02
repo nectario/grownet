@@ -14,11 +14,11 @@ public class RegionTickTests {
         int inputLayer = region.addLayer(1, 0, 0);
         region.bindInput("x", List.of(inputLayer));
 
-        RegionMetrics m = region.tick("x", 0.42);
-        System.out.println("[JAVA] singleTickNoTracts -> " + m);
-        check(m.getDeliveredEvents() == 1, "deliveredEvents should be 1");
-        check(m.getTotalSlots() >= 1, "totalSlots >= 1");
-        check(m.getTotalSynapses() >= 0, "totalSynapses >= 0");
+        RegionMetrics metrics = region.tick("x", 0.42);
+        System.out.println("[JAVA] singleTickNoTracts -> " + metrics);
+        check(metrics.getDeliveredEvents() == 1, "deliveredEvents should be 1");
+        check(metrics.getTotalSlots() >= 1, "totalSlots >= 1");
+        check(metrics.getTotalSynapses() >= 0, "totalSynapses >= 0");
     }
 
     private static void testConnectLayersFullMesh() {
@@ -32,12 +32,12 @@ public class RegionTickTests {
 
     private static void testImageInputEventCount() {
         Region region = new Region("t");
-        int in = region.addInputLayer2D(2, 2, 1.0, 0.01);
-        region.bindInput("pixels", List.of(in));
+        int inputLayerId = region.addInputLayer2D(2, 2, 1.0, 0.01);
+        region.bindInput("pixels", List.of(inputLayerId));
         double[][] frame = new double[][] { {0.0, 1.0}, {0.0, 0.0} };
-        RegionMetrics m = region.tickImage("pixels", frame);
-        System.out.println("[JAVA] imageInputEventCount -> " + m);
-        check(m.getDeliveredEvents() == 1, "image tick should count as 1 event per bound entry layer");
+        RegionMetrics metrics = region.tickImage("pixels", frame);
+        System.out.println("[JAVA] imageInputEventCount -> " + metrics);
+        check(metrics.getDeliveredEvents() == 1, "image tick should count as 1 event per bound entry layer");
     }
 
     public static void main(String[] args) {

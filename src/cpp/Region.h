@@ -67,8 +67,6 @@ public:
     explicit Region(std::string name);
 
     int addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount);
-    int addInputLayer2D(int h, int w, double gain, double epsilonFire);
-    int addOutputLayer2D(int h, int w, double smoothing);
 
     Tract& connectLayers(int sourceIndex, int destIndex, double probability, bool feedback=false);
     // Windowed deterministic wiring (spatial focus helper).
@@ -82,7 +80,9 @@ public:
                               bool feedback=false);
 
     void bindInput(const std::string& port, const std::vector<int>& layerIndices);
-    void bindInput2D(const std::string& port, int h, int w, double gain, double epsilonFire, const std::vector<int>& attachLayers);
+    void bindInput2D(const std::string& port, int height, int width, double gain, double epsilonFire, const std::vector<int>& attachLayers);
+    int addInputLayer2D(int height, int width, double gain, double epsilonFire);
+    int addOutputLayer2D(int height, int width, double smoothing);
     void bindOutput(const std::string& port, const std::vector<int>& layerIndices);
 
     void pulseInhibition(double factor);
@@ -128,3 +128,4 @@ private:
 };
 
 } // namespace grownet
+    void bindInput2D(const std::string& port, int height, int width, double gain, double epsilonFire, const std::vector<int>& attachLayers);
