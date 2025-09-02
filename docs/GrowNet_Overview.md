@@ -17,3 +17,5 @@ The research pursues three testable goals:
 2. Limit accuracy drop to 5% on corrupted CIFAR-10 with 30% noise injection.
 3. Reduce inference energy to below 30% of baseline on event-driven hardware【F:docs/GrowNet_Theory_of_Change.md†L18-L27】
 
+
+This research work is aimed at being presented at NeurIPS.
