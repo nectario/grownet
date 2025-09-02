@@ -64,7 +64,7 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
     auto* src = dynamic_cast<InputLayer2D*>(layers[sourceIndex].get());
     if (!src) throw std::invalid_argument("connectLayersWindowed requires src to be InputLayer2D");
     auto* dstOut = dynamic_cast<OutputLayer2D*>(layers[destIndex].get());
-    auto* dstAny = layers[destIndex].get();
+    // (no local 'dstAny' needed; branches use 'dstNeurons' or OutputLayer2D directly)
 
     // Use explicit accessors on InputLayer2D
     const int height = src->getHeight();
