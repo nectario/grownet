@@ -48,7 +48,7 @@ struct RegionMetrics {
     inline void addSynapses(long long n) { totalSynapses += n; }
 };
 
-/** Prune result (tract-level reserved). */
+// Minimal summary for prune operations (currently a no-op).
 struct PruneSummary {
     long long prunedSynapses {0};
     long long prunedEdges {0};
@@ -90,6 +90,11 @@ public:
 
     RegionMetrics tick(const std::string& port, double value);
     RegionMetrics tickImage(const std::string& port, const std::vector<std::vector<double>>& frame);
+
+    // --- No-op prune stubs to keep demos/tests compiling ---
+    PruneSummary prune(long long synapseStaleWindow, double synapseMinStrength);
+    PruneSummary prune(long long synapseStaleWindow, double synapseMinStrength,
+                       long long tractStaleWindow,  double tractMinStrength);
 
     const std::string& getName() const { return name; }
     std::vector<std::shared_ptr<Layer>>& getLayers() { return layers; }

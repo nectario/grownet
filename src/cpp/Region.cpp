@@ -261,6 +261,19 @@ RegionMetrics Region::tick(const std::string& port, double value) {
     return metrics;
 }
 
+// --- No-op prune stubs ----------------------------------------------------
+
+PruneSummary Region::prune(long long /*synapseStaleWindow*/, double /*synapseMinStrength*/) {
+    // Real pruning logic will arrive later; this stub keeps demos/tests compiling.
+    return PruneSummary{};
+}
+
+PruneSummary Region::prune(long long /*synapseStaleWindow*/, double /*synapseMinStrength*/,
+                           long long /*tractStaleWindow*/,  double /*tractMinStrength*/) {
+    // Variant with tract-level arguments (also a no-op).
+    return PruneSummary{};
+}
+
 
 // Drive a 2D frame into an InputLayer2D edge bound to `port`.
 RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::vector<double>>& frame) {
