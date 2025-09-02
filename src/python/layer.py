@@ -67,16 +67,16 @@ class Layer:
         on_input_2d if available/enabled, else falls back to scalar on_input.
         """
         try:
-            r = int(source_index) // int(width)
-            c = int(source_index) % int(width)
+            row = int(source_index) // int(width)
+            col = int(source_index) % int(width)
         except Exception:
             # if shape is invalid, fallback to scalar
-            r, c = 0, 0
+            row, col = 0, 0
         for neuron in self.neurons:
             fired = False
             if hasattr(neuron, "on_input_2d"):
                 try:
-                    fired = neuron.on_input_2d(value, r, c)
+                    fired = neuron.on_input_2d(value, row, col)
                 except Exception:
                     fired = neuron.on_input(value)
             else:

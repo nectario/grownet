@@ -15,15 +15,15 @@ class SlotEngine:
             if last_input == 0:
                 return 0
             delta_percent = abs(current_input - last_input) / max(1e-9, abs(last_input)) * 100.0
-            w = max(1.0, self.cfg.fixed_delta_percent)
-            return int(delta_percent // w)
+            bin_width = max(1.0, self.cfg.fixed_delta_percent)
+            return int(delta_percent // bin_width)
         elif self.cfg.policy == SlotPolicy.NONUNIFORM:
             if last_input == 0:
                 return 0
-            dp = abs(current_input - last_input) / max(1e-9, abs(last_input)) * 100.0
-            for i, edge in enumerate(self.cfg.custom_edges):
-                if dp < edge:
-                    return i
+            delta_percent = abs(current_input - last_input) / max(1e-9, abs(last_input)) * 100.0
+            for index, edge in enumerate(self.cfg.custom_edges):
+                if delta_percent < edge:
+                    return index
             return len(self.cfg.custom_edges)
         else:
             # ADAPTIVE or unknown: collapse everything to slot 0
@@ -66,21 +66,21 @@ class SlotEngine:
         Denominator per axis uses max(|anchor_axis|, epsilon_scale) to avoid divide-by-zero.
         Bin widths are controlled by cfg.row_bin_width_pct / cfg.col_bin_width_pct.
         """
-        ar, ac = int(anchor_rc[0]), int(anchor_rc[1])
-        cr, cc = int(current_rc[0]), int(current_rc[1])
+        anchor_row, anchor_col = int(anchor_rc[0]), int(anchor_rc[1])
+        current_row, current_col = int(current_rc[0]), int(current_rc[1])
 
         # Use a sensible spatial epsilon to avoid exploding bins at ORIGIN (0,0).
         eps = max(1.0, float(getattr(self.cfg, "epsilon_scale", 1.0)))
-        denom_r = max(abs(ar), eps)
-        denom_c = max(abs(ac), eps)
+        denominator_row = max(abs(anchor_row), eps)
+        denominator_col = max(abs(anchor_col), eps)
 
-        dp_r = abs(cr - ar) / denom_r * 100.0
-        dp_c = abs(cc - ac) / denom_c * 100.0
+        delta_percent_row = abs(current_row - anchor_row) / denominator_row * 100.0
+        delta_percent_col = abs(current_col - anchor_col) / denominator_col * 100.0
 
-        bw_r = max(0.1, float(getattr(self.cfg, "row_bin_width_pct", 100.0)))
-        bw_c = max(0.1, float(getattr(self.cfg, "col_bin_width_pct", 100.0)))
+        bin_width_row_pct = max(0.1, float(getattr(self.cfg, "row_bin_width_pct", 100.0)))
+        bin_width_col_pct = max(0.1, float(getattr(self.cfg, "col_bin_width_pct", 100.0)))
 
-        return int(dp_r // bw_r), int(dp_c // bw_c)
+        return int(delta_percent_row // bin_width_row_pct), int(delta_percent_col // bin_width_col_pct)
 
     def select_or_create_slot_2d(self, neuron, row: int, col: int):
         """2D FIRST/ORIGIN anchor + capacity clamp; ensures spatial slot exists.
@@ -93,22 +93,22 @@ class SlotEngine:
         # pick anchors
         anchor_mode = str(getattr(cfg, "anchor_mode", "FIRST")).upper()
         if anchor_mode == "ORIGIN":
-            ar, ac = 0, 0
+            anchor_row, anchor_col = 0, 0
         else:
             # FIRST: set if not present
             if getattr(neuron, "focus_anchor_row", None) is None or getattr(neuron, "focus_anchor_col", None) is None:
                 neuron.focus_anchor_row = int(row)
                 neuron.focus_anchor_col = int(col)
-            ar, ac = int(neuron.focus_anchor_row), int(neuron.focus_anchor_col)
+            anchor_row, anchor_col = int(neuron.focus_anchor_row), int(neuron.focus_anchor_col)
 
-        rb, cb = self.slot_id_2d((ar, ac), (int(row), int(col)))
+        row_bin, col_bin = self.slot_id_2d((anchor_row, anchor_col), (int(row), int(col)))
         limit = int(getattr(cfg, "slot_limit", 16))
 
         if limit > 0:
-            rb = min(rb, limit - 1)
-            cb = min(cb, limit - 1)
+            row_bin = min(row_bin, limit - 1)
+            col_bin = min(col_bin, limit - 1)
 
-        key = (rb, cb)
+        key = (row_bin, col_bin)
         slots = neuron.slots
         if key not in slots:
             if limit > 0 and len(slots) >= limit:
