@@ -1,12 +1,12 @@
 #pragma once
-#include <unordered_map>
+#include <utility>
 #include <cmath>
-#include "SlotConfig.h"
 #include "Weight.h"
+#include "SlotConfig.h"
 
 namespace grownet {
 
-class Neuron; // forward decl
+class Neuron; // forward decl (avoid pulling Neuron.h into this header)
 
 class SlotEngine {
     SlotConfig cfg;
@@ -43,32 +43,19 @@ public:
 
     // ---- Spatial stubs (Phase B) ----
     inline std::pair<int,int> slotId2D(int anchorRow, int anchorCol, int row, int col) const {
-        // Placeholder: percent deltas per-axis; mirrors scalar approach.
-        const double eps = std::max(1e-12, cfg.epsilonScale);
+        const double eps   = std::max(1e-12, cfg.epsilonScale);
         const double denomR = std::max(std::abs(static_cast<double>(anchorRow)), eps);
         const double denomC = std::max(std::abs(static_cast<double>(anchorCol)), eps);
-        const double dpr = std::abs(static_cast<double>(row - anchorRow)) / denomR * 100.0;
-        const double dpc = std::abs(static_cast<double>(col - anchorCol)) / denomC * 100.0;
+        const double dpr = std::abs(static_cast<double>(row - anchorRow)) * 100.0 / denomR;
+        const double dpc = std::abs(static_cast<double>(col - anchorCol)) * 100.0 / denomC;
         const double bwR = std::max(0.1, cfg.binWidthPct);
         const double bwC = std::max(0.1, cfg.binWidthPct);
-        return { static_cast<int>(std::floor(dpr / bwR)), static_cast<int>(std::floor(dpc / bwC)) };
+        return { static_cast<int>(std::floor(dpr / bwR)),
+                 static_cast<int>(std::floor(dpc / bwC)) };
     }
 
-    inline Weight& selectOrCreateSlot2D(Neuron& neuron, int row, int col) const {
-        // Minimal: reuse scalar engine with FIRST anchor semantics on (row,col)
-        if (neuron.anchorRow < 0 || neuron.anchorCol < 0) {
-            neuron.anchorRow = row; neuron.anchorCol = col;
-        }
-        auto rc = slotId2D(neuron.anchorRow, neuron.anchorCol, row, col);
-        int limit = cfg.slotLimit > 0 ? cfg.slotLimit : 0x7fffffff;
-        int rb = std::min(rc.first,  limit - 1);
-        int cb = std::min(rc.second, limit - 1);
-        int key = rb * 100000 + cb; // simple packing
-        auto& slots = neuron.getSlots();
-        auto it = slots.find(key);
-        if (it == slots.end()) it = slots.emplace(key, Weight{}).first;
-        return it->second;
-    }
+    // Implemented in SlotEngine.cpp (requires the full Neuron definition)
+    Weight& selectOrCreateSlot2D(Neuron& neuron, int row, int col) const;
 };
 
 } // namespace grownet

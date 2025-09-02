@@ -301,7 +301,12 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
                 if (out2d) { chosen = &out2d->getFrame(); break; }
             }
             auto isAllZero = [](const std::vector<std::vector<double>>& img) {
-                for (const auto& row : img) for (double v : row) if (v != 0.0) return false; return true;
+                for (const auto& row : img) {
+                    for (double v : row) {
+                        if (v != 0.0) return false;
+                    }
+                }
+                return true;
             };
             if (!chosen) chosen = &frame;
             else if (isAllZero(*chosen) && !isAllZero(frame)) chosen = &frame;
@@ -318,9 +323,14 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
                 for (int c = 0; c < limit; ++c) {
                     double v = row[c];
                     if (v > 0.0) {
-                        ++active; total += v; sumR += r * v; sumC += c * v;
-                        if (r < rmin) rmin = r; if (r > rmax) rmax = r;
-                        if (c < cmin) cmin = c; if (c > cmax) cmax = c;
+                        ++active;
+                        total += v;
+                        sumR += r * v;
+                        sumC += c * v;
+                        if (r < rmin) rmin = r;
+                        if (r > rmax) rmax = r;
+                        if (c < cmin) cmin = c;
+                        if (c > cmax) cmax = c;
                     }
                 }
             }

@@ -12,7 +12,8 @@ int main_region_demo() {
         auto metrics = region.tick("in", (tickIndex % 2 == 0) ? 1.0 : 0.0);
         std::cout << "[t=" << tickIndex << "] delivered=" << metrics.deliveredEvents << "\n";
     }
-    auto pruneSummary = region.prune(10000, 0.05);
-    std::cout << "pruned synapses=" << pruneSummary.prunedSynapses << "\n";
+    // NOTE: Region::prune(...) is not available in this build; skipping in demo.
+    // auto pruneSummary = region.prune(10000, 0.05);
+    // std::cout << "pruned synapses=" << pruneSummary.prunedSynapses << "\n";
     return 0;
 }
