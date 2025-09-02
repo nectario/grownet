@@ -1,8 +1,9 @@
 #pragma once
-#include <utility>
-#include <cmath>
 #include "Weight.h"
 #include "SlotConfig.h"
+
+// Forward-declare std::pair to avoid pulling in <utility>
+namespace std { template <class T, class U> struct pair; }
 
 namespace grownet {
 
@@ -41,20 +42,11 @@ public:
     // Ensure slot exists and return it.
     Weight& selectOrCreateSlot(Neuron& neuron, double inputValue) const;
 
-    // ---- Spatial stubs (Phase B) ----
-    inline std::pair<int,int> slotId2D(int anchorRow, int anchorCol, int row, int col) const {
-        const double eps   = std::max(1e-12, cfg.epsilonScale);
-        const double denomR = std::max(std::abs(static_cast<double>(anchorRow)), eps);
-        const double denomC = std::max(std::abs(static_cast<double>(anchorCol)), eps);
-        const double dpr = std::abs(static_cast<double>(row - anchorRow)) * 100.0 / denomR;
-        const double dpc = std::abs(static_cast<double>(col - anchorCol)) * 100.0 / denomC;
-        const double bwR = std::max(0.1, cfg.binWidthPct);
-        const double bwC = std::max(0.1, cfg.binWidthPct);
-        return { static_cast<int>(std::floor(dpr / bwR)),
-                 static_cast<int>(std::floor(dpc / bwC)) };
-    }
+    // ---- Spatial helpers (Phase B) ----
+    // Safe to keep inline (no Neuron access)
+    inline std::pair<int,int> slotId2D(int anchorRow, int anchorCol, int row, int col) const;
 
-    // Implemented in SlotEngine.cpp (requires the full Neuron definition)
+    // Must touch Neuron → declare only here; define in SlotEngine.cpp
     Weight& selectOrCreateSlot2D(Neuron& neuron, int row, int col) const;
 };
 
