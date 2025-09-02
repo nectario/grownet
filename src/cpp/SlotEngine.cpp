@@ -1,6 +1,8 @@
+/* Out-of-line spatial slot selection to avoid Neuron header cycles. */
 #include "SlotEngine.h"
 #include "Neuron.h"
 #include <algorithm>
+#include <climits>
 
 namespace grownet {
 
@@ -32,6 +34,27 @@ Weight& SlotEngine::selectOrCreateSlot(Neuron& neuron, double inputValue) const 
     // record last used slot for convenience freezing
     neuron.setLastSlotId(iter->first);
     return iter->second;
+}
+
+Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const {
+    // FIRST-anchor semantics on (row,col)
+    if (neuron.anchorRow < 0 || neuron.anchorCol < 0) {
+        neuron.anchorRow = row;
+        neuron.anchorCol = col;
+    }
+
+    auto rc = slotId2D(neuron.anchorRow, neuron.anchorCol, row, col);
+    const int limit = (cfg.slotLimit > 0) ? cfg.slotLimit : INT_MAX;
+    const int rb = std::min(rc.first,  limit - 1);
+    const int cb = std::min(rc.second, limit - 1);
+    const int key = rb * 100000 + cb; // simple packing
+
+    auto& slots = neuron.getSlots();
+    auto it = slots.find(key);
+    if (it == slots.end()) {
+        it = slots.emplace(key, Weight{}).first;
+    }
+    return it->second;
 }
 
 } // namespace grownet
