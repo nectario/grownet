@@ -25,3 +25,9 @@ struct SlotConfig:
     var anchor_beta:        F64           = 0.05
     var outlier_growth_threshold_pct: F64 = 60.0
     var slot_limit:         Int           = 16
+    # Growth knobs (parity with Python/Java)
+    var growth_enabled:     Bool          = True
+    var neuron_growth_enabled: Bool       = True
+    var neuron_growth_cooldown_ticks: Int = 0
+    var fallback_growth_threshold: Int    = 3
+    var layer_neuron_limit_default: Int   = -1

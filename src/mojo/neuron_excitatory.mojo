@@ -6,8 +6,8 @@ struct ExcitatoryNeuron:
     fn init(mut self, neuron_id: String, slot_limit: Int = -1) -> None:
         self.core = Neuron(neuron_id, slot_limit)
 
-    fn on_input(mut self, value: Float64, modulation_factor: Float64) -> Bool:
-        return self.core.on_input(value, modulation_factor)
+    fn on_input(mut self, value: Float64) -> Bool:
+        return self.core.on_input(value)
 
     fn on_output(mut self, amplitude: Float64) -> None:
         # In a full engine this would enqueue propagation down tracts.

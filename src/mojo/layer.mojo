@@ -1,6 +1,7 @@
 from neuron_excitatory import ExcitatoryNeuron
 from neuron_inhibitory import InhibitoryNeuron
 from neuron_modulatory import ModulatoryNeuron
+from neuron import Neuron
 from lateral_bus import LateralBus
 
 struct Spike:
@@ -31,35 +32,37 @@ struct Layer:
             self.neurons_mod.append(ModulatoryNeuron("M" + String(neuron_index)))
             neuron_index += 1
 
-    fn forward(mut self, value: Float64) -> list[Spike]:
-        var spikes = []
-        # Modulation factor read once per neuron evaluate.
-        var mod_factor = self.bus.modulation_factor
+        # Share the same bus across all neuron cores (Python parity)
+        for e in self.neurons_exc: e.core.bus = self.bus
+        for i in self.neurons_inh: i.core.bus = self.bus
+        for m in self.neurons_mod: m.core.bus = self.bus
 
-        var idx = 0
-        for neuron in self.neurons_inh:
-            if neuron.on_input(value, mod_factor):
-                # emit inhibition
-                self.bus.set_inhibition_factor(0.7)
-                neuron.on_output(value)
-            idx += 1
+    fn get_neurons(self) -> list[Neuron]:
+        var alln = []
+        for n in self.neurons_inh: alln.append(n.core)
+        for n in self.neurons_mod: alln.append(n.core)
+        for n in self.neurons_exc: alln.append(n.core)
+        return alln
 
-        idx = 0
-        for neuron in self.neurons_mod:
-            if neuron.on_input(value, mod_factor):
-                self.bus.set_modulation_factor(1.5)
-                neuron.on_output(value)
-            idx += 1
+    fn forward(mut self, value: Float64) -> None:
+        # Inhibit/modulate classes can express pulses in on_output; execute in order
+        for n in self.neurons_inh:
+            if n.on_input(value): n.on_output(value)
+        for n in self.neurons_mod:
+            if n.on_input(value): n.on_output(value)
+        for n in self.neurons_exc:
+            if n.on_input(value): n.on_output(value)
 
-        # Excitatory last: they actually propagate.
-        idx = 0
-        for neuron in self.neurons_exc:
-            if neuron.on_input(value, mod_factor):
-                neuron.on_output(value)
-                spikes.append(Spike(idx, value))
-            idx += 1
+    fn propagate_from(mut self, source_index: Int, value: Float64) -> None:
+        # Default: treat like uniform drive from external source
+        self.forward(value)
 
-        return spikes
+    fn propagate_from_2d(mut self, source_index: Int, value: Float64, height: Int, width: Int) -> None:
+        # Compute (row,col) from flattened index and call spatial on_input if available
+        var row = source_index / width
+        var col = source_index % width
+        for n in self.get_neurons():
+            if n.on_input_2d(value, row, col): n.on_output(value)
 
     fn end_tick(mut self) -> None:
         self.bus.decay()
