@@ -28,6 +28,12 @@ class Neuron:
         self.focus_anchor_row = None  # type: int | None
         self.focus_anchor_col = None  # type: int | None
 
+        # growth bookkeeping
+        self.owner = None  # set by Layer when neuron is added to a layer
+        self.last_slot_used_fallback = False
+        self.fallback_streak = 0
+        self.last_growth_tick = -1
+
     # ---------- infrastructure ----------
     def set_bus(self, bus):
         self.bus = bus
@@ -73,7 +79,7 @@ class Neuron:
 
     # ---------- core behaviour ----------
     def on_input(self, value):
-        """Select/reinforce a slot, update threshold, and optionally fire."""
+        """Select/reinforce a slot, update threshold, and optionally fire. May request growth."""
 
         # Choose (or create) slot, reinforce with current modulation, update θ, decide to fire
         if self.slot_limit >= 0 and len(self.slots) >= self.slot_limit:
@@ -100,6 +106,8 @@ class Neuron:
 
         if fired:
             self.fire(value)
+        # Growth check (even in scalar path)
+        self._maybe_request_neuron_growth()
         return fired
 
     def fire(self, input_value):
@@ -124,8 +132,8 @@ class Neuron:
     # ---------- spatial variant ----------
     def on_input_2d(self, value: float, row: int, col: int) -> bool:
         """Spatial on_input: manage (row,col) anchor and 2D slot selection.
-
         If spatial is not enabled in the neuron's slot config, fall back to scalar on_input.
+        Also may request growth.
         """
         try:
             if not bool(getattr(self.slot_cfg, "spatial_enabled", False)):
@@ -133,8 +141,16 @@ class Neuron:
         except Exception:
             return self.on_input(value)
 
-        # choose/create spatial slot
-        slot = self.slot_engine.select_or_create_slot_2d(self, int(row), int(col))
+        # choose/create spatial slot; respect per-neuron slot_limit if set
+        if self.slot_limit >= 0 and len(self.slots) >= self.slot_limit:
+            # deterministic fallback key for 2D
+            key = (0, 0)
+            if key not in self.slots:
+                self.slots[key] = Weight()
+            slot = self.slots[key]
+            self.last_slot_used_fallback = True
+        else:
+            slot = self.slot_engine.select_or_create_slot_2d(self, int(row), int(col))
         self._last_slot = slot
 
         # reinforcement scaled by modulation
@@ -148,6 +164,8 @@ class Neuron:
         self.set_last_input_value(value)
         if fired:
             self.fire(value)
+        # growth escalation (runs whether fired or not)
+        self._maybe_request_neuron_growth()
         return fired
 
     # ---------- maintenance ----------
@@ -181,3 +199,38 @@ class Neuron:
             return True
         except Exception:
             return False
+
+    # ---------- growth helpers ----------
+    def _maybe_request_neuron_growth(self) -> None:
+        cfg = self.slot_cfg
+        try:
+            if not getattr(cfg, "growth_enabled", True) or not getattr(cfg, "neuron_growth_enabled", True):
+                self.fallback_streak = 0
+                return
+        except Exception:
+            return
+        # Only escalate when capacity clamp is active and fallback was used
+        at_capacity = (self.slot_limit >= 0 and len(self.slots) >= self.slot_limit)
+        if at_capacity and bool(getattr(self, "last_slot_used_fallback", False)):
+            self.fallback_streak += 1
+        else:
+            self.fallback_streak = 0
+        threshold = int(getattr(cfg, "fallback_growth_threshold", 3))
+        if self.fallback_streak >= max(1, threshold) and self.owner is not None:
+            # cooldown
+            now = 0
+            try:
+                if self.bus is not None and hasattr(self.bus, "get_current_step"):
+                    now = int(self.bus.get_current_step())
+                elif self.bus is not None and hasattr(self.bus, "get_step"):
+                    now = int(self.bus.get_step())
+            except Exception:
+                now = 0
+            cooldown = int(getattr(cfg, "neuron_growth_cooldown_ticks", 10))
+            if self.last_growth_tick is None or (now - int(self.last_growth_tick)) >= cooldown:
+                try:
+                    self.owner.try_grow_neuron(self)
+                    self.last_growth_tick = now
+                except Exception:
+                    pass
+            self.fallback_streak = 0

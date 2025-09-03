@@ -21,6 +21,10 @@ class InputLayer2D(Layer):
             for col_idx in range(self.width):
                 neuron = InputNeuron(f"IN[{row_idx},{col_idx}]", gain=gain, epsilon_fire=epsilon_fire)
                 neuron.set_bus(self.get_bus())
+                try:
+                    neuron.owner = self
+                except Exception:
+                    pass
                 self.get_neurons().append(neuron)
 
     def index(self, y, x):

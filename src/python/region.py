@@ -33,17 +33,28 @@ class Region:
         self.rng = random.Random(1234)
         # Optional flag to compute spatial metrics in tick_2d (also gated by env var)
         self.enable_spatial_metrics = False
+        # Growth + wiring bookkeeping
+        self._mesh_rules: List[Dict[str, Any]] = []   # [{'src':i,'dst':j,'prob':p,'feedback':bool}]
+        self._tracts: List[Any] = []                 # Tract instances
 
     # ---------------- construction ----------------
     def add_layer(self, excitatory_count: int, inhibitory_count: int, modulatory_count: int) -> int:
         from layer import Layer
         layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
+        try:
+            layer._set_region(self)
+        except Exception:
+            pass
         self.layers.append(layer)
         return len(self.layers) - 1
 
     def add_input_layer_2d(self, height: int, width: int, gain: float, epsilon_fire: float) -> int:
         from input_layer_2d import InputLayer2D
         layer = InputLayer2D(height, width, gain, epsilon_fire)
+        try:
+            layer._set_region(self)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self.layers.append(layer)
         return len(self.layers) - 1
 
@@ -51,6 +62,10 @@ class Region:
     def add_input_layer_nd(self, shape: list[int], gain: float, epsilon_fire: float) -> int:
         from input_layer_nd import InputLayerND
         layer = InputLayerND(shape, gain, epsilon_fire)
+        try:
+            layer._set_region(self)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self.layers.append(layer)
         return len(self.layers) - 1
 
@@ -58,6 +73,10 @@ class Region:
     def add_output_layer_2d(self, height: int, width: int, smoothing: float) -> int:
         from output_layer_2d import OutputLayer2D
         layer = OutputLayer2D(height, width, smoothing)
+        try:
+            layer._set_region(self)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self.layers.append(layer)
         return len(self.layers) - 1
 
@@ -83,6 +102,14 @@ class Region:
                     except TypeError:
                         src_neuron.connect(dst_neuron)
                     count += 1
+        # Record mesh rule for auto-wiring newly grown neurons later
+        try:
+            self._mesh_rules.append({
+                'src': int(source_index), 'dst': int(dest_index),
+                'prob': float(prob), 'feedback': bool(feedback),
+            })
+        except Exception:
+            pass
         return count
 
     def connect_layers_windowed(self,
@@ -166,8 +193,12 @@ class Region:
                         sink_map.setdefault(src_idx, set()).add(center_idx)
             # Create a tract that delivers directly to mapped output neurons
             from tract import Tract
-            Tract(src_layer, dst_layer, self.bus, feedback, None,
-                  allowed_source_indices=allowed, sink_map=sink_map)
+            t = Tract(src_layer, dst_layer, self.bus, feedback, None,
+                      allowed_source_indices=allowed, sink_map=sink_map)
+            try:
+                self._tracts.append(t)
+            except Exception:
+                pass
             wires = len(allowed)
         else:
             # For generic layers, allow all pixels that participate in any window;
@@ -181,11 +212,80 @@ class Region:
                     for cc2 in range(cc0, cc1):
                         allowed.add(rr * W + cc2)
             from tract import Tract
-            Tract(src_layer, dst_layer, self.bus, feedback, None,
-                  allowed_source_indices=allowed)
+            t = Tract(src_layer, dst_layer, self.bus, feedback, None,
+                      allowed_source_indices=allowed)
+            try:
+                self._tracts.append(t)
+            except Exception:
+                pass
             wires = len(allowed)
 
         return wires
+
+    # ---- growth plumbing: wire a just-grown neuron like its peers ----
+    def _autowire_new_neuron(self, layer_obj, new_idx: int) -> None:
+        """When a layer adds a neuron, connect it to upstream/downstream based on recorded rules and tracts."""
+        try:
+            layer_i = self.layers.index(layer_obj)
+        except ValueError:
+            return
+        # 1) Outbound mesh (this layer -> others)
+        for rule in list(self._mesh_rules):
+            try:
+                if rule.get('src') != layer_i:
+                    continue
+                dst_i = int(rule.get('dst'))
+                prob = float(rule.get('prob', 0.0)); fb = bool(rule.get('feedback', False))
+                dst = self.layers[dst_i]
+                s = layer_obj.get_neurons()[new_idx]
+                for t in dst.get_neurons():
+                    if self.rng.random() <= prob:
+                        try:
+                            s.connect(t, fb)
+                        except Exception:
+                            pass
+            except Exception:
+                continue
+        # 2) Inbound mesh (others -> this layer)
+        for rule in list(self._mesh_rules):
+            try:
+                if rule.get('dst') != layer_i:
+                    continue
+                src_i = int(rule.get('src'))
+                prob = float(rule.get('prob', 0.0)); fb = bool(rule.get('feedback', False))
+                src = self.layers[src_i]
+                t_neuron = layer_obj.get_neurons()[new_idx]
+                for s_neuron in src.get_neurons():
+                    if self.rng.random() <= prob:
+                        try:
+                            s_neuron.connect(t_neuron, fb)
+                        except Exception:
+                            pass
+            except Exception:
+                continue
+        # 3) Tracts where this layer is the source (attach source neuron)
+        for tract in list(self._tracts):
+            try:
+                if getattr(tract, 'src', None) is layer_obj and hasattr(tract, 'attach_source_neuron'):
+                    tract.attach_source_neuron(new_idx)
+            except Exception:
+                pass
+
+    # ---- optional: escalate to a new layer (safe no-op default) ----
+    def request_layer_growth(self, saturated_layer) -> int | None:
+        """Create a spillover layer and connect saturated_layer -> new_layer (simple default).
+        Disabled unless layer_growth_enabled=True on the requesting neuron's slot_cfg.
+        """
+        try:
+            idx = self.layers.index(saturated_layer)
+        except ValueError:
+            return None
+        # minimal spillover: add a small excitatory-only layer
+        new_exc = max(4, (getattr(saturated_layer, 'excitatory_count', 4) // 2) or 4)
+        new_idx = self.add_layer(excitatory_count=new_exc, inhibitory_count=0, modulatory_count=0)
+        # connect saturated -> new with a modest probability
+        self.connect_layers(idx, new_idx, probability=0.15, feedback=False)
+        return new_idx
 
     # ---------------- edge helpers ----------------
     def ensure_input_edge(self, port: str) -> int:

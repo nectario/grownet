@@ -12,6 +12,10 @@ class OutputLayer2D(Layer):
             for col_idx in range(self.width):
                 neuron = OutputNeuron(f"OUT[{row_idx},{col_idx}]", smoothing=smoothing)
                 neuron.set_bus(self.get_bus())
+                try:
+                    neuron.owner = self
+                except Exception:
+                    pass
                 self.get_neurons().append(neuron)
 
     def index(self, y, x):

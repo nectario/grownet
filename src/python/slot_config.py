@@ -26,6 +26,19 @@ class SlotConfig:
     col_bin_width_pct = 100.0             # bin width for col deltas (percent)
     # anchor_mode is reused; support "ORIGIN" for spatial (anchor at (0,0)).
 
+    # ---------------- Growth knobs ----------------
+    # Global toggle (checked per neuron via its slot_cfg)
+    growth_enabled = True
+    # Escalation: slots -> neurons -> (optional) layers
+    neuron_growth_enabled = True
+    layer_growth_enabled = False  # off by default; conservative
+    # If select/create hits the fallback bin this many consecutive times, request neuron growth
+    fallback_growth_threshold = 3
+    # Cooldown (ticks) to avoid thrash between growth events
+    neuron_growth_cooldown_ticks = 10
+    # Layer-level default max neurons (-1 = unlimited). A Layer may override.
+    layer_neuron_limit_default = -1
+
 def fixed(delta_percent=10.0):
     return SlotConfig(SlotPolicy.FIXED, fixed_delta_percent=delta_percent)
 

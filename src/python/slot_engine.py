@@ -4,7 +4,7 @@ from typing import Tuple
 
 
 class SlotEngine:
-    """Slot selection helpers (policy + temporal & spatial focus)."""
+    """Slot selection helpers (policy + temporal & spatial focus) with fallback markers."""
     def __init__(self, cfg):
         self.cfg = cfg
 
@@ -30,7 +30,9 @@ class SlotEngine:
             return 0
 
     def select_or_create_slot(self, neuron, input_value, tick_count=0):
-        """FIRST-anchor binning with capacity clamp; ensures slot exists."""
+        """FIRST-anchor binning with capacity clamp; ensures slot exists.
+        Also sets neuron.last_slot_used_fallback True/False for growth logic.
+        """
         cfg = self.cfg
         # FIRST-anchor: set anchor once
         if not getattr(neuron, "focus_set", False) and getattr(cfg, "anchor_mode", "FIRST") == "FIRST":
@@ -49,14 +51,21 @@ class SlotEngine:
         if limit > 0 and sid >= limit:
             sid = limit - 1
         slots = neuron.slots
+        used_fallback = False
         if sid not in slots:
             if limit > 0 and len(slots) >= limit:
                 # reuse last id within [0, limit-1]
                 sid = min(sid, limit - 1)
+                used_fallback = True
                 if sid not in slots:
                     slots[sid] = Weight()
             else:
                 slots[sid] = Weight()
+        # flag for growth
+        try:
+            neuron.last_slot_used_fallback = bool(used_fallback)
+        except Exception:
+            pass
         return slots[sid]
 
     # -------- spatial (2D) --------
@@ -86,7 +95,8 @@ class SlotEngine:
         """2D FIRST/ORIGIN anchor + capacity clamp; ensures spatial slot exists.
 
         Keys are (row_bin, col_bin) tuples. When capacity is saturated, reuse a
-        fallback id (limit-1, limit-1) to avoid unbounded growth.
+        fallback id (limit-1, limit-1) to avoid unbounded growth. Also sets
+        neuron.last_slot_used_fallback for growth logic.
         """
         cfg = self.cfg
 
@@ -110,12 +120,18 @@ class SlotEngine:
 
         key = (row_bin, col_bin)
         slots = neuron.slots
+        used_fallback = False
         if key not in slots:
             if limit > 0 and len(slots) >= limit:
                 # reuse a deterministic fallback within domain
                 key = (limit - 1, limit - 1)
+                used_fallback = True
                 if key not in slots:
                     slots[key] = Weight()
             else:
                 slots[key] = Weight()
+        try:
+            neuron.last_slot_used_fallback = bool(used_fallback)
+        except Exception:
+            pass
         return slots[key]

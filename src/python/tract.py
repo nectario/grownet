@@ -50,3 +50,17 @@ class Tract:
 
         # Fallback: let the destination layer handle generic propagate
         self.dst.propagate_from(source_index, value)
+
+    # ---- growth hook: attach a newly created source neuron ----
+    def attach_source_neuron(self, new_src_index: int) -> None:
+        if self._allowed is not None and new_src_index not in self._allowed:
+            return
+        neurons = self.src.get_neurons()
+        if not (0 <= new_src_index < len(neurons)):
+            return
+        def hook(neuron_obj, amplitude):
+            self.on_source_fired(new_src_index, amplitude)
+        try:
+            neurons[new_src_index].register_fire_hook(hook)
+        except Exception:
+            pass
