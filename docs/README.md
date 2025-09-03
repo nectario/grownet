@@ -38,3 +38,10 @@ Notes
   - `bboxRowMin/Max` and `bboxColMin/Max`.
 - The spatial demo also prints the number of unique source subscriptions created by windowed wiring.
 - To turn off spatial metrics, set `region.enable_spatial_metrics = False` in the demo.
+
+---
+
+## More Docs
+
+- Coding Style (MUST READ): `docs/CODING_STYLE_MUST_READ.md`
+- Changelog (latest session): `docs/changelog/SESSION_WORKLOG_2025-09-03.md`

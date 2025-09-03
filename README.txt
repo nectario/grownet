@@ -10,3 +10,7 @@ The PR will:
   - Add <algorithm> include to C++ SlotEngine.cpp (if missing)
 
 No changes to Java/Python in this PR.
+
+More documentation
+- Coding Style (MUST READ): docs/CODING_STYLE_MUST_READ.md
+- Latest changelog: docs/changelog/SESSION_WORKLOG_2025-09-03.md
