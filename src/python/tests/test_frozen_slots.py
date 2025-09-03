@@ -12,7 +12,7 @@ def last_slot_of(neuron):
     Robustly fetch the most recently used slot object.
     Falls back to any slot if the convenience pointer is absent.
     """
-    slot = getattr(neuron, "_last_slot", None)
+    slot = getattr(neuron, "last_slot", None)
     if slot is not None:
         return slot
     # Fallback (shouldn't be needed if PR for frozen slots is applied):

@@ -24,9 +24,11 @@ public class OutputLayer2D extends Layer {
         for (int row = 0; row < height; ++row) {
             for (int col = 0; col < width; ++col) {
 
-                neurons.add(new OutputNeuron("OUT[" + row + "," + col + "]",
+                OutputNeuron out = new OutputNeuron("OUT[" + row + "," + col + "]",
                         getBus(),
-                        SlotConfig.singleSlot()));
+                        SlotConfig.singleSlot());
+                out.owner = this;
+                neurons.add(out);
 
                 // If your OutputNeuron ctor instead takes (id, bus, smoothing),
                 // use this alternative:

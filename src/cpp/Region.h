@@ -119,12 +119,19 @@ private:
     std::vector<std::unique_ptr<Tract>> tracts;
     RegionBus bus;
     bool enableSpatialMetrics { false };
+    struct MeshRule { int src; int dst; double prob; bool feedback; };
+    std::vector<MeshRule> meshRules;
+    std::mt19937 rng { 1234 };
 
     std::unordered_map<std::string, std::vector<int>> inputPorts;
     std::unordered_map<std::string, std::vector<int>> outputPorts;
 
     std::unordered_map<std::string, int> inputEdges;
     std::unordered_map<std::string, int> outputEdges;
+public:
+    // Growth auto-wiring helpers
+    void autowireNewNeuron(Layer* layer, int newIdx);
+    int requestLayerGrowth(Layer* saturated);
 };
 
 } // namespace grownet

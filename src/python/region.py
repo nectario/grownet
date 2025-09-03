@@ -34,15 +34,15 @@ class Region:
         # Optional flag to compute spatial metrics in tick_2d (also gated by env var)
         self.enable_spatial_metrics = False
         # Growth + wiring bookkeeping
-        self._mesh_rules: List[Dict[str, Any]] = []   # [{'src':i,'dst':j,'prob':p,'feedback':bool}]
-        self._tracts: List[Any] = []                 # Tract instances
+        self.mesh_rules: List[Dict[str, Any]] = []   # [{'src':i,'dst':j,'prob':p,'feedback':bool}]
+        self.tracts: List[Any] = []                 # Tract instances
 
     # ---------------- construction ----------------
     def add_layer(self, excitatory_count: int, inhibitory_count: int, modulatory_count: int) -> int:
         from layer import Layer
         layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
         try:
-            layer._set_region(self)
+            layer.set_region(self)
         except Exception:
             pass
         self.layers.append(layer)
@@ -52,7 +52,7 @@ class Region:
         from input_layer_2d import InputLayer2D
         layer = InputLayer2D(height, width, gain, epsilon_fire)
         try:
-            layer._set_region(self)  # type: ignore[attr-defined]
+            layer.set_region(self)  # type: ignore[attr-defined]
         except Exception:
             pass
         self.layers.append(layer)
@@ -63,7 +63,7 @@ class Region:
         from input_layer_nd import InputLayerND
         layer = InputLayerND(shape, gain, epsilon_fire)
         try:
-            layer._set_region(self)  # type: ignore[attr-defined]
+            layer.set_region(self)  # type: ignore[attr-defined]
         except Exception:
             pass
         self.layers.append(layer)
@@ -74,7 +74,7 @@ class Region:
         from output_layer_2d import OutputLayer2D
         layer = OutputLayer2D(height, width, smoothing)
         try:
-            layer._set_region(self)  # type: ignore[attr-defined]
+            layer.set_region(self)  # type: ignore[attr-defined]
         except Exception:
             pass
         self.layers.append(layer)
@@ -104,7 +104,7 @@ class Region:
                     count += 1
         # Record mesh rule for auto-wiring newly grown neurons later
         try:
-            self._mesh_rules.append({
+            self.mesh_rules.append({
                 'src': int(source_index), 'dst': int(dest_index),
                 'prob': float(prob), 'feedback': bool(feedback),
             })
@@ -196,7 +196,7 @@ class Region:
             t = Tract(src_layer, dst_layer, self.bus, feedback, None,
                       allowed_source_indices=allowed, sink_map=sink_map)
             try:
-                self._tracts.append(t)
+                self.tracts.append(t)
             except Exception:
                 pass
             wires = len(allowed)
@@ -215,7 +215,7 @@ class Region:
             t = Tract(src_layer, dst_layer, self.bus, feedback, None,
                       allowed_source_indices=allowed)
             try:
-                self._tracts.append(t)
+                self.tracts.append(t)
             except Exception:
                 pass
             wires = len(allowed)
@@ -223,14 +223,14 @@ class Region:
         return wires
 
     # ---- growth plumbing: wire a just-grown neuron like its peers ----
-    def _autowire_new_neuron(self, layer_obj, new_idx: int) -> None:
+    def autowire_new_neuron(self, layer_obj, new_idx: int) -> None:
         """When a layer adds a neuron, connect it to upstream/downstream based on recorded rules and tracts."""
         try:
             layer_i = self.layers.index(layer_obj)
         except ValueError:
             return
         # 1) Outbound mesh (this layer -> others)
-        for rule in list(self._mesh_rules):
+        for rule in list(self.mesh_rules):
             try:
                 if rule.get('src') != layer_i:
                     continue
@@ -247,7 +247,7 @@ class Region:
             except Exception:
                 continue
         # 2) Inbound mesh (others -> this layer)
-        for rule in list(self._mesh_rules):
+        for rule in list(self.mesh_rules):
             try:
                 if rule.get('dst') != layer_i:
                     continue
@@ -264,7 +264,7 @@ class Region:
             except Exception:
                 continue
         # 3) Tracts where this layer is the source (attach source neuron)
-        for tract in list(self._tracts):
+        for tract in list(self.tracts):
             try:
                 if getattr(tract, 'src', None) is layer_obj and hasattr(tract, 'attach_source_neuron'):
                     tract.attach_source_neuron(new_idx)
@@ -422,7 +422,18 @@ class Region:
         if edge_idx is None:
             raise KeyError(f"No InputEdge for port '{port}'. Call bind_input(...) first.")
 
+        # Drive the edge layer once
         self.layers[edge_idx].forward(value)
+
+        # Also drive any bound target layers directly (scalar convenience path).
+        # This ensures downstream layers receive input even if the edge neuron doesn't fire.
+        try:
+            bound_targets = self.input_ports.get(port, [])
+            for li in bound_targets:
+                if li != edge_idx:
+                    self.layers[li].forward(value)
+        except Exception:
+            pass
 
         # Default accounting: one event per port
         metrics.inc_delivered_events(1)

@@ -43,3 +43,5 @@ in follow‑ups (e.g., duplicate inbound mesh rules to the new layer).
 - `layer_neuron_limit_default` (int, default -1 = unlimited)
 - Layers may override `neuron_limit` at construction.
 
+Parity notes
+- C++ and Java mirror Python semantics: strict slot capacity (never allocate at cap), fallback streak triggers neuron growth with cooldown using the bus step counter, and new neurons are auto‑wired using recorded mesh rules. Region pruning remains a no‑op stub in C++/Java until full pruning lands.

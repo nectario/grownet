@@ -1,7 +1,7 @@
 from region import Region
 
 
-def _mk_region_for_growth():
+def mk_region_for_growth():
     r = Region("growth")
     lin = r.add_input_layer_2d(4, 4, gain=1.0, epsilon_fire=0.01)
     lhid = r.add_layer(excitatory_count=4, inhibitory_count=0, modulatory_count=0)
@@ -21,7 +21,7 @@ def _mk_region_for_growth():
 
 
 def test_neuron_growth_on_fallback():
-    r, lin, lhid = _mk_region_for_growth()
+    r, lin, lhid = mk_region_for_growth()
     layer = r.get_layers()[lhid]
     base_count = len(layer.get_neurons())
     # drive a dot that keeps landing in novel bins so fallback triggers
@@ -37,7 +37,7 @@ def test_neuron_growth_on_fallback():
 
 def test_autowire_inbound_mesh_and_tracts_do_not_crash():
     # light smoke: add downstream layer via mesh so rules exist; ensure growth path wires without exceptions
-    r, lin, lhid = _mk_region_for_growth()
+    r, lin, lhid = mk_region_for_growth()
     lout = r.add_layer(excitatory_count=3, inhibitory_count=0, modulatory_count=0)
     r.connect_layers(lhid, lout, probability=0.5, feedback=False)
     # trigger growth
@@ -45,4 +45,3 @@ def test_autowire_inbound_mesh_and_tracts_do_not_crash():
     r.tick_2d("img", [[0, 0, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
     # If we reach here without error, auto-wiring paths executed safely.
     assert True
-

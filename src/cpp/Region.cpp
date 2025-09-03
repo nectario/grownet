@@ -19,16 +19,20 @@ Region::Region(std::string name) : name(std::move(name)) {}
 
 int Region::addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
     layers.push_back(std::make_shared<Layer>(excitatoryCount, inhibitoryCount, modulatoryCount));
+    // best-effort: set region backref
+    try { layers.back()->setRegionPtr(this); } catch (...) {}
     return static_cast<int>(layers.size() - 1);
 }
 
 int Region::addInputLayer2D(int height, int width, double gain, double epsilonFire) {
     layers.push_back(std::make_shared<InputLayer2D>(height, width, gain, epsilonFire));
+    try { layers.back()->setRegionPtr(this); } catch (...) {}
     return static_cast<int>(layers.size() - 1);
 }
 
 int Region::addOutputLayer2D(int height, int width, double smoothing) {
     layers.push_back(std::make_shared<OutputLayer2D>(height, width, smoothing));
+    try { layers.back()->setRegionPtr(this); } catch (...) {}
     return static_cast<int>(layers.size() - 1);
 }
 
@@ -48,6 +52,8 @@ Tract& Region::connectLayers(int sourceIndex, int destIndex, double probability,
     );
 
     tracts.push_back(std::move(tract));
+    // Record rule for growth auto-wiring
+    meshRules.push_back(MeshRule{sourceIndex, destIndex, probability, feedback});
     return *tracts.back();
 }
 
@@ -161,6 +167,50 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
     int wireCount = 0;
     for (char maskValue : allowedMask) if (maskValue) ++wireCount;
     return wireCount;
+}
+
+void Region::autowireNewNeuron(Layer* L, int newIdx) {
+    // find layer index
+    int li = -1;
+    for (int i = 0; i < static_cast<int>(layers.size()); ++i) {
+        if (layers[i].get() == L) { li = i; break; }
+    }
+    if (li < 0) return;
+
+    std::uniform_real_distribution<double> uni(0.0, 1.0);
+    // Outbound mesh
+    for (const auto& r : meshRules) {
+        if (r.src != li) continue;
+        auto& src = layers[li]->getNeurons();
+        auto& dst = layers[r.dst]->getNeurons();
+        if (newIdx < 0 || newIdx >= static_cast<int>(src.size())) continue;
+        auto s = src[newIdx].get();
+        for (auto& tn : dst) {
+            if (uni(rng) <= r.prob) s->connect(tn.get(), r.feedback);
+        }
+    }
+    // Inbound mesh
+    for (const auto& r : meshRules) {
+        if (r.dst != li) continue;
+        auto& src = layers[r.src]->getNeurons();
+        auto& dst = layers[li]->getNeurons();
+        if (newIdx < 0 || newIdx >= static_cast<int>(dst.size())) continue;
+        auto t = dst[newIdx].get();
+        for (auto& sn : src) {
+            if (uni(rng) <= r.prob) sn->connect(t, r.feedback);
+        }
+    }
+}
+
+int Region::requestLayerGrowth(Layer* saturated) {
+    int idx = -1;
+    for (int i = 0; i < static_cast<int>(layers.size()); ++i) {
+        if (layers[i].get() == saturated) { idx = i; break; }
+    }
+    if (idx < 0) return -1;
+    int newIdx = addLayer(4, 0, 0);
+    connectLayers(idx, newIdx, 0.15, false);
+    return newIdx;
 }
 
 

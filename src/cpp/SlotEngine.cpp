@@ -18,23 +18,31 @@ Weight& SlotEngine::selectOrCreateSlot(Neuron& neuron, double inputValue) const 
     const double denom = std::max(std::abs(anchor), std::max(1e-12, cfg.epsilonScale));
     const double deltaPct = std::abs(inputValue - anchor) / denom * 100.0;
     const double bin = std::max(0.1, cfg.binWidthPct);
-    int desiredId = static_cast<int>(std::floor(deltaPct / bin));
+    const int sidDesired = static_cast<int>(std::floor(deltaPct / bin));
 
-    // clamp to slotLimit domain
-    if (cfg.slotLimit > 0 && desiredId >= cfg.slotLimit) desiredId = cfg.slotLimit - 1;
-
+    const int limit = (neuron.getSlotLimit() >= 0 ? neuron.getSlotLimit() : cfg.slotLimit);
     auto& slots = neuron.getSlots();
-    auto iter = slots.find(desiredId);
+    const bool atCapacity = (limit > 0 && static_cast<int>(slots.size()) >= limit);
+    const bool outOfDomain = (limit > 0 && sidDesired >= limit);
+    const bool wantNew = (slots.find(sidDesired) == slots.end());
+    const bool useFallback = outOfDomain || (atCapacity && wantNew);
+
+    int sid = useFallback && limit > 0 ? (limit - 1) : sidDesired;
+    auto iter = slots.find(sid);
     if (iter == slots.end()) {
-        if (cfg.slotLimit > 0 && static_cast<int>(slots.size()) >= cfg.slotLimit) {
-            int reuseId = std::min(desiredId, cfg.slotLimit - 1);
-            iter = slots.emplace(reuseId, Weight{}).first;
+        if (atCapacity) {
+            if (slots.empty()) {
+                iter = slots.emplace(sid, Weight{}).first;
+            } else {
+                // reuse some existing slot deterministically (first key)
+                iter = slots.begin();
+            }
         } else {
-            iter = slots.emplace(desiredId, Weight{}).first;
+            iter = slots.emplace(sid, Weight{}).first;
         }
     }
-    // record last used slot for convenience freezing
     neuron.setLastSlotId(iter->first);
+    neuron.setLastSlotUsedFallback(useFallback);
     return iter->second;
 }
 
@@ -59,17 +67,36 @@ Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const
     }
 
     auto rowColPair = slotId2D(neuron.anchorRow, neuron.anchorCol, row, col);
-    const int limit = (cfg.slotLimit > 0) ? cfg.slotLimit : std::numeric_limits<int>::max();
-    const int boundedRow = std::min(rowColPair.first,  limit - 1);
-    const int boundedCol = std::min(rowColPair.second, limit - 1);
-    const int key = boundedRow * 100000 + boundedCol; // simple packing
-
+    int rBin = rowColPair.first;
+    int cBin = rowColPair.second;
+    const int limit = (neuron.getSlotLimit() >= 0 ? neuron.getSlotLimit() : cfg.slotLimit);
     auto& slots = neuron.getSlots();
-    auto slotIter = slots.find(key);
-    if (slotIter == slots.end()) {
-        slotIter = slots.emplace(key, Weight{}).first;
+    const bool atCapacity = (limit > 0 && static_cast<int>(slots.size()) >= limit);
+    const bool outOfDomain = (limit > 0 && (rBin >= limit || cBin >= limit));
+    const int desiredKey = rBin * 100000 + cBin;
+    const bool wantNew = (slots.find(desiredKey) == slots.end());
+    const bool useFallback = outOfDomain || (atCapacity && wantNew);
+
+    int key;
+    if (useFallback && limit > 0) {
+        key = (limit - 1) * 100000 + (limit - 1);
+    } else {
+        key = desiredKey;
     }
-    return slotIter->second;
+    auto it = slots.find(key);
+    if (it == slots.end()) {
+        if (atCapacity) {
+            if (slots.empty()) {
+                it = slots.emplace(key, Weight{}).first;
+            } else {
+                it = slots.begin();
+            }
+        } else {
+            it = slots.emplace(key, Weight{}).first;
+        }
+    }
+    neuron.setLastSlotUsedFallback(useFallback);
+    return it->second;
 }
 
 } // namespace grownet

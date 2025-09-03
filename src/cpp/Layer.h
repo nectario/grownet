@@ -27,18 +27,28 @@ class Layer {
     std::vector<std::shared_ptr<Neuron>> neurons;
     LateralBus bus;
     std::mt19937 rng { 1234 };
+    void* regionPtr { nullptr }; // backref for growth wiring
+    int neuronLimit { -1 };
+    int excitCount { 0 }, inhibCount { 0 }, modCount { 0 };
 public:
     Layer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
         SlotConfig cfg = SlotConfig::fixed(10.0);
         int slotLimit = -1;
+        excitCount = excitatoryCount; inhibCount = inhibitoryCount; modCount = modulatoryCount;
         for (int index = 0; index < excitatoryCount; ++index) {
-            neurons.push_back(std::make_shared<ExcitatoryNeuron>("E" + std::to_string(index), bus, cfg, slotLimit));
+            auto n = std::make_shared<ExcitatoryNeuron>("E" + std::to_string(index), bus, cfg, slotLimit);
+            n->setOwner(this);
+            neurons.push_back(n);
         }
         for (int index = 0; index < inhibitoryCount; ++index) {
-            neurons.push_back(std::make_shared<InhibitoryNeuron>("I" + std::to_string(index), bus, cfg, slotLimit));
+            auto n = std::make_shared<InhibitoryNeuron>("I" + std::to_string(index), bus, cfg, slotLimit);
+            n->setOwner(this);
+            neurons.push_back(n);
         }
         for (int index = 0; index < modulatoryCount; ++index) {
-            neurons.push_back(std::make_shared<ModulatoryNeuron>("M" + std::to_string(index), bus, cfg, slotLimit));
+            auto n = std::make_shared<ModulatoryNeuron>("M" + std::to_string(index), bus, cfg, slotLimit);
+            n->setOwner(this);
+            neurons.push_back(n);
         }
     }
 
@@ -47,6 +57,9 @@ public:
     std::vector<std::shared_ptr<Neuron>>& getNeurons() { return neurons; }
     const std::vector<std::shared_ptr<Neuron>>& getNeurons() const { return neurons; }
     LateralBus& getBus() { return bus; }
+    void setRegionPtr(void* r) { regionPtr = r; }
+    void setNeuronLimit(int limit) { neuronLimit = limit; }
+    int  getNeuronLimit() const { return neuronLimit; }
 
     /** Random layer-local fanout (not used by Region demo but kept). */
     void wireRandomFeedforward(double probability) {
@@ -87,6 +100,26 @@ public:
 
     /** End-of-tick housekeeping: decay inhibition/modulation back toward neutral. */
     virtual void endTick() { bus.decay(); }
+
+    /** Add a neuron cloned from seed's type and config; returns new index or -1. */
+    int tryGrowNeuron(const Neuron& seed) {
+        if (neuronLimit >= 0 && static_cast<int>(neurons.size()) >= neuronLimit) {
+            // Region may escalate to layer growth; best-effort no-op here
+            return -1;
+        }
+        // Instantiate same kind when possible
+        std::shared_ptr<Neuron> nu;
+        if (dynamic_cast<const ModulatoryNeuron*>(&seed)) {
+            nu = std::make_shared<ModulatoryNeuron>("M" + std::to_string(neurons.size()), bus, SlotConfig::fixed(10.0), seed.getSlotLimit());
+        } else if (dynamic_cast<const InhibitoryNeuron*>(&seed)) {
+            nu = std::make_shared<InhibitoryNeuron>("I" + std::to_string(neurons.size()), bus, SlotConfig::fixed(10.0), seed.getSlotLimit());
+        } else {
+            nu = std::make_shared<ExcitatoryNeuron>("E" + std::to_string(neurons.size()), bus, SlotConfig::fixed(10.0), seed.getSlotLimit());
+        }
+        nu->setOwner(this);
+        neurons.push_back(nu);
+        return static_cast<int>(neurons.size()) - 1;
+    }
 };
 
 } // namespace grownet

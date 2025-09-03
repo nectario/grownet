@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <unordered_map>
+#include <map>
 #include <vector>
 #include <functional>
 #include <memory>
@@ -96,6 +97,22 @@ public:
         slotIter->second.unfreeze();
         return true;
     }
+
+    // --- Growth + parity helpers ---
+    bool getLastSlotUsedFallback() const { return lastSlotUsedFallback; }
+    void setLastSlotUsedFallback(bool v) { lastSlotUsedFallback = v; }
+    int  getSlotLimit() const { return slotLimit; }
+
+    // Owner layer backref (set by Layer)
+    void setOwner(void* layerPtr) { owner = layerPtr; }
+    void* getOwner() const { return owner; }
+
+protected:
+    // growth fields (parity; not fully used yet)
+    bool lastSlotUsedFallback { false };
+    int  fallbackStreak { 0 };
+    long long lastGrowthTick { -1 };
+    void* owner { nullptr };
 };
 
 } // namespace grownet

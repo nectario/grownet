@@ -28,6 +28,12 @@ class InputNeuron(Neuron):
         self.set_fired_last(fired)
         self.set_last_input_value(effective)
         if fired:
+            # Notify downstream only for non-zero inputs to avoid spurious events
+            if effective != 0.0:
+                try:
+                    self.fire(effective)
+                except Exception:
+                    pass
             self.on_output(effective)
         return fired
 

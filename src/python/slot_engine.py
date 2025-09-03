@@ -30,8 +30,9 @@ class SlotEngine:
             return 0
 
     def select_or_create_slot(self, neuron, input_value, tick_count=0):
-        """FIRST-anchor binning with capacity clamp; ensures slot exists.
-        Also sets neuron.last_slot_used_fallback True/False for growth logic.
+        """FIRST-anchor binning with capacity clamp.
+        Marks `neuron.last_slot_used_fallback` whenever a new bin is desired but capacity forces reuse.
+        Never allocates a brand-new slot if capacity is already reached.
         """
         cfg = self.cfg
         # FIRST-anchor: set anchor once
@@ -44,26 +45,38 @@ class SlotEngine:
         denom = max(abs(anchor), eps)
         delta_pct = abs(float(input_value) - anchor) / denom * 100.0
         bin_w = max(0.1, float(getattr(cfg, "bin_width_pct", 10.0)))
-        sid = int(delta_pct // bin_w)
+        sid_desired = int(delta_pct // bin_w)
 
-        # clamp to slot_limit, ensure existence
-        limit = int(getattr(cfg, "slot_limit", 16))
-        if limit > 0 and sid >= limit:
-            sid = limit - 1
+        # Effective limit: per-neuron override wins over cfg
+        neuron_limit = int(getattr(neuron, "slot_limit", -1))
+        limit = neuron_limit if neuron_limit >= 0 else int(getattr(cfg, "slot_limit", 16))
         slots = neuron.slots
-        used_fallback = False
+        at_capacity = (limit > 0 and len(slots) >= limit)
+
+        want_new = (sid_desired not in slots)
+        out_of_domain = (limit > 0 and sid_desired >= limit)
+        use_fallback = out_of_domain or (at_capacity and want_new)
+
+        # Choose actual sid
+        if use_fallback and limit > 0:
+            sid = (limit - 1)
+            if sid not in slots:
+                # Reuse any existing slot (no allocation at capacity). If none exist, create the first.
+                if slots:
+                    sid = next(iter(slots.keys()))
+        else:
+            sid = sid_desired
+
+        # Ensure existence (respect capacity)
         if sid not in slots:
-            if limit > 0 and len(slots) >= limit:
-                # reuse last id within [0, limit-1]
-                sid = min(sid, limit - 1)
-                used_fallback = True
-                if sid not in slots:
+            if at_capacity:
+                if not slots:
                     slots[sid] = Weight()
             else:
                 slots[sid] = Weight()
-        # flag for growth
+
         try:
-            neuron.last_slot_used_fallback = bool(used_fallback)
+            neuron.last_slot_used_fallback = bool(use_fallback)
         except Exception:
             pass
         return slots[sid]
@@ -95,8 +108,8 @@ class SlotEngine:
         """2D FIRST/ORIGIN anchor + capacity clamp; ensures spatial slot exists.
 
         Keys are (row_bin, col_bin) tuples. When capacity is saturated, reuse a
-        fallback id (limit-1, limit-1) to avoid unbounded growth. Also sets
-        neuron.last_slot_used_fallback for growth logic.
+        fallback id (limit-1, limit-1) if present; otherwise reuse any existing slot.
+        Never creates a new slot at capacity. Also sets neuron.last_slot_used_fallback.
         """
         cfg = self.cfg
 
@@ -118,20 +131,31 @@ class SlotEngine:
             row_bin = min(row_bin, limit - 1)
             col_bin = min(col_bin, limit - 1)
 
-        key = (row_bin, col_bin)
+        key_desired = (row_bin, col_bin)
         slots = neuron.slots
-        used_fallback = False
+        # Effective limit: per-neuron override wins over cfg
+        neuron_limit = int(getattr(neuron, "slot_limit", -1))
+        limit = neuron_limit if neuron_limit >= 0 else int(getattr(cfg, "slot_limit", 16))
+        at_capacity = (limit > 0 and len(slots) >= limit)
+        want_new = (key_desired not in slots)
+        use_fallback = (at_capacity and want_new)
+
+        if use_fallback and limit > 0:
+            key = (limit - 1, limit - 1)
+            if key not in slots:
+                if slots:
+                    key = next(iter(slots.keys()))
+        else:
+            key = key_desired
+
         if key not in slots:
-            if limit > 0 and len(slots) >= limit:
-                # reuse a deterministic fallback within domain
-                key = (limit - 1, limit - 1)
-                used_fallback = True
-                if key not in slots:
+            if at_capacity:
+                if not slots:
                     slots[key] = Weight()
             else:
                 slots[key] = Weight()
         try:
-            neuron.last_slot_used_fallback = bool(used_fallback)
+            neuron.last_slot_used_fallback = bool(use_fallback)
         except Exception:
             pass
         return slots[key]

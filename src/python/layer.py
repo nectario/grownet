@@ -33,7 +33,7 @@ class Layer:
             neuron.owner = self
             self.neurons.append(neuron)
         # Region backref for growth plumbing
-        self._region = None
+        self.region = None
         # Per-layer neuron cap (overrides SlotConfig default if provided)
         default_cap = getattr(SlotConfig, "layer_neuron_limit_default", -1)
         self.neuron_limit = default_cap if neuron_limit is None else int(neuron_limit)
@@ -113,9 +113,9 @@ class Layer:
         if self.neuron_limit is not None and int(self.neuron_limit) >= 0:
             if len(self.neurons) >= int(self.neuron_limit):
                 # Escalate to layer growth if enabled on requesting neuron
-                if self._region and getattr(getattr(seed_neuron, "slot_cfg", object()), "layer_growth_enabled", False):
+                if self.region and getattr(getattr(seed_neuron, "slot_cfg", object()), "layer_growth_enabled", False):
                     try:
-                        self._region.request_layer_growth(self)
+                        self.region.request_layer_growth(self)
                     except Exception:
                         pass
                 return None
@@ -138,7 +138,9 @@ class Layer:
             new_n.bus = self.bus
         try:
             new_n.slot_cfg = seed_neuron.slot_cfg
-            new_n.slot_engine = seed_neuron.slot_engine
+            # fresh engine with same cfg (avoid shared state)
+            from slot_engine import SlotEngine
+            new_n.slot_engine = SlotEngine(new_n.slot_cfg)
             new_n.slot_limit = seed_neuron.slot_limit
         except Exception:
             pass
@@ -147,12 +149,12 @@ class Layer:
 
         # Autowire using Region rules/tracts
         try:
-            if self._region is not None:
-                self._region._autowire_new_neuron(self, len(self.neurons) - 1)
+            if self.region is not None:
+                self.region.autowire_new_neuron(self, len(self.neurons) - 1)
         except Exception:
             pass
         return len(self.neurons) - 1
 
     # Region injects itself so the layer can call back on growth
-    def _set_region(self, region):
-        self._region = region
+    def set_region(self, region):
+        self.region = region

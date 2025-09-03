@@ -84,8 +84,8 @@ def test_sink_map_dedup_for_output_layer():
         def on_output(self, v): pass
 
     class DummyDst:
-        def __init__(self, n=10): self._neurons = [DummyNeuron() for _ in range(n)]
-        def get_neurons(self): return self._neurons
+        def __init__(self, n=10): self.neurons = [DummyNeuron() for _ in range(n)]
+        def get_neurons(self): return self.neurons
 
     class DummySrc:
         def get_neurons(self): return []

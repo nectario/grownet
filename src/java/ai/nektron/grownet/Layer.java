@@ -10,6 +10,8 @@ public class Layer {
     private final List<Neuron> neurons = new ArrayList<>();
     private final LateralBus bus = new LateralBus();
     private final Random rng = new Random(1234);
+    private Region region = null;      // backref for growth auto-wiring
+    private int neuronLimit = -1;
 
     public Layer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
         // Default slot policy for this demo layer.
@@ -18,14 +20,17 @@ public class Layer {
 
         for (int i = 0; i < excitatoryCount; ++i) {
             Neuron neuron = new ExcitatoryNeuron("E" + i, bus, cfg, slotLimit);
+            neuron.owner = this;
             neurons.add(neuron);
         }
         for (int i = 0; i < inhibitoryCount; ++i) {
             Neuron neuron = new InhibitoryNeuron("I" + i, bus, cfg, slotLimit);
+            neuron.owner = this;
             neurons.add(neuron);
         }
         for (int i = 0; i < modulatoryCount; ++i) {
             Neuron neuron = new ModulatoryNeuron("M" + i, bus, cfg, slotLimit);
+            neuron.owner = this;
             neurons.add(neuron);
         }
     }
@@ -34,6 +39,8 @@ public class Layer {
 
     public List<Neuron> getNeurons() { return neurons; }
     public LateralBus getBus() { return bus; }
+    public void setRegion(Region r) { this.region = r; }
+    public void setNeuronLimit(int limit) { this.neuronLimit = limit; }
 
     // ------------------------------------------ intra‑layer wiring ------------------------------------------
 
@@ -88,5 +95,22 @@ public class Layer {
     /** End‑of‑tick housekeeping: decay inhibition/modulation back toward neutral. */
     public void endTick() {
         bus.decay();
+    }
+
+    // ---- growth helper: add neuron like seed and autowire via Region
+    public int tryGrowNeuron(Neuron seed) {
+        if (neuronLimit >= 0 && neurons.size() >= neuronLimit) {
+            if (region != null) region.requestLayerGrowth(this);
+            return -1;
+        }
+        Neuron nu = (seed instanceof ModulatoryNeuron)
+                ? new ModulatoryNeuron("M" + neurons.size(), bus, SlotConfig.fixed(10.0), seed.slotLimit)
+                : (seed instanceof InhibitoryNeuron)
+                ? new InhibitoryNeuron("I" + neurons.size(), bus, SlotConfig.fixed(10.0), seed.slotLimit)
+                : new ExcitatoryNeuron("E" + neurons.size(), bus, SlotConfig.fixed(10.0), seed.slotLimit);
+        nu.owner = this;
+        neurons.add(nu);
+        if (region != null) region.autowireNewNeuron(this, neurons.size() - 1);
+        return neurons.size() - 1;
     }
 }

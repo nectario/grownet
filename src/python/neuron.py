@@ -22,7 +22,7 @@ class Neuron:
         self.fired_last = False
         self.fire_hooks = []  # callbacks: fn(neuron, value)
         # Remember last selected slot for convenience freeze controls
-        self._last_slot = None
+        self.last_slot = None
 
         # spatial focus anchors (row/col) — set lazily when spatial is enabled
         self.focus_anchor_row = None  # type: int | None
@@ -82,6 +82,16 @@ class Neuron:
         """Select/reinforce a slot, update threshold, and optionally fire. May request growth."""
 
         # Choose (or create) slot, reinforce with current modulation, update θ, decide to fire
+        # Optional one-shot preference: reuse the last slot immediately after unfreeze
+        prefer_slot = getattr(self, "prefer_specific_slot_once", None)
+        if prefer_slot is not None:
+            slot = prefer_slot
+            try:
+                delattr(self, "prefer_specific_slot_once")
+            except Exception:
+                self.prefer_specific_slot_once = None
+        else:
+            slot = None
         if self.slot_limit >= 0 and len(self.slots) >= self.slot_limit:
 
             # if saturated, reuse slot 0
@@ -89,8 +99,9 @@ class Neuron:
                 self.slots[0] = Weight()
             slot = self.slots[0]
         else:
-            slot = self.slot_engine.select_or_create_slot(self, value)
-        self._last_slot = slot
+            if slot is None:
+                slot = self.slot_engine.select_or_create_slot(self, value)
+        self.last_slot = slot
 
         # reinforcement scaled by modulation
         mod = 1.0
@@ -107,7 +118,7 @@ class Neuron:
         if fired:
             self.fire(value)
         # Growth check (even in scalar path)
-        self._maybe_request_neuron_growth()
+        self.maybe_request_neuron_growth()
         return fired
 
     def fire(self, input_value):
@@ -141,17 +152,18 @@ class Neuron:
         except Exception:
             return self.on_input(value)
 
-        # choose/create spatial slot; respect per-neuron slot_limit if set
-        if self.slot_limit >= 0 and len(self.slots) >= self.slot_limit:
-            # deterministic fallback key for 2D
-            key = (0, 0)
-            if key not in self.slots:
-                self.slots[key] = Weight()
-            slot = self.slots[key]
-            self.last_slot_used_fallback = True
+        # Optional one-shot preference: reuse the last slot immediately after unfreeze
+        prefer_slot = getattr(self, "prefer_specific_slot_once", None)
+        if prefer_slot is not None:
+            slot = prefer_slot
+            try:
+                delattr(self, "prefer_specific_slot_once")
+            except Exception:
+                self.prefer_specific_slot_once = None
         else:
+            # choose/create spatial slot via engine (engine enforces capacity rules)
             slot = self.slot_engine.select_or_create_slot_2d(self, int(row), int(col))
-        self._last_slot = slot
+        self.last_slot = slot
 
         # reinforcement scaled by modulation
         mod = 1.0
@@ -165,7 +177,7 @@ class Neuron:
         if fired:
             self.fire(value)
         # growth escalation (runs whether fired or not)
-        self._maybe_request_neuron_growth()
+        self.maybe_request_neuron_growth()
         return fired
 
     # ---------- maintenance ----------
@@ -181,27 +193,40 @@ class Neuron:
 
     # ---------- frozen-slot convenience ----------
     def freeze_last_slot(self) -> bool:
-        s = getattr(self, "_last_slot", None)
+        s = getattr(self, "last_slot", None)
         if s is None:
             return False
         try:
             s.freeze()
+            # Remember which slot we froze to assist unfreeze preference
+            try:
+                self.last_frozen_slot = s
+            except Exception:
+                pass
             return True
         except Exception:
             return False
 
     def unfreeze_last_slot(self) -> bool:
-        s = getattr(self, "_last_slot", None)
+        # Prefer unfreezing the last frozen slot if tracked; fallback to last selected
+        s = getattr(self, "last_frozen_slot", None)
+        if s is None:
+            s = getattr(self, "last_slot", None)
         if s is None:
             return False
         try:
             s.unfreeze()
+            # Hint selector to reuse this slot on the next tick once.
+            try:
+                self.prefer_specific_slot_once = s
+            except Exception:
+                pass
             return True
         except Exception:
             return False
 
     # ---------- growth helpers ----------
-    def _maybe_request_neuron_growth(self) -> None:
+    def maybe_request_neuron_growth(self) -> None:
         cfg = self.slot_cfg
         try:
             if not getattr(cfg, "growth_enabled", True) or not getattr(cfg, "neuron_growth_enabled", True):

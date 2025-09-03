@@ -35,7 +35,7 @@ class SlotConfig:
     # If select/create hits the fallback bin this many consecutive times, request neuron growth
     fallback_growth_threshold = 3
     # Cooldown (ticks) to avoid thrash between growth events
-    neuron_growth_cooldown_ticks = 10
+    neuron_growth_cooldown_ticks = 0
     # Layer-level default max neurons (-1 = unlimited). A Layer may override.
     layer_neuron_limit_default = -1
 

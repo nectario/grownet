@@ -29,6 +29,12 @@ public final class Region {
     private final Map<String, Integer> outputEdges = new HashMap<>();
     private final RegionBus bus = new RegionBus();   // reserved for future tract batching
     private final Random rng = new Random(1234);
+    private final List<MeshRule> meshRules = new ArrayList<>();
+
+    private static final class MeshRule {
+        final int src, dst; final double prob; final boolean feedback;
+        MeshRule(int s, int d, double p, boolean f) { src=s; dst=d; prob=p; feedback=f; }
+    }
 
     // [GROWNET:ANCHOR::AFTER_METRICS]
     private GrowthPolicy growthPolicy = null;   // optional, controls best‑effort growth
@@ -39,6 +45,7 @@ public final class Region {
     /** Create a mixed layer. Returns the index of the new layer. */
     public int addLayer(int excitatoryCount, int inhibitoryCount, int modulatoryCount) {
         Layer layer = new Layer(excitatoryCount, inhibitoryCount, modulatoryCount);
+        try { layer.setRegion(this); } catch (Throwable ignored) {}
         layers.add(layer);
         return layers.size() - 1;
     }
@@ -117,6 +124,7 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 }
             }
         }
+        meshRules.add(new MeshRule(sourceIndex, destIndex, probability, feedback));
         return edges;
     }
 
@@ -332,6 +340,27 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
 
     public RegionMetrics tickImage(String port, double[][] frame) {
         return tick2D(port, frame);
+    }
+
+    // ---- growth plumbing ----
+    void autowireNewNeuron(Layer L, int newIdx) {
+        int li = layers.indexOf(L); if (li < 0) return;
+        // Outbound
+        for (MeshRule r : meshRules) if (r.src == li) {
+            Neuron s = layers.get(li).getNeurons().get(newIdx);
+            for (Neuron t : layers.get(r.dst).getNeurons()) if (rng.nextDouble() <= r.prob) s.connect(t, r.feedback);
+        }
+        // Inbound
+        for (MeshRule r : meshRules) if (r.dst == li) {
+            Neuron t = layers.get(li).getNeurons().get(newIdx);
+            for (Neuron s : layers.get(r.src).getNeurons()) if (rng.nextDouble() <= r.prob) s.connect(t, r.feedback);
+        }
+    }
+    public int requestLayerGrowth(Layer saturated) {
+        int li = layers.indexOf(saturated); if (li < 0) return -1;
+        int newIdx = addLayer(4, 0, 0);
+        connectLayers(li, newIdx, 0.15, false);
+        return newIdx;
     }
 
 

@@ -11,8 +11,8 @@ class Tract:
         self.dst = dst_layer
         self.region_bus = region_bus
         self.feedback = bool(feedback)
-        self._sink_map = sink_map or {}
-        self._allowed = allowed_source_indices  # if None: allow all
+        self.sink_map = sink_map or {}
+        self.allowed = allowed_source_indices  # if None: allow all
 
         # capture source shape if 2D
         self.src_height = getattr(self.src, "height", None)
@@ -20,7 +20,7 @@ class Tract:
 
         # subscribe to source neuron fires
         for src_index, neuron in enumerate(self.src.get_neurons()):
-            if self._allowed is not None and src_index not in self._allowed:
+            if self.allowed is not None and src_index not in self.allowed:
                 continue
             def make_hook(i):
                 return lambda who, value: self.on_source_fired(i, value)
@@ -28,7 +28,7 @@ class Tract:
 
     def on_source_fired(self, source_index, value):
         # If we have an explicit sink map (e.g., windowed wiring to OutputLayer2D), deliver directly
-        targets = self._sink_map.get(source_index)
+        targets = self.sink_map.get(source_index)
         if targets:
             try:
                 neurons = self.dst.get_neurons()
@@ -53,7 +53,7 @@ class Tract:
 
     # ---- growth hook: attach a newly created source neuron ----
     def attach_source_neuron(self, new_src_index: int) -> None:
-        if self._allowed is not None and new_src_index not in self._allowed:
+        if self.allowed is not None and new_src_index not in self.allowed:
             return
         neurons = self.src.get_neurons()
         if not (0 <= new_src_index < len(neurons)):

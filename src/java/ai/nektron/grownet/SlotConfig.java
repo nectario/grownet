@@ -22,6 +22,12 @@ public final class SlotConfig {
     private double outlierGrowthThresholdPct = 60.0;    // signals potential neuron growth
     private int    slotLimit = 16;                      // cap slots per neuron (soft)
 
+    // ---------------- Growth knobs (parity with Python; conservative defaults) ----------------
+    private boolean growthEnabled = true;
+    private boolean neuronGrowthEnabled = true;
+    private int     neuronGrowthCooldownTicks = 0;
+    private int     fallbackGrowthThreshold = 3;
+
     public SlotConfig() {}
     public static SlotConfig fixed(double widthPercent) {
         SlotConfig c = new SlotConfig();
@@ -77,6 +83,15 @@ public final class SlotConfig {
 
     public int getSlotLimit() { return slotLimit; }
     public SlotConfig setSlotLimit(int limit) { this.slotLimit = (limit < 0 ? -1 : limit); return this; }
+
+    public boolean isGrowthEnabled() { return growthEnabled; }
+    public SlotConfig setGrowthEnabled(boolean v) { this.growthEnabled = v; return this; }
+    public boolean isNeuronGrowthEnabled() { return neuronGrowthEnabled; }
+    public SlotConfig setNeuronGrowthEnabled(boolean v) { this.neuronGrowthEnabled = v; return this; }
+    public int getNeuronGrowthCooldownTicks() { return Math.max(0, neuronGrowthCooldownTicks); }
+    public SlotConfig setNeuronGrowthCooldownTicks(int t) { this.neuronGrowthCooldownTicks = Math.max(0, t); return this; }
+    public int getFallbackGrowthThreshold() { return Math.max(1, fallbackGrowthThreshold); }
+    public SlotConfig setFallbackGrowthThreshold(int t) { this.fallbackGrowthThreshold = Math.max(1, t); return this; }
 
     private static double clampPct(double value, double lowerBound, double upperBound) {
         if (Double.isNaN(value) || Double.isInfinite(value)) return lowerBound;
