@@ -212,6 +212,28 @@ fn main():
 
 **Ensure** your `Layer` calls `neuron.onOutput(value)` when `fired`. In `Region.tick_image`, call `end_tick()` on `OutputLayer2D` before bus decay.
 
+### Mojo Demos (CLI)
+
+- Image I/O demo (prints delivered events and spatial stats):
+
+  ```bash
+  mojo run src/mojo/image_io_demo.mojo
+  ```
+
+- Spatial focus demo (windowed wiring + spatial slotting in hidden layer):
+
+  ```bash
+  mojo run src/mojo/spatial_focus_demo.mojo
+  ```
+
+Notes
+- Both demos set `region.enable_spatial_metrics = True` and print:
+  - `activePixels` (non‑zero pixels)
+  - `centroidRow/centroidCol` (weighted by pixel values)
+  - `bboxRowMin/Max` and `bboxColMin/Max`
+- The spatial demo also prints the number of unique source subscriptions created by windowed wiring.
+- To disable metrics, set `region.enable_spatial_metrics = False` in the demo.
+
 ---
 
 ## 6) API cheat sheet

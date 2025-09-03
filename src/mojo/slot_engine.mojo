@@ -65,25 +65,25 @@ struct SlotEngine:
         var want_new = not neuron.slots.contains(sid_desired)
         var use_fallback = out_of_domain or (at_capacity and want_new)
 
-        var sid = (limit - 1) if (use_fallback and limit > 0) else sid_desired
-        if use_fallback and limit > 0 and not neuron.slots.contains(sid) and Int(neuron.slots.size()) > 0:
+        var selected_slot_id = (limit - 1) if (use_fallback and limit > 0) else sid_desired
+        if use_fallback and limit > 0 and not neuron.slots.contains(selected_slot_id) and Int(neuron.slots.size()) > 0:
             # Reuse any existing slot id deterministically by scanning
-            var i = 0
-            while i < limit:
-                if neuron.slots.contains(i):
-                    sid = i
+            var candidate_index = 0
+            while candidate_index < limit:
+                if neuron.slots.contains(candidate_index):
+                    selected_slot_id = candidate_index
                     break
-                i = i + 1
-        if not neuron.slots.contains(sid):
+                candidate_index = candidate_index + 1
+        if not neuron.slots.contains(selected_slot_id):
             if at_capacity:
                 if neuron.slots.size() == 0:
-                    neuron.slots[sid] = Weight()
+                    neuron.slots[selected_slot_id] = Weight()
             else:
-                neuron.slots[sid] = Weight()
+                neuron.slots[selected_slot_id] = Weight()
 
         neuron.last_slot_used_fallback = use_fallback
-        neuron.last_slot_id = sid
-        return sid
+        neuron.last_slot_id = selected_slot_id
+        return selected_slot_id
 
     # Python-parity: spatial 2D variant with strict capacity + fallback.
     fn select_or_create_slot_2d(self, neuron: inout Neuron, row: Int, col: Int) -> Int:
@@ -104,23 +104,23 @@ struct SlotEngine:
         var desired_key = rbin * 100000 + cbin
         var want_new = not neuron.slots.contains(desired_key)
         var use_fallback = out_of_domain or (at_capacity and want_new)
-        var key = ((limit - 1) * 100000 + (limit - 1)) if (use_fallback and limit > 0) else desired_key
+        var selected_key = ((limit - 1) * 100000 + (limit - 1)) if (use_fallback and limit > 0) else desired_key
 
-        if use_fallback and limit > 0 and not neuron.slots.contains(key) and Int(neuron.slots.size()) > 0:
+        if use_fallback and limit > 0 and not neuron.slots.contains(selected_key) and Int(neuron.slots.size()) > 0:
             # Reuse any existing spatial key by scanning a small grid of candidates
-            var i = 0
-            while i < limit:
-                var candidate = i * 100000 + i
+            var candidate_index2 = 0
+            while candidate_index2 < limit:
+                var candidate = candidate_index2 * 100000 + candidate_index2
                 if neuron.slots.contains(candidate):
-                    key = candidate
+                    selected_key = candidate
                     break
-                i = i + 1
-        if not neuron.slots.contains(key):
+                candidate_index2 = candidate_index2 + 1
+        if not neuron.slots.contains(selected_key):
             if at_capacity:
                 if neuron.slots.size() == 0:
-                    neuron.slots[key] = Weight()
+                    neuron.slots[selected_key] = Weight()
             else:
-                neuron.slots[key] = Weight()
+                neuron.slots[selected_key] = Weight()
         neuron.last_slot_used_fallback = use_fallback
-        neuron.last_slot_id = key
-        return key
+        neuron.last_slot_id = selected_key
+        return selected_key

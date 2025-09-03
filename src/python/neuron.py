@@ -193,14 +193,14 @@ class Neuron:
 
     # ---------- frozen-slot convenience ----------
     def freeze_last_slot(self) -> bool:
-        s = getattr(self, "last_slot", None)
-        if s is None:
+        slot_obj = getattr(self, "last_slot", None)
+        if slot_obj is None:
             return False
         try:
-            s.freeze()
+            slot_obj.freeze()
             # Remember which slot we froze to assist unfreeze preference
             try:
-                self.last_frozen_slot = s
+                self.last_frozen_slot = slot_obj
             except Exception:
                 pass
             return True
@@ -209,16 +209,16 @@ class Neuron:
 
     def unfreeze_last_slot(self) -> bool:
         # Prefer unfreezing the last frozen slot if tracked; fallback to last selected
-        s = getattr(self, "last_frozen_slot", None)
-        if s is None:
-            s = getattr(self, "last_slot", None)
-        if s is None:
+        slot_obj = getattr(self, "last_frozen_slot", None)
+        if slot_obj is None:
+            slot_obj = getattr(self, "last_slot", None)
+        if slot_obj is None:
             return False
         try:
-            s.unfreeze()
+            slot_obj.unfreeze()
             # Hint selector to reuse this slot on the next tick once.
             try:
-                self.prefer_specific_slot_once = s
+                self.prefer_specific_slot_once = slot_obj
             except Exception:
                 pass
             return True

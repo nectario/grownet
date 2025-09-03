@@ -269,6 +269,7 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         try {
             if (growthPolicy != null) {
                 GrowthEngine.maybeGrowNeurons(this, growthPolicy);
+                GrowthEngine.maybeGrow(this, growthPolicy);
             }
         } catch (Throwable ignored) { }
         return regionMetrics;
@@ -306,6 +307,12 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 metrics.addSynapses(neuron.getOutgoing().size());
             }
         }
+        // Best‑effort region growth (layers)
+        try {
+            if (growthPolicy != null) {
+                GrowthEngine.maybeGrow(this, growthPolicy);
+            }
+        } catch (Throwable ignored) { }
         return metrics;
     }
 
@@ -360,6 +367,14 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         int li = layers.indexOf(saturated); if (li < 0) return -1;
         int newIdx = addLayer(4, 0, 0);
         connectLayers(li, newIdx, 0.15, false);
+        return newIdx;
+    }
+
+    /** Overload with explicit connection probability for saturated → new wiring. */
+    public int requestLayerGrowth(Layer saturated, double connectionProbability) {
+        int li = layers.indexOf(saturated); if (li < 0) return -1;
+        int newIdx = addLayer(4, 0, 0);
+        connectLayers(li, newIdx, connectionProbability, false);
         return newIdx;
     }
 

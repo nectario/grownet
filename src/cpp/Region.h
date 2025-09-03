@@ -20,6 +20,7 @@
 #include "InputLayer2D.h"
 #include "OutputLayer2D.h"
 #include "InputLayerND.h"
+#include "GrowthPolicy.h"
 
 namespace grownet {
 
@@ -132,6 +133,17 @@ public:
     // Growth auto-wiring helpers
     void autowireNewNeuron(Layer* layer, int newIdx);
     int requestLayerGrowth(Layer* saturated);
+    int requestLayerGrowth(Layer* saturated, double connectionProbability);
+
+    // Region growth policy (layers → region)
+    void setGrowthPolicy(const GrowthPolicy& policy) { growthPolicy = policy; hasGrowthPolicy = true; }
+    const GrowthPolicy* getGrowthPolicy() const { return hasGrowthPolicy ? &growthPolicy : nullptr; }
+    void maybeGrowRegion();
+
+private:
+    GrowthPolicy growthPolicy{};
+    bool hasGrowthPolicy { false };
+    long long lastRegionGrowthStep { -1 };
 };
 
 } // namespace grownet

@@ -119,6 +119,8 @@ from input_layer_2d import InputLayer2D
 from input_layer_nd import InputLayerND
 from output_layer_2d import OutputLayer2D
 from region_bus import RegionBus
+from growth_policy import GrowthPolicy
+from growth_engine import maybe_grow
 
 struct MeshRule:
     var src: Int
@@ -137,6 +139,10 @@ struct Region:
     var mesh_rules: list[MeshRule]
     var enable_spatial_metrics: Bool
     var rng_state: UInt64
+    var output_layer_indices: list[Int]
+    var growth_policy: GrowthPolicy
+    var growth_policy_enabled: Bool
+    var last_layer_growth_step: Int
 
     fn init(mut self, name: String) -> None:
         self.name = name
@@ -149,6 +155,10 @@ struct Region:
         self.mesh_rules = []
         self.enable_spatial_metrics = False
         self.rng_state = 0x9E3779B97F4A7C15
+        self.output_layer_indices = []
+        self.growth_policy = GrowthPolicy()
+        self.growth_policy_enabled = False
+        self.last_layer_growth_step = -1
 
     fn get_name(self) -> String:
         return self.name
@@ -159,56 +169,68 @@ struct Region:
     fn get_bus(self) -> RegionBus:
         return self.bus
 
+    fn set_growth_policy(mut self, policy: GrowthPolicy) -> None:
+        self.growth_policy = policy
+        self.growth_policy_enabled = True
+
+    fn get_growth_policy(self) -> GrowthPolicy:
+        return self.growth_policy
+
     # ---------------- construction ----------------
     fn add_layer(mut self, excitatory_count: Int, inhibitory_count: Int, modulatory_count: Int) -> Int:
-        var L = Layer(excitatory_count, inhibitory_count, modulatory_count)
-        self.layers.append(L)
+        var new_layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
+        # best-effort region backref for autowiring
+        if new_layer.set_region is not None:
+            new_layer.set_region(self)
+        self.layers.append(new_layer)
         return self.layers.len - 1
 
     fn add_input_layer_2d(mut self, height: Int, width: Int, gain: Float64, epsilon_fire: Float64) -> Int:
-        var L = InputLayer2D(height, width, gain, epsilon_fire)
-        self.layers.append(L)
+        var new_input_layer_2d = InputLayer2D(height, width, gain, epsilon_fire)
+        self.layers.append(new_input_layer_2d)
         return self.layers.len - 1
 
     fn add_input_layer_nd(mut self, shape: list[Int], gain: Float64, epsilon_fire: Float64) -> Int:
-        var L = InputLayerND(shape, gain, epsilon_fire)
-        self.layers.append(L)
+        var new_input_layer_nd = InputLayerND(shape, gain, epsilon_fire)
+        self.layers.append(new_input_layer_nd)
         return self.layers.len - 1
 
     fn add_output_layer_2d(mut self, height: Int, width: Int, smoothing: Float64) -> Int:
-        var L = OutputLayer2D(height, width, smoothing)
-        self.layers.append(L)
-        return self.layers.len - 1
+        var new_output_layer = OutputLayer2D(height, width, smoothing)
+        self.layers.append(new_output_layer)
+        var idx = self.layers.len - 1
+        self.output_layer_indices.append(idx)
+        return idx
 
     # ---------------- RNG ----------------
     fn rand_f64(mut self) -> Float64:
-        var x = self.rng_state
-        x = x ^ (x >> 12)
-        x = x ^ (x << 25)
-        x = x ^ (x >> 27)
-        self.rng_state = x
-        var v: UInt64 = x * 0x2545F4914F6CDD1D
-        return Float64(v & 0xFFFFFFFFFFFF) / Float64(0x1000000000000)
+        var random_state = self.rng_state
+        random_state = random_state ^ (random_state >> 12)
+        random_state = random_state ^ (random_state << 25)
+        random_state = random_state ^ (random_state >> 27)
+        self.rng_state = random_state
+        var mixed_bits: UInt64 = random_state * 0x2545F4914F6CDD1D
+        return Float64(mixed_bits & 0xFFFFFFFFFFFF) / Float64(0x1000000000000)
 
     # ---------------- wiring ----------------
     fn connect_layers(mut self, source_index: Int, dest_index: Int, probability: Float64, feedback: Bool = False) -> Int:
-        var edges: Int = 0
-        var src = self.layers[source_index]
-        var dst = self.layers[dest_index]
-        var src_neurons = src.get_neurons()
-        var dst_neurons = dst.get_neurons()
-        var i = 0
-        while i < src_neurons.len:
-            var j = 0
-            while j < dst_neurons.len:
+        var edge_count: Int = 0
+        var source_layer = self.layers[source_index]
+        var dest_layer = self.layers[dest_index]
+        var source_neurons = source_layer.get_neurons()
+        var dest_neurons = dest_layer.get_neurons()
+        var source_counter = 0
+        while source_counter < source_neurons.len:
+            var dest_counter = 0
+            while dest_counter < dest_neurons.len:
                 if self.rand_f64() <= probability:
                     # Store target index; propagation is a later concern
-                    src_neurons[i].connect(j, feedback)
-                    edges = edges + 1
-                j = j + 1
-            i = i + 1
+                    source_neurons[source_counter].connect(dest_counter, feedback)
+                    edge_count = edge_count + 1
+                dest_counter = dest_counter + 1
+            source_counter = source_counter + 1
         self.mesh_rules.append(MeshRule(source_index, dest_index, probability, feedback))
-        return edges
+        return edge_count
 
     fn connect_layers_windowed(mut self,
                                src_index: Int,
@@ -220,58 +242,59 @@ struct Region:
                                padding: String = "valid",
                                feedback: Bool = False) -> Int:
         # Deterministic unique source subscriptions like Python
-        var src_any = self.layers[src_index]
-        var dst_any = self.layers[dest_index]
-        var src2d = src_any  # expect InputLayer2D
-        var H = src2d.height
-        var W = src2d.width
-        var kh = kernel_h
-        var kw = kernel_w
-        var sh = if stride_h > 0 then stride_h else 1
-        var sw = if stride_w > 0 then stride_w else 1
-        var same = (padding == "same" or padding == "SAME")
+        var source_layer_any = self.layers[src_index]
+        var dest_layer_any = self.layers[dest_index]
+        var source_input_2d = source_layer_any  # expect InputLayer2D
+        var source_height = source_input_2d.height
+        var source_width = source_input_2d.width
+        var kernel_height = kernel_h
+        var kernel_width = kernel_w
+        var stride_height = if stride_h > 0 then stride_h else 1
+        var stride_width = if stride_w > 0 then stride_w else 1
+        var use_same_padding = (padding == "same" or padding == "SAME")
 
         # Window origins
-        var origins: list[tuple[Int, Int]] = []
-        if same:
-            var pr = (kh - 1) / 2
-            var pc = (kw - 1) / 2
-            var r = -pr
-            while r + kh <= H + pr + pr:
-                var c = -pc
-                while c + kw <= W + pc + pc:
-                    origins.append((r, c))
-                    c = c + sw
-                r = r + sh
+        var window_origins: list[tuple[Int, Int]] = []
+        if use_same_padding:
+            var pad_rows = (kernel_height - 1) / 2
+            var pad_cols = (kernel_width - 1) / 2
+            var origin_row = -pad_rows
+            while origin_row + kernel_height <= source_height + pad_rows + pad_rows:
+                var origin_col = -pad_cols
+                while origin_col + kernel_width <= source_width + pad_cols + pad_cols:
+                    window_origins.append((origin_row, origin_col))
+                    origin_col = origin_col + stride_width
+                origin_row = origin_row + stride_height
         else:
-            var r = 0
-            while r + kh <= H:
-                var c = 0
-                while c + kw <= W:
-                    origins.append((r, c))
-                    c = c + sw
-                r = r + sh
+            var origin_row = 0
+            while origin_row + kernel_height <= source_height:
+                var origin_col = 0
+                while origin_col + kernel_width <= source_width:
+                    window_origins.append((origin_row, origin_col))
+                    origin_col = origin_col + stride_width
+                origin_row = origin_row + stride_height
 
         # Unique set of participating source pixel indices
-        var allowed = dict[Int, Bool]()
-        var idx = 0
-        while idx < origins.len:
-            var r0 = origins[idx][0]; var c0 = origins[idx][1]
-            var rr0 = if r0 > 0 then r0 else 0
-            var cc0 = if c0 > 0 then c0 else 0
-            var rr1 = if (r0 + kh) < H then (r0 + kh) else H
-            var cc1 = if (c0 + kw) < W then (c0 + kw) else W
-            if rr0 < rr1 and cc0 < cc1:
-                var rr = rr0
-                while rr < rr1:
-                    var cc = cc0
-                    while cc < cc1:
-                        var src_idx = rr * W + cc
-                        allowed[src_idx] = True
-                        cc = cc + 1
-                    rr = rr + 1
-            idx = idx + 1
-        return Int(allowed.size())
+        var allowed_sources = dict[Int, Bool]()
+        var origin_index = 0
+        while origin_index < window_origins.len:
+            var origin_row_val = window_origins[origin_index][0]
+            var origin_col_val = window_origins[origin_index][1]
+            var row_start = if origin_row_val > 0 then origin_row_val else 0
+            var col_start = if origin_col_val > 0 then origin_col_val else 0
+            var row_end = if (origin_row_val + kernel_height) < source_height then (origin_row_val + kernel_height) else source_height
+            var col_end = if (origin_col_val + kernel_width) < source_width then (origin_col_val + kernel_width) else source_width
+            if row_start < row_end and col_start < col_end:
+                var row_iter = row_start
+                while row_iter < row_end:
+                    var col_iter = col_start
+                    while col_iter < col_end:
+                        var source_flat_index = row_iter * source_width + col_iter
+                        allowed_sources[source_flat_index] = True
+                        col_iter = col_iter + 1
+                    row_iter = row_iter + 1
+            origin_index = origin_index + 1
+        return Int(allowed_sources.size())
 
     # ---------------- edge helpers ----------------
     fn ensure_input_edge(mut self, port: String) -> Int:
@@ -381,21 +404,24 @@ struct Region:
         metrics.inc_delivered_events(1)
 
         # End-of-tick housekeeping
-        var li2 = 0
-        while li2 < self.layers.len:
-            self.layers[li2].end_tick()
-            li2 = li2 + 1
+        var layer_index_endtick = 0
+        while layer_index_endtick < self.layers.len:
+            self.layers[layer_index_endtick].end_tick()
+            layer_index_endtick = layer_index_endtick + 1
 
         # Aggregate structural metrics
-        var li3 = 0
-        while li3 < self.layers.len:
-            var N = self.layers[li3].get_neurons()
-            var ni = 0
-            while ni < N.len:
-                metrics.add_slots(Int64(N[ni].slots.size()))
-                metrics.add_synapses(Int64(N[ni].outgoing.size()))
-                ni = ni + 1
-            li3 = li3 + 1
+        var layer_index_aggregate = 0
+        while layer_index_aggregate < self.layers.len:
+            var neuron_list = self.layers[layer_index_aggregate].get_neurons()
+            var neuron_index = 0
+            while neuron_index < neuron_list.len:
+                metrics.add_slots(Int64(neuron_list[neuron_index].slots.size()))
+                metrics.add_synapses(Int64(neuron_list[neuron_index].outgoing.size()))
+                neuron_index = neuron_index + 1
+            layer_index_aggregate = layer_index_aggregate + 1
+        # Consider automatic region growth (after end_tick aggregation)
+        if self.growth_policy_enabled:
+            _ = maybe_grow(self, self.growth_policy)
         return metrics
 
     fn tick_2d(mut self, port: String, frame: list[list[Float64]]) -> RegionMetrics:
@@ -406,21 +432,132 @@ struct Region:
         self.layers[edge_idx].forward_image(frame)
         metrics.inc_delivered_events(1)
 
+        var layer_index_tick = 0
+        while layer_index_tick < self.layers.len:
+            self.layers[layer_index_tick].end_tick()
+            layer_index_tick = layer_index_tick + 1
+
+        var layer_index_aggregate2 = 0
+        while layer_index_aggregate2 < self.layers.len:
+            var neuron_list2 = self.layers[layer_index_aggregate2].get_neurons()
+            var neuron_index2 = 0
+            while neuron_index2 < neuron_list2.len:
+                metrics.add_slots(Int64(neuron_list2[neuron_index2].slots.size()))
+                metrics.add_synapses(Int64(neuron_list2[neuron_index2].outgoing.size()))
+                neuron_index2 = neuron_index2 + 1
+            layer_index_aggregate2 = layer_index_aggregate2 + 1
+
+        # Optional spatial metrics: prefer last OutputLayer2D frame, fall back to input if all-zero
+        if self.enable_spatial_metrics:
+            var chosen = frame
+            if self.output_layer_indices.len > 0:
+                var out_idx = self.output_layer_indices[self.output_layer_indices.len - 1]
+                var img = self.layers[out_idx].get_frame()
+                # Check if all zero
+                var all_zero = True
+                var rr = 0
+                while rr < Int(img.size()):
+                    var cc = 0
+                    while cc < Int(img[rr].size()):
+                        if img[rr][cc] != 0.0:
+                            all_zero = False
+                            break
+                        cc = cc + 1
+                    if not all_zero: break
+                    rr = rr + 1
+                if not all_zero:
+                    chosen = img
+
+            var H = Int(chosen.size())
+            var W = 0
+            if H > 0:
+                W = Int(chosen[0].size())
+            var total = 0.0
+            var sumR = 0.0
+            var sumC = 0.0
+            var rmin = 1000000000
+            var rmax = -1
+            var cmin = 1000000000
+            var cmax = -1
+            var active: Int64 = 0
+            var r = 0
+            while r < H:
+                var c = 0
+                while c < W:
+                    var v = chosen[r][c]
+                    if v > 0.0:
+                        active = active + 1
+                        total = total + v
+                        sumR = sumR + (Float64(r) * v)
+                        sumC = sumC + (Float64(c) * v)
+                        if r < rmin: rmin = r
+                        if r > rmax: rmax = r
+                        if c < cmin: cmin = c
+                        if c > cmax: cmax = c
+                    c = c + 1
+                r = r + 1
+            metrics.activePixels = active
+            if total > 0.0:
+                metrics.centroidRow = sumR / total
+                metrics.centroidCol = sumC / total
+            else:
+                metrics.centroidRow = 0.0
+                metrics.centroidCol = 0.0
+            if rmax >= rmin and cmax >= cmin:
+                metrics.bboxRowMin = rmin
+                metrics.bboxRowMax = rmax
+                metrics.bboxColMin = cmin
+                metrics.bboxColMax = cmax
+            else:
+                metrics.bboxRowMin = 0
+                metrics.bboxRowMax = -1
+                metrics.bboxColMin = 0
+                metrics.bboxColMax = -1
+        # Consider automatic region growth (after end_tick aggregation)
+        if self.growth_policy_enabled:
+            _ = maybe_grow(self, self.growth_policy)
+        return metrics
+
+    # -------- autowiring for grown neurons (by layer ref) --------
+    fn autowire_new_neuron_by_ref(mut self, layer_ref: any, new_idx: Int) -> None:
+        # find layer index
+        var li = -1
         var i = 0
         while i < self.layers.len:
-            self.layers[i].end_tick()
+            if self.layers[i] == layer_ref:
+                li = i
+                break
             i = i + 1
+        if li < 0: return
 
-        var li3 = 0
-        while li3 < self.layers.len:
-            var N = self.layers[li3].get_neurons()
-            var ni = 0
-            while ni < N.len:
-                metrics.add_slots(Int64(N[ni].slots.size()))
-                metrics.add_synapses(Int64(N[ni].outgoing.size()))
-                ni = ni + 1
-            li3 = li3 + 1
-        return metrics
+        # Outbound mesh: this layer -> dst
+        var r = 0
+        while r < self.mesh_rules.len:
+            var mr = self.mesh_rules[r]
+            if mr.src == li:
+                var dstN = self.layers[mr.dst].get_neurons()
+                var sN = self.layers[li].get_neurons()
+                if new_idx >= 0 and new_idx < sN.len:
+                    var s = sN[new_idx]
+                    var j = 0
+                    while j < dstN.len:
+                        if self.rand_f64() <= mr.prob:
+                            s.connect(j, mr.feedback)
+                        j = j + 1
+            r = r + 1
+
+        # Inbound mesh: src -> this layer
+        r = 0
+        while r < self.mesh_rules.len:
+            var mr2 = self.mesh_rules[r]
+            if mr2.dst == li:
+                var srcN = self.layers[mr2.src].get_neurons()
+                var j = 0
+                while j < srcN.len:
+                    if self.rand_f64() <= mr2.prob:
+                        srcN[j].connect(new_idx, mr2.feedback)
+                    j = j + 1
+            r = r + 1
 
     fn tick_image(mut self, port: String, frame: list[list[Float64]]) -> RegionMetrics:
         return self.tick_2d(port, frame)

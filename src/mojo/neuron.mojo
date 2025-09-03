@@ -69,6 +69,12 @@ struct Neuron:
         var fired: Bool = selected_weight.update_threshold(value)
         self.last_fired = fired
         self.slots[slot_identifier] = selected_weight
+
+        # Growth bookkeeping (fallback streak when at capacity and fallback used)
+        if at_capacity and self.last_slot_used_fallback:
+            self.fallback_streak = self.fallback_streak + 1
+        else:
+            self.fallback_streak = 0
         return fired
 
     fn on_output(mut self, amplitude: Float64) -> None:
@@ -87,6 +93,12 @@ struct Neuron:
         self.last_fired = fired
         self.have_last_input = True
         self.last_input_value = value
+        # Growth bookkeeping for 2D
+        var limit_ok: Bool = (self.slot_limit >= 0) and (Int(self.slots.size()) >= self.slot_limit)
+        if limit_ok and self.last_slot_used_fallback:
+            self.fallback_streak = self.fallback_streak + 1
+        else:
+            self.fallback_streak = 0
         return fired
 
     fn freeze_last_slot(mut self) -> Bool:

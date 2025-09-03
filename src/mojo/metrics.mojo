@@ -5,9 +5,19 @@ struct RegionMetrics:
     var deliveredEvents: Int64
     var totalSlots: Int64
     var totalSynapses: Int64
+    # Optional spatial metrics (parity fields)
+    var activePixels: Int64
+    var centroidRow: Float64
+    var centroidCol: Float64
+    var bboxRowMin: Int
+    var bboxRowMax: Int
+    var bboxColMin: Int
+    var bboxColMax: Int
 
     fn __init__() -> Self:
-        return Self(deliveredEvents=0, totalSlots=0, totalSynapses=0)
+        return Self(deliveredEvents=0, totalSlots=0, totalSynapses=0,
+                    activePixels=0, centroidRow=0.0, centroidCol=0.0,
+                    bboxRowMin=0, bboxRowMax=-1, bboxColMin=0, bboxColMax=-1)
 
     # getters / setters
     fn get_delivered_events(self) -> Int64:

@@ -2,6 +2,12 @@
 from typing import List, Dict, Any
 import random
 from metrics import RegionMetrics
+try:
+    from growth import GrowthPolicy, maybe_grow  # type: ignore
+except Exception:
+    GrowthPolicy = None  # type: ignore
+    def maybe_grow(*args, **kwargs):  # type: ignore
+        return False
 from typing import List, Dict, Any, Callable, SupportsInt, cast
 
 # Layer and shape-aware layers are imported lazily to avoid import cycles.
@@ -36,6 +42,9 @@ class Region:
         # Growth + wiring bookkeeping
         self.mesh_rules: List[Dict[str, Any]] = []   # [{'src':i,'dst':j,'prob':p,'feedback':bool}]
         self.tracts: List[Any] = []                 # Tract instances
+        # Automatic region growth (policy + cooldown step)
+        self.growth_policy = None
+        self.last_layer_growth_step = -1
 
     # ---------------- construction ----------------
     def add_layer(self, excitatory_count: int, inhibitory_count: int, modulatory_count: int) -> int:
@@ -141,84 +150,84 @@ class Region:
         if not isinstance(src_layer, InputLayer2D):
             raise ValueError("connect_layers_windowed requires src to be InputLayer2D")
 
-        H, W = int(getattr(src_layer, "height", 0)), int(getattr(src_layer, "width", 0))
-        kh, kw = int(kernel_h), int(kernel_w)
-        sh, sw = max(1, int(stride_h)), max(1, int(stride_w))
-        pad = str(padding or "valid").lower()
+        source_height, source_width = int(getattr(src_layer, "height", 0)), int(getattr(src_layer, "width", 0))
+        kernel_height, kernel_width = int(kernel_h), int(kernel_w)
+        stride_height, stride_width = max(1, int(stride_h)), max(1, int(stride_w))
+        padding_mode = str(padding or "valid").lower()
 
         # Determine window origins (top-left) for 'valid' (no padding) or 'same' (approximate center pad)
-        origins = []
-        if pad == "same":
-            pr = max(0, (kh - 1) // 2)
-            pc = max(0, (kw - 1) // 2)
-            r0 = -pr
-            c0 = -pc
-            r = r0
-            while r + kh <= H + pr + pr:
-                c = c0
-                while c + kw <= W + pc + pc:
-                    origins.append((r, c))
-                    c += sw
-                r += sh
+        window_origins = []
+        if padding_mode == "same":
+            pad_rows = max(0, (kernel_height - 1) // 2)
+            pad_cols = max(0, (kernel_width - 1) // 2)
+            start_row = -pad_rows
+            start_col = -pad_cols
+            row_cursor = start_row
+            while row_cursor + kernel_height <= source_height + pad_rows + pad_rows:
+                col_cursor = start_col
+                while col_cursor + kernel_width <= source_width + pad_cols + pad_cols:
+                    window_origins.append((row_cursor, col_cursor))
+                    col_cursor += stride_width
+                row_cursor += stride_height
         else:
-            r = 0
-            while r + kh <= H:
-                c = 0
-                while c + kw <= W:
-                    origins.append((r, c))
-                    c += sw
-                r += sh
+            row_cursor = 0
+            while row_cursor + kernel_height <= source_height:
+                col_cursor = 0
+                while col_cursor + kernel_width <= source_width:
+                    window_origins.append((row_cursor, col_cursor))
+                    col_cursor += stride_width
+                row_cursor += stride_height
 
         # Compute allowed source indices and (optionally) sink map for OutputLayer2D
-        allowed: set[int] = set()
+        allowed_source_indices: set[int] = set()
         sink_map: dict[int, set[int]] = {}
         # We'll return the number of unique source subscriptions installed.
         wires = 0
 
         if isinstance(dst_layer, OutputLayer2D):
-            for (r0, c0) in origins:
+            for (origin_row, origin_col) in window_origins:
                 # window clamp to valid coordinates
-                rr0, cc0 = max(0, r0), max(0, c0)
-                rr1, cc1 = min(H, r0 + kh), min(W, c0 + kw)
-                if rr0 >= rr1 or cc0 >= cc1:
+                clipped_row_start, clipped_col_start = max(0, origin_row), max(0, origin_col)
+                clipped_row_end, clipped_col_end = min(source_height, origin_row + kernel_height), min(source_width, origin_col + kernel_width)
+                if clipped_row_start >= clipped_row_end or clipped_col_start >= clipped_col_end:
                     continue
                 # center index (integer floor)
-                cr = min(H - 1, max(0, r0 + kh // 2))
-                cc = min(W - 1, max(0, c0 + kw // 2))
-                center_idx = cr * W + cc
-                for rr in range(rr0, rr1):
-                    for cc2 in range(cc0, cc1):
-                        src_idx = rr * W + cc2
-                        allowed.add(src_idx)
-                        sink_map.setdefault(src_idx, set()).add(center_idx)
+                center_row = min(source_height - 1, max(0, origin_row + kernel_height // 2))
+                center_col = min(source_width - 1, max(0, origin_col + kernel_width // 2))
+                center_flat_index = center_row * source_width + center_col
+                for row_index in range(clipped_row_start, clipped_row_end):
+                    for col_index in range(clipped_col_start, clipped_col_end):
+                        source_flat_index = row_index * source_width + col_index
+                        allowed_source_indices.add(source_flat_index)
+                        sink_map.setdefault(source_flat_index, set()).add(center_flat_index)
             # Create a tract that delivers directly to mapped output neurons
             from tract import Tract
-            t = Tract(src_layer, dst_layer, self.bus, feedback, None,
-                      allowed_source_indices=allowed, sink_map=sink_map)
+            tract_obj = Tract(src_layer, dst_layer, self.bus, feedback, None,
+                              allowed_source_indices=allowed_source_indices, sink_map=sink_map)
             try:
-                self.tracts.append(t)
+                self.tracts.append(tract_obj)
             except Exception:
                 pass
-            wires = len(allowed)
+            wires = len(allowed_source_indices)
         else:
             # For generic layers, allow all pixels that participate in any window;
             # destination layer will fan to its neurons with 2D context.
-            for (r0, c0) in origins:
-                rr0, cc0 = max(0, r0), max(0, c0)
-                rr1, cc1 = min(H, r0 + kh), min(W, c0 + kw)
-                if rr0 >= rr1 or cc0 >= cc1:
+            for (origin_row, origin_col) in window_origins:
+                clipped_row_start, clipped_col_start = max(0, origin_row), max(0, origin_col)
+                clipped_row_end, clipped_col_end = min(source_height, origin_row + kernel_height), min(source_width, origin_col + kernel_width)
+                if clipped_row_start >= clipped_row_end or clipped_col_start >= clipped_col_end:
                     continue
-                for rr in range(rr0, rr1):
-                    for cc2 in range(cc0, cc1):
-                        allowed.add(rr * W + cc2)
+                for row_index in range(clipped_row_start, clipped_row_end):
+                    for col_index in range(clipped_col_start, clipped_col_end):
+                        allowed_source_indices.add(row_index * source_width + col_index)
             from tract import Tract
-            t = Tract(src_layer, dst_layer, self.bus, feedback, None,
-                      allowed_source_indices=allowed)
+            tract_obj = Tract(src_layer, dst_layer, self.bus, feedback, None,
+                              allowed_source_indices=allowed_source_indices)
             try:
-                self.tracts.append(t)
+                self.tracts.append(tract_obj)
             except Exception:
                 pass
-            wires = len(allowed)
+            wires = len(allowed_source_indices)
 
         return wires
 
@@ -458,8 +467,15 @@ class Region:
             for neuron in getattr(layer, "get_neurons")():
                 slots_map = getattr(neuron, "slots", None)
                 metrics.add_slots(len(slots_map) if isinstance(slots_map, dict) else 0)
-                outgoing = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
-                metrics.add_synapses(len(outgoing))
+                outgoing_list = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+                metrics.add_synapses(len(outgoing_list))
+
+        # After end_tick/decay, consider automatic region growth (cooldown reads bus step)
+        try:
+            if self.growth_policy:
+                maybe_grow(self, self.growth_policy)
+        except Exception:
+            pass
 
         return metrics
 
@@ -498,8 +514,8 @@ class Region:
             for neuron in getattr(layer_obj, "get_neurons")():
                 slots_map = getattr(neuron, "slots", None)
                 metrics.add_slots(len(slots_map) if isinstance(slots_map, dict) else 0)
-                outgoing = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
-                metrics.add_synapses(len(outgoing))
+                outgoing_list = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+                metrics.add_synapses(len(outgoing_list))
 
         # Optional spatial metrics
         try:
@@ -508,7 +524,12 @@ class Region:
                 self.compute_spatial_metrics(metrics, frame)
         except Exception:
             pass
-
+        # After end_tick/decay, consider automatic region growth
+        try:
+            if self.growth_policy:
+                maybe_grow(self, self.growth_policy)
+        except Exception:
+            pass
         return metrics
 
 
@@ -554,6 +575,15 @@ class Region:
     def get_bus(self):
         return self.bus
 
+    # ---------------- growth policy helpers ----------------
+    def set_growth_policy(self, policy):
+        """Attach a GrowthPolicy to this region to enable automatic layer growth."""
+        self.growth_policy = policy
+        return self
+
+    def get_growth_policy(self):
+        return self.growth_policy
+
     # ---------------- internal helpers ----------------
     def compute_spatial_metrics(self, metrics: RegionMetrics, input_frame) -> None:
         """Compute activePixels, centroid, and bbox from the best available 2D layer.
@@ -563,59 +593,59 @@ class Region:
         """
         from output_layer_2d import OutputLayer2D
 
-        chosen = None
+        chosen_frame = None
         # pick last OutputLayer2D (furthest downstream by index)
         for layer in reversed(self.layers):
             if isinstance(layer, OutputLayer2D):
                 try:
-                    fr = layer.get_frame()
-                    chosen = fr
+                    output_frame = layer.get_frame()
+                    chosen_frame = output_frame
                     break
                 except Exception:
                     continue
 
-        if chosen is None:
-            chosen = input_frame
+        if chosen_frame is None:
+            chosen_frame = input_frame
 
         # If chosen is entirely zeros, but input has non-zeros, prefer input
-        def is_all_zero(img):
+        def is_all_zero(image):
             try:
-                for row in img:
-                    for v in row:
-                        if float(v) != 0.0:
+                for row_values in image:
+                    for pixel_value in row_values:
+                        if float(pixel_value) != 0.0:
                             return False
                 return True
             except Exception:
                 return True
 
-        if chosen is not input_frame and is_all_zero(chosen) and not is_all_zero(input_frame):
-            chosen = input_frame
+        if chosen_frame is not input_frame and is_all_zero(chosen_frame) and not is_all_zero(input_frame):
+            chosen_frame = input_frame
 
         # Compute metrics
         total = 0.0
         sum_r = 0.0
         sum_c = 0.0
         rmin, rmax, cmin, cmax = 10**9, -1, 10**9, -1
-        H = len(chosen) if chosen is not None else 0
-        W = len(chosen[0]) if H > 0 else 0
+        height = len(chosen_frame) if chosen_frame is not None else 0
+        width = len(chosen_frame[0]) if height > 0 else 0
 
-        for r in range(H):
-            row = chosen[r]
-            for c in range(min(W, len(row))):
-                v = float(row[c])
-                if v > 0.0:
-                    total += v
-                    sum_r += r * v
-                    sum_c += c * v
-                    if r < rmin: rmin = r
-                    if r > rmax: rmax = r
-                    if c < cmin: cmin = c
-                    if c > cmax: cmax = c
+        for row_index in range(height):
+            row_values = chosen_frame[row_index]
+            for col_index in range(min(width, len(row_values))):
+                pixel_value = float(row_values[col_index])
+                if pixel_value > 0.0:
+                    total += pixel_value
+                    sum_r += row_index * pixel_value
+                    sum_c += col_index * pixel_value
+                    if row_index < rmin: rmin = row_index
+                    if row_index > rmax: rmax = row_index
+                    if col_index < cmin: cmin = col_index
+                    if col_index > cmax: cmax = col_index
 
         active = 0
-        if H > 0 and W > 0:
+        if height > 0 and width > 0:
             # count active pixels (value > 0.0)
-            active = sum(1 for r in range(H) for c in range(W) if float(chosen[r][c]) > 0.0)
+            active = sum(1 for row_index in range(height) for col_index in range(width) if float(chosen_frame[row_index][col_index]) > 0.0)
 
         metrics.active_pixels = active
         metrics.activePixels = active

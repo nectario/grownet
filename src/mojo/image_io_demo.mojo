@@ -12,6 +12,7 @@ fn generate_frame(height: Int64, width: Int64, step: Int64) -> Array[Array[Float
 fn main():
     var height: Int64 = 28; var width: Int64 = 28
     var region = Region("image_io")
+    region.enable_spatial_metrics = True  # toggle spatial metrics collection
 
     var input_idx  = region.add_input_layer_2d(height, width, 1.0, 0.01)
     var hidden_idx = region.add_layer(64, 8, 4)
@@ -21,9 +22,14 @@ fn main():
     region.connect_layers(input_idx,  hidden_idx, 0.05, False)
     region.connect_layers(hidden_idx, output_idx, 0.12, False)
 
-    for step in range(20):
+    for step in range(10):
         var frame = generate_frame(height, width, step)
         var metrics = region.tick_image("pixels", frame)
-        if ((step + 1) % 5) == 0:
-            var delivered = metrics["delivered_events"]
-            print("step=", step + 1, " delivered=", delivered)
+        # Print simple spatial stats every other frame
+        if ((step + 1) % 2) == 0:
+            var delivered = metrics.get_delivered_events()
+            print("[", step + 1, "] delivered=", delivered,
+                  " active=", metrics.activePixels,
+                  " centroid=(", metrics.centroidRow, ",", metrics.centroidCol, ")",
+                  " bbox=(", metrics.bboxRowMin, ",", metrics.bboxRowMax, ",",
+                  metrics.bboxColMin, ",", metrics.bboxColMax, ")")

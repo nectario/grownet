@@ -45,3 +45,35 @@ in follow‑ups (e.g., duplicate inbound mesh rules to the new layer).
 
 Parity notes
 - C++ and Java mirror Python semantics: strict slot capacity (never allocate at cap), fallback streak triggers neuron growth with cooldown using the bus step counter, and new neurons are auto‑wired using recorded mesh rules. Region pruning remains a no‑op stub in C++/Java until full pruning lands.
+
+## Region Growth (automatic layer creation)
+
+After slot and neuron growth, GrowNet can add a new layer automatically when novelty pressure remains high.
+
+Triggers (either):
+- `avg_slots_per_neuron ≥ avg_slots_threshold`, or
+- `%{ neurons at capacity AND using fallback } ≥ percent_neurons_at_cap_threshold`.
+
+Safety:
+- `layer_cooldown_ticks` ensures layers aren’t added too frequently.
+- `max_total_layers` caps total layers in the region.
+
+Action:
+- Add a small E‑only spillover layer (`new_layer_excitatory_count`, default 4).
+- Wire previous → new with probability `wire_probability` (default 1.0, deterministic).
+- Reuse the same deterministic rules as `connect_layers(...)`.
+
+Enable (Python):
+```python
+from growth import GrowthPolicy
+policy = GrowthPolicy(
+    enable_layer_growth=True,
+    max_total_layers=16,
+    avg_slots_threshold=2.0,
+    percent_neurons_at_cap_threshold=50.0,
+    layer_cooldown_ticks=5,
+    new_layer_excitatory_count=4,
+    wire_probability=1.0,
+)
+region.set_growth_policy(policy)
+```

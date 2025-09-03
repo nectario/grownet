@@ -213,6 +213,17 @@ int Region::requestLayerGrowth(Layer* saturated) {
     return newIdx;
 }
 
+int Region::requestLayerGrowth(Layer* saturated, double connectionProbability) {
+    int idx = -1;
+    for (int i = 0; i < static_cast<int>(layers.size()); ++i) {
+        if (layers[i].get() == saturated) { idx = i; break; }
+    }
+    if (idx < 0) return -1;
+    int newIdx = addLayer(4, 0, 0);
+    connectLayers(idx, newIdx, connectionProbability, false);
+    return newIdx;
+}
+
 
 // ---------------- edge helpers ----------------
 
@@ -308,6 +319,10 @@ RegionMetrics Region::tick(const std::string& port, double value) {
             metrics.addSynapses(static_cast<long long>(neuron->getOutgoing().size()));
         }
     }
+    // Consider automatic region growth after end-of-tick aggregation
+    try {
+        maybeGrowRegion();
+    } catch (...) { /* best-effort only */ }
     return metrics;
 }
 
@@ -416,7 +431,119 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
     } catch (...) {
         // swallow any computation errors; metrics remain defaults
     }
+    // Optional spatial metrics (env: GROWNET_ENABLE_SPATIAL_METRICS=1 or Region flag)
+    try {
+        const char* env = std::getenv("GROWNET_ENABLE_SPATIAL_METRICS");
+        bool doSpatial = enableSpatialMetrics || (env && std::string(env) == "1");
+        if (doSpatial) {
+            // Prefer furthest downstream OutputLayer2D
+            const std::vector<std::vector<double>>* chosen = nullptr;
+            for (auto layerIter = layers.rbegin(); layerIter != layers.rend(); ++layerIter) {
+                auto out2d = dynamic_cast<OutputLayer2D*>((*layerIter).get());
+                if (out2d) { chosen = &out2d->getFrame(); break; }
+            }
+            auto isAllZero = [](const std::vector<std::vector<double>>& img) {
+                for (const auto& row : img) {
+                    for (double value : row) {
+                        if (value != 0.0) return false;
+                    }
+                }
+                return true;
+            };
+            if (!chosen) chosen = &frame;
+            else if (isAllZero(*chosen) && !isAllZero(frame)) chosen = &frame;
+
+            const auto& img = *chosen;
+            const int imageHeight = static_cast<int>(img.size());
+            const int imageWidth = imageHeight > 0 ? static_cast<int>(img[0].size()) : 0;
+            long long active = 0;
+            double total = 0.0, sumR = 0.0, sumC = 0.0;
+            int rmin = 1e9, rmax = -1, cmin = 1e9, cmax = -1;
+            for (int rowIndex = 0; rowIndex < imageHeight; ++rowIndex) {
+                const auto& rowVec = img[rowIndex];
+                const int columnLimit = std::min(imageWidth, static_cast<int>(rowVec.size()));
+                for (int colIndex = 0; colIndex < columnLimit; ++colIndex) {
+                    double pixelValue = rowVec[colIndex];
+                    if (pixelValue > 0.0) {
+                        ++active;
+                        total += pixelValue;
+                        sumR += rowIndex * pixelValue;
+                        sumC += colIndex * pixelValue;
+                        if (rowIndex < rmin) rmin = rowIndex;
+                        if (rowIndex > rmax) rmax = rowIndex;
+                        if (colIndex < cmin) cmin = colIndex;
+                        if (colIndex > cmax) cmax = colIndex;
+                    }
+                }
+            }
+            metrics.activePixels = active;
+            if (total > 0.0) {
+                metrics.centroidRow = sumR / total;
+                metrics.centroidCol = sumC / total;
+            } else {
+                metrics.centroidRow = 0.0;
+                metrics.centroidCol = 0.0;
+            }
+            if (rmax >= rmin && cmax >= cmin) {
+                metrics.bboxRowMin = rmin; metrics.bboxRowMax = rmax;
+                metrics.bboxColMin = cmin; metrics.bboxColMax = cmax;
+            } else {
+                metrics.bboxRowMin = 0; metrics.bboxRowMax = -1;
+                metrics.bboxColMin = 0; metrics.bboxColMax = -1;
+            }
+        }
+    } catch (...) {
+        // swallow any computation errors; metrics remain defaults
+    }
+    // Consider automatic region growth after end-of-tick aggregation
+    try {
+        maybeGrowRegion();
+    } catch (...) { /* best-effort only */ }
     return metrics;
+}
+
+void Region::maybeGrowRegion() {
+    if (!hasGrowthPolicy || !growthPolicy.enableRegionGrowth) return;
+    if (growthPolicy.maximumLayers >= 0) {
+        if (static_cast<int>(layers.size()) >= growthPolicy.maximumLayers) return;
+    }
+
+    const long long currentStep = bus.getCurrentStep();
+    if (lastRegionGrowthStep >= 0) {
+        if ((currentStep - lastRegionGrowthStep) < growthPolicy.layerCooldownTicks) return;
+    }
+
+    int bestLayerIndex = -1;
+    double bestScore = -1.0;
+    for (int layerIndex = 0; layerIndex < static_cast<int>(layers.size()); ++layerIndex) {
+        auto& L = layers[layerIndex];
+        auto& neurons = L->getNeurons();
+        const int neuronCount = static_cast<int>(neurons.size());
+        if (neuronCount <= 0) continue;
+
+        int totalSlots = 0;
+        int atCapCount = 0;
+        int fallbackCount = 0;
+        for (auto& n : neurons) {
+            totalSlots += static_cast<int>(n->getSlots().size());
+            const int limit = n->getSlotLimit();
+            const bool atCap = (limit >= 0) && (static_cast<int>(n->getSlots().size()) >= limit);
+            if (atCap) atCapCount += 1;
+            if (n->getLastSlotUsedFallback()) fallbackCount += 1;
+        }
+        const double avgSlots = static_cast<double>(totalSlots) / std::max(1, neuronCount);
+        if (avgSlots < growthPolicy.averageSlotsThreshold) continue;
+        const double fracCap = static_cast<double>(atCapCount) / std::max(1, neuronCount);
+        const double fracFallback = static_cast<double>(fallbackCount) / std::max(1, neuronCount);
+        const double score = 0.60 * fracCap
+                           + 0.25 * std::min(1.0, avgSlots / std::max(1e-9, growthPolicy.averageSlotsThreshold))
+                           + 0.15 * fracFallback;
+        if (score > bestScore) { bestScore = score; bestLayerIndex = layerIndex; }
+    }
+    if (bestLayerIndex < 0) return;
+
+    int newIndex = requestLayerGrowth(layers[bestLayerIndex].get(), growthPolicy.connectionProbability);
+    if (newIndex >= 0) lastRegionGrowthStep = currentStep;
 }
 
 
