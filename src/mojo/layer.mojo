@@ -66,3 +66,6 @@ struct Layer:
 
     fn end_tick(mut self) -> None:
         self.bus.decay()
+
+    fn get_bus(self) -> LateralBus:
+        return self.bus

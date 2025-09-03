@@ -38,6 +38,13 @@ public class Neuron {
     protected boolean focusSet = false;
     protected long    focusLockUntilTick = 0L;
 
+    // Growth + parity fields
+    public boolean lastSlotUsedFallback = false;
+    public int     fallbackStreak = 0;
+    public long    lastGrowthTick = -1L;
+    public boolean preferLastSlotOnce = false; // one-shot reuse after unfreeze
+    public Layer   owner = null;               // backref set by Layer
+
     // NEW: hooks notified whenever this neuron fires
     private final List<BiConsumer<Double, Neuron>> fireHooks = new ArrayList<>();
 
@@ -61,8 +68,11 @@ public class Neuron {
      * Route a scalar in, learn locally, maybe fire. Returns true if fired.
      */
     public boolean onInput(double value) {
-        // V4 Temporal Focus (FIRST anchor): choose/create slot and clamp by slotLimit
-        final int slotId = slotEngine.selectOrCreateSlot(this, value, /*cfg*/ null);
+        // V4 Temporal Focus (FIRST anchor): choose/create slot with strict capacity
+        final int slotId = preferLastSlotOnce && lastSlotId != null
+                ? lastSlotId
+                : slotEngine.selectOrCreateSlot(this, value, /*cfg*/ null);
+        preferLastSlotOnce = false;
         lastSlotId = slotId;
         Weight slot = slots.get(slotId); // existence ensured by SlotEngine
 
@@ -78,6 +88,24 @@ public class Neuron {
 
         haveLastInput  = true;
         lastInputValue = value;
+        // Growth bookkeeping (best effort): at-capacity + fallback streak
+        try {
+            final SlotConfig C = slotEngine == null ? null : slotEngine.getConfig();
+            if (C != null && C.isGrowthEnabled() && C.isNeuronGrowthEnabled()) {
+                final boolean atCap = (slotLimit >= 0 && slots.size() >= slotLimit);
+                if (atCap && lastSlotUsedFallback) fallbackStreak++; else fallbackStreak = 0;
+                final int threshold = Math.max(1, C.getFallbackGrowthThreshold());
+                if (owner != null && fallbackStreak >= threshold) {
+                    final long now = bus.getCurrentStep();
+                    final int cooldown = Math.max(0, C.getNeuronGrowthCooldownTicks());
+                    if (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown) {
+                        try { owner.tryGrowNeuron(this); } catch (Throwable ignored) { }
+                        lastGrowthTick = now;
+                    }
+                    fallbackStreak = 0;
+                }
+            }
+        } catch (Throwable ignored) { }
         return fired;
     }
 
@@ -95,6 +123,7 @@ public class Neuron {
         Weight w = slots.get(lastSlotId);
         if (w == null) return false;
         w.unfreeze();
+        preferLastSlotOnce = true;
         return true;
     }
 

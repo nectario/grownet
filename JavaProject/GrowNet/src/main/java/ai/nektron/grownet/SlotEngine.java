@@ -5,6 +5,8 @@ public final class SlotEngine {
 
     public SlotEngine(SlotConfig cfg) { this.cfg = cfg; }
 
+    public SlotConfig getConfig() { return cfg; }
+
     public int slotId(double lastInput, double newInput, int slotsLen) {
         double deltaPercent = 0.0;
         if (lastInput != 0.0) {
@@ -36,7 +38,10 @@ public final class SlotEngine {
      * Temporal‑focus helper (FIRST anchor): choose a slot id for input x, ensure a slot exists,
      * and clamp growth at cfg.getSlotLimit() when at capacity.
      */
-    /** FIRST-anchor helper: choose a slot id for {@code inputValue}, ensure it exists, and clamp at slotLimit. */
+    /** FIRST-anchor helper with strict capacity + fallback marking.
+     *  Chooses desired bin; if out-of-domain or at capacity and new, falls back to a deterministic id.
+     *  Never allocates a brand-new slot at capacity (unless this is the very first slot).
+     */
     public int selectOrCreateSlot(Neuron neuron, double inputValue, SlotConfig cfg) {
         if (neuron == null) return 0;
         if (cfg == null) cfg = this.cfg;
@@ -51,26 +56,25 @@ public final class SlotEngine {
         double denom = Math.max(Math.abs(anchor), cfg.getEpsilonScale());
         double deltaPct = Math.abs(inputValue - anchor) / denom * 100.0;
         double bin = Math.max(0.1, cfg.getBinWidthPct());
-        int slotId = (int) Math.floor(deltaPct / bin);
+        int sidDesired = (int) Math.floor(deltaPct / bin);
 
-        // Clamp to slotLimit domain [0, limit-1] if bounded
-        int limit = cfg.getSlotLimit();
-        if (limit > 0) {
-            if (slotId >= limit) slotId = limit - 1;
-        }
+        int effectiveLimit = (neuron.slotLimit >= 0 ? neuron.slotLimit : cfg.getSlotLimit());
+        boolean atCapacity = (effectiveLimit > 0 && neuron.getSlots().size() >= effectiveLimit);
+        boolean outOfDomain = (effectiveLimit > 0 && sidDesired >= effectiveLimit);
+        boolean wantNew = !neuron.getSlots().containsKey(sidDesired);
+        boolean useFallback = outOfDomain || (atCapacity && wantNew);
 
-        // Ensure existence; if at capacity and creating a new id, clamp reuse
-        if (!neuron.getSlots().containsKey(slotId)) {
-            if (limit > 0 && neuron.getSlots().size() >= limit) {
-                // reuse the highest existing id within [0, limit-1]
-                slotId = Math.min(slotId, limit - 1);
-                if (!neuron.getSlots().containsKey(slotId)) {
-                    neuron.getSlots().put(slotId, new Weight());
-                }
+        int sid = useFallback && effectiveLimit > 0 ? (effectiveLimit - 1) : sidDesired;
+        if (!neuron.getSlots().containsKey(sid)) {
+            if (atCapacity) {
+                if (neuron.getSlots().isEmpty()) {
+                    neuron.getSlots().put(sid, new Weight());
+                } // else reuse first existing slot implicitly
             } else {
-                neuron.getSlots().put(slotId, new Weight());
+                neuron.getSlots().put(sid, new Weight());
             }
         }
-        return slotId;
+        neuron.lastSlotUsedFallback = useFallback;
+        return sid;
     }
 }

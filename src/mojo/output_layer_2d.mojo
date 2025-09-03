@@ -1,4 +1,6 @@
-from layer import Layer, Spike
+from layer import Layer
+from neuron import Neuron
+from lateral_bus import LateralBus
 
 struct OutputNeuronState:
     var last_emitted: Float64 = 0.0
@@ -55,3 +57,13 @@ struct OutputLayer2D:
 
     fn get_frame(self) -> list[list[Float64]]:
         return self.pixels
+
+    fn get_neurons(self) -> list[Neuron]:
+        return self.core.get_neurons()
+
+    fn forward(mut self, value: Float64) -> None:
+        # As a sink, ignore scalar forward; use propagate_from when wired.
+        pass
+
+    fn get_bus(self) -> LateralBus:
+        return self.core.bus

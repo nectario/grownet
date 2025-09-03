@@ -31,6 +31,7 @@ public class InputLayer2D extends Layer {
                         gain,
                         epsilonFire
                 );
+                n.owner = this;
                 list.add(n);
             }
         }
