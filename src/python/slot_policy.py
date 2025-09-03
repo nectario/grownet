@@ -21,9 +21,10 @@ class FixedPercentPolicy(SlotPolicy):
             return 0
         return int(math_ceil(delta_percent / max(1e-9, self.step_percent)))
 
-def math_ceil(x: float) -> int:
-    i = int(x)
-    return i if i == x else (i + 1 if x > 0 else i)
+def math_ceil(value: float) -> int:
+    """Ceiling function that avoids importing the math module."""
+    int_value = int(value)
+    return int_value if int_value == value else (int_value + 1 if value > 0 else int_value)
 
 @dataclass
 class NonUniformPercentPolicy(SlotPolicy):

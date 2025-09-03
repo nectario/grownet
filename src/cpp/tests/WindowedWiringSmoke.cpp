@@ -8,37 +8,37 @@
 
 using grownet::Region;
 
-static void run_case(int H, int W,
-                     int kh, int kw,
-                     int sh, int sw,
-                     const std::string& pad,
-                     int expected_unique_sources) {
-    Region r("win-smoke");
+static void run_case(int height, int width,
+                     int kernelHeight, int kernelWidth,
+                     int strideHeight, int strideWidth,
+                     const std::string& padding,
+                     int expectedUniqueSources) {
+    Region testRegion("win-smoke");
 
     // NOTE: adjust the method names below if your Region API differs.
-    const int in  = r.addInputLayer2D(H, W, /*gain=*/1.0, /*epsilonFire=*/0.01);
-    const int out = r.addOutputLayer2D(H, W, /*smoothing=*/0.0);
+    const int inputLayer  = testRegion.addInputLayer2D(height, width, /*gain=*/1.0, /*epsilonFire=*/0.01);
+    const int outputLayer = testRegion.addOutputLayer2D(height, width, /*smoothing=*/0.0);
 
-    int wires = r.connectLayersWindowed(in, out, kh, kw, sh, sw, pad, /*feedback=*/false);
+    int wireCount = testRegion.connectLayersWindowed(inputLayer, outputLayer, kernelHeight, kernelWidth, strideHeight, strideWidth, padding, /*feedback=*/false);
 
-    if (wires != expected_unique_sources) {
-        std::cerr << "[FAIL] H="<<H<<" W="<<W
-                  << " kh="<<kh<<" kw="<<kw
-                  << " sh="<<sh<<" sw="<<sw
-                  << " pad="<<pad
-                  << " got wires="<<wires
-                  << " expected="<<expected_unique_sources << "\n";
+    if (wireCount != expectedUniqueSources) {
+        std::cerr << "[FAIL] height="<<height<<" width="<<width
+                  << " kernelH="<<kernelHeight<<" kernelW="<<kernelWidth
+                  << " strideH="<<strideHeight<<" strideW="<<strideWidth
+                  << " padding="<<padding
+                  << " got wires="<<wireCount
+                  << " expected="<<expectedUniqueSources << "\n";
         std::exit(1);
     }
-    std::cout << "[OK]  pad="<<pad<<" "
-              << H<<"x"<<W<<" kernel="<<kh<<"x"<<kw
-              << " stride="<<sh<<"x"<<sw
-              << " \u2192 unique="<<wires << "\n";
+    std::cout << "[OK]  padding="<<padding<<" "
+              << height<<"x"<<width<<" kernel="<<kernelHeight<<"x"<<kernelWidth
+              << " stride="<<strideHeight<<"x"<<strideWidth
+              << " \u2192 unique="<<wireCount << "\n";
 }
 
 int main() {
     // 1) 4×4, VALID, kernel 4×4 covers whole grid once → 16 uniques
-    run_case(/*H*/4, /*W*/4, /*kh*/4, /*kw*/4, /*sh*/1, /*sw*/1, "valid", /*expect*/16);
+    run_case(/*height*/4, /*width*/4, /*kernelHeight*/4, /*kernelWidth*/4, /*strideHeight*/1, /*strideWidth*/1, "valid", /*expectedUniqueSources*/16);
 
     // 2) 4×4, VALID, kernel 2×2, stride 2 tiles perfectly → 16 uniques
     run_case(4, 4, 2, 2, 2, 2, "valid", 16);

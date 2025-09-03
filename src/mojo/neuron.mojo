@@ -75,9 +75,9 @@ struct Neuron:
             return False
         if not self.slots.contains(self.last_slot_id):
             return False
-        var w = self.slots[self.last_slot_id]
-        w.freeze()
-        self.slots[self.last_slot_id] = w
+        var slot_weight = self.slots[self.last_slot_id]
+        slot_weight.freeze()
+        self.slots[self.last_slot_id] = slot_weight
         return True
 
     fn unfreeze_last_slot(mut self) -> Bool:
@@ -85,7 +85,7 @@ struct Neuron:
             return False
         if not self.slots.contains(self.last_slot_id):
             return False
-        var w = self.slots[self.last_slot_id]
-        w.unfreeze()
-        self.slots[self.last_slot_id] = w
+        var slot_weight = self.slots[self.last_slot_id]
+        slot_weight.unfreeze()
+        self.slots[self.last_slot_id] = slot_weight
         return True

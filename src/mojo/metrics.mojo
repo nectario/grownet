@@ -29,8 +29,8 @@ struct RegionMetrics:
         self.totalSynapses = value
 
     # helpers
-    fn inc_delivered_events(mut self, by: Int64 = 1) -> None:
-        self.deliveredEvents += by
+    fn inc_delivered_events(mut self, amount: Int64 = 1) -> None:
+        self.deliveredEvents += amount
 
     fn add_slots(mut self, count: Int64) -> None:
         self.totalSlots += count

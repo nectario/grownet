@@ -22,30 +22,30 @@ public class ImageIODemo {
         for (int step = 0; step < 20; step++) {
             // sparse random image
             double[][] frame = new double[height][width];
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    frame[y][x] = (rnd.nextDouble() > 0.95) ? 1.0 : 0.0;
+            for (int row = 0; row < height; row++) {
+                for (int col = 0; col < width; col++) {
+                    frame[row][col] = (rnd.nextDouble() > 0.95) ? 1.0 : 0.0;
                 }
             }
 
-            RegionMetrics m = region.tickImage("pixels", frame);
+            RegionMetrics metrics = region.tickImage("pixels", frame);
 
             if ((step + 1) % 5 == 0) {
                 OutputLayer2D out = (OutputLayer2D) region.getLayers().get(outputLayerIndex);
-                double[][] img = out.getFrame();
+                double[][] image = out.getFrame();
 
                 double sum = 0.0;
                 int nonZero = 0;
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        sum += img[y][x];
-                        if (img[y][x] > 0.05) nonZero++;
+                for (int row = 0; row < height; row++) {
+                    for (int col = 0; col < width; col++) {
+                        sum += image[row][col];
+                        if (image[row][col] > 0.05) nonZero++;
                     }
                 }
                 double mean = sum / (height * width);
                 System.out.printf("[%02d] delivered=%d out_mean=%.3f out_nonzero=%d%n",
                         step + 1,
-                        m.getDeliveredEvents(),
+                        metrics.getDeliveredEvents(),
                         mean,
                         nonZero
                 );
