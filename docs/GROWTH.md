@@ -77,3 +77,9 @@ policy = GrowthPolicy(
 )
 region.set_growth_policy(policy)
 ```
+
+### Parity & tract re‑attachment
+
+- C++ / Java parity: regions now evaluate a simple pressure signal at end‑of‑tick (share of neurons that were at capacity and were forced to reuse a fallback bin on this tick). When above the policy threshold and after a cooldown, a small spillover layer is added and auto‑wired using the recorded mesh rules.
+- Tract re‑attachment on neuron growth: when a layer grows a neuron, windowed projections (or any Tracts bridging that layer) must subscribe the new source neuron so its spikes flow downstream. Python has done this via `Tract.attach_source_neuron(...)`. C++ and Java add `attachSourceNeuron(int)` and call it from `Region.autowireNewNeuron(...)`. Without this step, grown sources would not participate in existing Tract deliveries.
+- Mojo scaffold: `growth_policy.mojo` + `growth_engine.mojo` mirror the Python semantics; call `maybe_grow(...)` from Region’s end‑of‑tick path.

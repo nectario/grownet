@@ -118,4 +118,18 @@ public final class Tract {
     public Layer getDestination() { return destination; }
     public boolean isFeedback()   { return feedback; }
     public int edgeCount()        { return edges.size(); }
+
+    /**
+     * Subscribe a newly created source neuron so its spikes propagate through this tract.
+     * This helper is best-effort and only registers a fire hook; it does not create new edges.
+     */
+    public void attachSourceNeuron(int newSourceIndex) {
+        if (source == null || destination == null) return;
+        final List<Neuron> src = source.getNeurons();
+        if (newSourceIndex < 0 || newSourceIndex >= src.size()) return;
+        src.get(newSourceIndex).registerFireHook((amplitude, who) -> {
+            // Deliver directly to the destination's fan-out helper.
+            destination.propagateFrom(newSourceIndex, amplitude);
+        });
+    }
 }

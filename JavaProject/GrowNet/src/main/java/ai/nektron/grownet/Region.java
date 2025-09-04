@@ -30,6 +30,8 @@ public final class Region {
     private final RegionBus bus = new RegionBus();   // reserved for future tract batching
     private final Random rng = new Random(1234);
     private final List<MeshRule> meshRules = new ArrayList<>();
+    // Optional: track tracts if you decide to bridge via Tract; kept empty by default.
+    private final List<Tract> tracts = new ArrayList<>();
 
     private static final class MeshRule {
         final int src, dst; final double prob; final boolean feedback;
@@ -342,6 +344,12 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 metrics.addSynapses(neuron.getOutgoing().size());
             }
         }
+        // Best‑effort region growth (layers)
+        try {
+            if (growthPolicy != null) {
+                GrowthEngine.maybeGrow(this, growthPolicy);
+            }
+        } catch (Throwable ignored) { }
         return metrics;
     }
 
@@ -361,6 +369,12 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         for (MeshRule r : meshRules) if (r.dst == li) {
             Neuron t = layers.get(li).getNeurons().get(newIdx);
             for (Neuron s : layers.get(r.src).getNeurons()) if (rng.nextDouble() <= r.prob) s.connect(t, r.feedback);
+        }
+        // Tracts where this layer is the source: subscribe the new source neuron (if any tracts exist)
+        for (Tract t : tracts) {
+            if (t != null && t.getSource() == L) {
+                t.attachSourceNeuron(newIdx);
+            }
         }
     }
     public int requestLayerGrowth(Layer saturated) {

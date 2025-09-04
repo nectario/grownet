@@ -200,6 +200,14 @@ void Region::autowireNewNeuron(Layer* L, int newIdx) {
             if (uni(rng) <= r.prob) sn->connect(t, r.feedback);
         }
     }
+
+    // 3) Tracts where this layer is the source: subscribe the new source neuron.
+    for (auto& tractPtr : tracts) {
+        if (!tractPtr) continue;
+        if (tractPtr->getSourceLayer() == L) {
+            tractPtr->attachSourceNeuron(newIdx);
+        }
+    }
 }
 
 int Region::requestLayerGrowth(Layer* saturated) {

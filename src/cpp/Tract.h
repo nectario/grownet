@@ -29,5 +29,12 @@ public:
             });
         }
     }
+
+    // Accessors used by Region for growth auto-subscription
+    Layer* getSourceLayer() const { return source; }
+    Layer* getDestLayer()   const { return dest; }
+
+    /** Subscribe a newly created source neuron so its spikes propagate through this tract. */
+    void attachSourceNeuron(int newSourceIndex);
 };
 } // namespace grownet
