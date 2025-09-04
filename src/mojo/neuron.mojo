@@ -20,6 +20,7 @@ struct Neuron:
     var focus_lock_until_tick: Int = 0
     var last_fired: Bool = False
     var last_slot_id: Int = -1  # remember last selected slot id
+    var prefer_last_slot_once: Bool = False
     var last_slot_used_fallback: Bool = False
     var fallback_streak: Int = 0
     var last_growth_tick: Int64 = -1
@@ -47,8 +48,11 @@ struct Neuron:
             self.focus_anchor = value
             self.focus_set = True
 
-        # Python-parity: use engine helper with strict capacity + fallback
-        var slot_identifier: Int = self.slot_engine.select_or_create_slot(self, value)
+        # One-shot reuse after unfreeze; otherwise select via engine (strict capacity + fallback)
+        var slot_identifier: Int = self.last_slot_id
+        if not self.prefer_last_slot_once or self.last_slot_id < 0:
+            slot_identifier = self.slot_engine.select_or_create_slot(self, value)
+        self.prefer_last_slot_once = False
         self.last_slot_id = slot_identifier
 
         var at_capacity: Bool = (self.slot_limit >= 0) and (Int(self.slots.size()) >= self.slot_limit)
@@ -85,7 +89,10 @@ struct Neuron:
     fn on_input_2d(mut self, value: Float64, row: Int, col: Int) -> Bool:
         if not self.slot_cfg.spatial_enabled:
             return self.on_input(value)
-        var key: Int = self.slot_engine.select_or_create_slot_2d(self, row, col)
+        var key: Int = self.last_slot_id
+        if not self.prefer_last_slot_once or self.last_slot_id < 0:
+            key = self.slot_engine.select_or_create_slot_2d(self, row, col)
+        self.prefer_last_slot_once = False
         var w = self.slots[key] if self.slots.contains(key) else Weight()
         w.reinforce(self.bus.modulation_factor)
         var fired = w.update_threshold(value)
@@ -119,4 +126,5 @@ struct Neuron:
         var slot_weight = self.slots[self.last_slot_id]
         slot_weight.unfreeze()
         self.slots[self.last_slot_id] = slot_weight
+        self.prefer_last_slot_once = True
         return True

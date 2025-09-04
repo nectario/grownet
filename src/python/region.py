@@ -292,8 +292,8 @@ class Region:
         # minimal spillover: add a small excitatory-only layer
         new_exc = max(4, (getattr(saturated_layer, 'excitatory_count', 4) // 2) or 4)
         new_idx = self.add_layer(excitatory_count=new_exc, inhibitory_count=0, modulatory_count=0)
-        # connect saturated -> new with a modest probability
-        self.connect_layers(idx, new_idx, probability=0.15, feedback=False)
+        # connect saturated -> new deterministically
+        self.connect_layers(idx, new_idx, probability=1.0, feedback=False)
         return new_idx
 
     # ---------------- edge helpers ----------------

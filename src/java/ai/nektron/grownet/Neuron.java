@@ -44,6 +44,9 @@ public class Neuron {
     public long    lastGrowthTick = -1L;
     public boolean preferLastSlotOnce = false; // one-shot reuse after unfreeze
     public Layer   owner = null;               // backref set by Layer
+    // Spatial (2D) FIRST anchor
+    public int anchorRow = -1;
+    public int anchorCol = -1;
 
     // NEW: hooks notified whenever this neuron fires
     private final List<BiConsumer<Double, Neuron>> fireHooks = new ArrayList<>();
@@ -89,6 +92,49 @@ public class Neuron {
         haveLastInput  = true;
         lastInputValue = value;
         // Growth bookkeeping (best effort): at-capacity + fallback streak
+        try {
+            final SlotConfig C = slotEngine == null ? null : slotEngine.getConfig();
+            if (C != null && C.isGrowthEnabled() && C.isNeuronGrowthEnabled()) {
+                final boolean atCap = (slotLimit >= 0 && slots.size() >= slotLimit);
+                if (atCap && lastSlotUsedFallback) fallbackStreak++; else fallbackStreak = 0;
+                final int threshold = Math.max(1, C.getFallbackGrowthThreshold());
+                if (owner != null && fallbackStreak >= threshold) {
+                    final long now = bus.getCurrentStep();
+                    final int cooldown = Math.max(0, C.getNeuronGrowthCooldownTicks());
+                    if (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown) {
+                        try { owner.tryGrowNeuron(this); } catch (Throwable ignored) { }
+                        lastGrowthTick = now;
+                    }
+                    fallbackStreak = 0;
+                }
+            }
+        } catch (Throwable ignored) { }
+        return fired;
+    }
+
+    /**
+     * 2D on-input path (strict capacity + fallback marking + growth bookkeeping).
+     * Mirrors the scalar path, but uses the 2D selector and spatial anchors.
+     */
+    public boolean onInput2D(double value, int row, int col) {
+        final int slotId = (preferLastSlotOnce && lastSlotId != null)
+                ? lastSlotId
+                : slotEngine.selectOrCreateSlot2D(this, row, col, /*cfg*/ null);
+        preferLastSlotOnce = false;
+        lastSlotId = slotId;
+
+        Weight slot = slots.get(slotId);
+        slot.reinforce(bus.getModulationFactor());
+        boolean fired = slot.updateThreshold(value);
+        if (fired) {
+            fire(value);
+            notifyFireHooks(value);
+            onOutput(value);
+        }
+        haveLastInput  = true;
+        lastInputValue = value;
+
+        // Growth bookkeeping parity with scalar onInput
         try {
             final SlotConfig C = slotEngine == null ? null : slotEngine.getConfig();
             if (C != null && C.isGrowthEnabled() && C.isNeuronGrowthEnabled()) {

@@ -37,6 +37,7 @@ public class InputLayerND extends Layer {
         List<Neuron> list = getNeurons();
         for (int i = 0; i < size; ++i) {
             InputNeuron n = new InputNeuron("IN[" + i + "]", getBus(), gain, epsilonFire);
+            n.owner = this;
             list.add(n);
         }
     }

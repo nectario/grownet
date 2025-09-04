@@ -15,8 +15,12 @@ class InputLayerND(Layer):
             size *= dim
         self.size = int(size)
         for index in range(self.size):
-            neuron = InputNeuron(f"IN[{index}]")
+            neuron = InputNeuron(f"IN[{index}]", gain=gain, epsilon_fire=epsilon_fire)
             neuron.set_bus(self.get_bus())
+            try:
+                neuron.owner = self
+            except Exception:
+                pass
             self.get_neurons().append(neuron)
 
     def has_shape(self, other_shape):

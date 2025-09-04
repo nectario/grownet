@@ -7,6 +7,8 @@ public final class SlotEngine {
 
     public SlotConfig getConfig() { return cfg; }
 
+    public SlotConfig getConfig() { return cfg; }
+
     public int slotId(double lastInput, double newInput, int slotsLen) {
         double deltaPercent = 0.0;
         if (lastInput != 0.0) {
@@ -76,5 +78,48 @@ public final class SlotEngine {
         }
         neuron.lastSlotUsedFallback = useFallback;
         return sid;
+    }
+
+    /**
+     * Spatial (2D) helper with strict capacity + fallback marking.
+     * Uses FIRST spatial anchor; packs (rowBin,colBin) as rowBin*100000 + colBin.
+     */
+    public int selectOrCreateSlot2D(Neuron neuron, int row, int col, SlotConfig cfg) {
+        if (neuron == null) return 0;
+        if (cfg == null) cfg = this.cfg;
+
+        // FIRST spatial anchor
+        if (neuron.anchorRow < 0 || neuron.anchorCol < 0) {
+            neuron.anchorRow = row;
+            neuron.anchorCol = col;
+        }
+
+        // Simple absolute-bin model aligned with V5 parity (row/col bins by absolute delta)
+        int rowBin = Math.abs(row - neuron.anchorRow);
+        int colBin = Math.abs(col - neuron.anchorCol);
+
+        int effectiveLimit = (neuron.slotLimit >= 0 ? neuron.slotLimit : cfg.getSlotLimit());
+        boolean atCapacity = (effectiveLimit > 0 && neuron.getSlots().size() >= effectiveLimit);
+        boolean outOfDomain = (effectiveLimit > 0 && (rowBin >= effectiveLimit || colBin >= effectiveLimit));
+
+        int desiredKey = rowBin * 100000 + colBin;
+        boolean wantNew = !neuron.getSlots().containsKey(desiredKey);
+        boolean useFallback = outOfDomain || (atCapacity && wantNew);
+
+        int key = useFallback && effectiveLimit > 0
+                ? (effectiveLimit - 1) * 100000 + (effectiveLimit - 1)
+                : desiredKey;
+
+        if (!neuron.getSlots().containsKey(key)) {
+            if (atCapacity) {
+                if (neuron.getSlots().isEmpty()) {
+                    neuron.getSlots().put(key, new Weight());
+                }
+            } else {
+                neuron.getSlots().put(key, new Weight());
+            }
+        }
+        neuron.lastSlotUsedFallback = useFallback;
+        return key;
     }
 }
