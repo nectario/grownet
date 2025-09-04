@@ -74,4 +74,7 @@ public class OutputLayer2D extends Layer {
     public double[][] getFrame() {
         return frame;
     }
+
+    public int getHeight() { return height; }
+    public int getWidth()  { return width; }
 }

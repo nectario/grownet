@@ -40,6 +40,9 @@ public class InputLayer2D extends Layer {
     /** Row‑major index helper. */
     public int index(int row, int col) { return row * width + col; }
 
+    public int getHeight() { return height; }
+    public int getWidth()  { return width; }
+
     /**
      * Drive this input Layer with a 2D image (values in [0, 1] or any float range).
      * Follows the same onInput/onOutput contract as other layers.

@@ -357,6 +357,108 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         return tick2D(port, frame);
     }
 
+    /**
+     * Windowed deterministic wiring (2D). Returns number of unique participating source pixels.
+     */
+    public int connectLayersWindowed(
+            int sourceIndex,
+            int destIndex,
+            int kernelHeight,
+            int kernelWidth,
+            int strideHeight,
+            int strideWidth,
+            String padding,
+            boolean feedback) {
+        if (sourceIndex < 0 || sourceIndex >= layers.size())
+            throw new IndexOutOfBoundsException("sourceIndex out of range");
+        if (destIndex < 0 || destIndex >= layers.size())
+            throw new IndexOutOfBoundsException("destIndex out of range");
+        if (kernelHeight <= 0 || kernelWidth <= 0)
+            throw new IllegalArgumentException("kernel dims must be > 0");
+        if (strideHeight <= 0 || strideWidth <= 0)
+            throw new IllegalArgumentException("stride must be > 0");
+
+        Layer src = layers.get(sourceIndex);
+        Layer dst = layers.get(destIndex);
+
+        int H = 0, W = 0;
+        if (src instanceof InputLayer2D) {
+            H = ((InputLayer2D) src).getHeight();
+            W = ((InputLayer2D) src).getWidth();
+        } else if (dst instanceof OutputLayer2D) {
+            H = ((OutputLayer2D) dst).getHeight();
+            W = ((OutputLayer2D) dst).getWidth();
+        } else {
+            int n = src.getNeurons().size();
+            int side = (int)Math.sqrt(n);
+            if (side * side != n) throw new IllegalStateException("source is not 2D-compatible");
+            H = side; W = side;
+        }
+
+        java.util.List<int[]> origins = new java.util.ArrayList<>();
+        if ("same".equalsIgnoreCase(padding)) {
+            int outRows = (int)Math.ceil((double)H / strideHeight);
+            int outCols = (int)Math.ceil((double)W / strideWidth);
+            int padRows = Math.max(0, (outRows - 1) * strideHeight + kernelHeight - H);
+            int padCols = Math.max(0, (outCols - 1) * strideWidth + kernelWidth  - W);
+            int rowStart = -padRows / 2;
+            int colStart = -padCols / 2;
+            for (int r = rowStart; r + kernelHeight <= H + padRows; r += strideHeight) {
+                for (int c = colStart; c + kernelWidth <= W + padCols; c += strideWidth) {
+                    origins.add(new int[]{r, c});
+                }
+            }
+        } else { // VALID
+            for (int r = 0; r + kernelHeight <= H; r += strideHeight) {
+                for (int c = 0; c + kernelWidth <= W; c += strideWidth) {
+                    origins.add(new int[]{r, c});
+                }
+            }
+        }
+
+        java.util.Set<Integer> allowed = new java.util.HashSet<>();
+        java.util.Map<Integer, Integer> centerMap = (dst instanceof OutputLayer2D)
+                ? new java.util.HashMap<>() : java.util.Collections.emptyMap();
+
+        if (dst instanceof OutputLayer2D) {
+            for (int[] origin : origins) {
+                int r0 = origin[0], c0 = origin[1];
+                int rr0 = Math.max(0, r0), cc0 = Math.max(0, c0);
+                int rr1 = Math.min(H, r0 + kernelHeight), cc1 = Math.min(W, c0 + kernelWidth);
+                if (rr0 >= rr1 || cc0 >= cc1) continue;
+                int cr = Math.min(H - 1, Math.max(0, r0 + kernelHeight / 2));
+                int cc = Math.min(W - 1, Math.max(0, c0 + kernelWidth  / 2));
+                int centerIdx = cr * W + cc;
+                for (int rr = rr0; rr < rr1; ++rr) {
+                    for (int cc2 = cc0; cc2 < cc1; ++cc2) {
+                        int srcIdx = rr * W + cc2;
+                        allowed.add(srcIdx);
+                        ((java.util.Map<Integer,Integer>)centerMap).putIfAbsent(srcIdx, centerIdx);
+                    }
+                }
+            }
+            Tract tract = new Tract(src, dst, bus, feedback, allowed, centerMap);
+            tracts.add(tract);
+        } else {
+            java.util.Set<Integer> seen = new java.util.HashSet<>();
+            for (int[] origin : origins) {
+                int r0 = origin[0], c0 = origin[1];
+                int rr0 = Math.max(0, r0), cc0 = Math.max(0, c0);
+                int rr1 = Math.min(H, r0 + kernelHeight), cc1 = Math.min(W, c0 + kernelWidth);
+                if (rr0 >= rr1 || cc0 >= cc1) continue;
+                for (int rr = rr0; rr < rr1; ++rr) {
+                    for (int cc2 = cc0; cc2 < cc1; ++cc2) {
+                        int srcIdx = rr * W + cc2;
+                        if (seen.add(srcIdx)) allowed.add(srcIdx);
+                    }
+                }
+            }
+            Tract tract = new Tract(src, dst, bus, feedback, allowed, null);
+            tracts.add(tract);
+        }
+        return allowed.size();
+    }
+
     // ---- growth plumbing ----
     void autowireNewNeuron(Layer L, int newIdx) {
         int li = layers.indexOf(L); if (li < 0) return;

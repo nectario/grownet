@@ -80,14 +80,48 @@ struct Layer:
                     if n.fallback_streak >= (if C.fallback_growth_threshold > 0 then C.fallback_growth_threshold else 1):
                         var cooldown = if C.neuron_growth_cooldown_ticks > 0 then C.neuron_growth_cooldown_ticks else 0
                         if (n.last_growth_tick < 0) or (now - n.last_growth_tick >= cooldown):
-                            # Best-effort: add an excitatory neighbor and share bus + cfg
-                            var new_exc = ExcitatoryNeuron("G" + String(alln.len))
-                            new_exc.core.bus = self.bus
-                            new_exc.core.slot_cfg = C
-                            new_exc.core.slot_engine = SlotEngine(C)
-                            new_exc.core.slot_limit = n.slot_limit
-                            self.neurons_exc.append(new_exc)
-                            var new_unified_index = self.neurons_inh.len + self.neurons_mod.len + (self.neurons_exc.len - 1)
+                            # Best-effort: grow same kind as seed neuron
+                            var grew_index = -1
+                            var j = 0
+                            var classified: Bool = False
+                            # Check inhibitory membership
+                            j = 0
+                            while j < self.neurons_inh.len and not classified:
+                                if self.neurons_inh[j].core == n:
+                                    var neu = InhibitoryNeuron("G" + String(alln.len))
+                                    neu.core.bus = self.bus
+                                    neu.core.slot_cfg = C
+                                    neu.core.slot_engine = SlotEngine(C)
+                                    neu.core.slot_limit = n.slot_limit
+                                    self.neurons_inh.append(neu)
+                                    grew_index = (self.neurons_inh.len - 1)  # position within inh
+                                    # unified index = inh_index
+                                    classified = True
+                                j = j + 1
+                            # Check modulatory membership
+                            j = 0
+                            if not classified:
+                                while j < self.neurons_mod.len and not classified:
+                                    if self.neurons_mod[j].core == n:
+                                        var neu2 = ModulatoryNeuron("G" + String(alln.len))
+                                        neu2.core.bus = self.bus
+                                        neu2.core.slot_cfg = C
+                                        neu2.core.slot_engine = SlotEngine(C)
+                                        neu2.core.slot_limit = n.slot_limit
+                                        self.neurons_mod.append(neu2)
+                                        grew_index = self.neurons_inh.len + (self.neurons_mod.len - 1)
+                                        classified = True
+                                    j = j + 1
+                            # Else treat as excitatory
+                            if not classified:
+                                var neu3 = ExcitatoryNeuron("G" + String(alln.len))
+                                neu3.core.bus = self.bus
+                                neu3.core.slot_cfg = C
+                                neu3.core.slot_engine = SlotEngine(C)
+                                neu3.core.slot_limit = n.slot_limit
+                                self.neurons_exc.append(neu3)
+                                grew_index = self.neurons_inh.len + self.neurons_mod.len + (self.neurons_exc.len - 1)
+                            var new_unified_index = grew_index
                             n.last_growth_tick = now
                             n.fallback_streak = 0
                             # Region-level autowiring if region backref exists

@@ -18,6 +18,10 @@ public final class Tract {
     private final Layer destination;
     private final RegionBus regionBus;
     private final boolean feedback;
+    
+    // Optional windowed-wiring helpers
+    private final java.util.Set<Integer> allowedSources;
+    private final java.util.Map<Integer, Integer> centerIndexBySource;
 
     private final List<Edge> edges = new ArrayList<>();
     private final Deque<Event> queue = new ArrayDeque<>();
@@ -43,11 +47,37 @@ public final class Tract {
         this.destination = destination;
         this.regionBus = bus;
         this.feedback = feedback;
+        this.allowedSources = java.util.Collections.emptySet();
+        this.centerIndexBySource = java.util.Collections.emptyMap();
 
         // Register hooks on all current source neurons.
         BiConsumer<Double, Neuron> hook = (value, who) -> onSourceFired(who, value);
         for (Neuron neuron : source.getNeurons()) {
             neuron.registerFireHook(hook);
+        }
+    }
+
+    /** Windowed-wiring constructor: restrict to allowed sources and optional center mapping. */
+    public Tract(
+            Layer source,
+            Layer destination,
+            RegionBus bus,
+            boolean feedback,
+            java.util.Set<Integer> allowedSources,
+            java.util.Map<Integer, Integer> centerIndexBySource) {
+        this.source = source;
+        this.destination = destination;
+        this.regionBus = bus;
+        this.feedback = feedback;
+        this.allowedSources = (allowedSources == null ? java.util.Collections.emptySet() : new java.util.HashSet<>(allowedSources));
+        this.centerIndexBySource = (centerIndexBySource == null ? java.util.Collections.emptyMap() : new java.util.HashMap<>(centerIndexBySource));
+
+        // Subscribe only the allowed subset (or all if empty)
+        for (int i = 0; i < source.getNeurons().size(); ++i) {
+            if (this.allowedSources.isEmpty() || this.allowedSources.contains(i)) {
+                final int srcIdx = i;
+                source.getNeurons().get(i).registerFireHook((value, who) -> onSourceFiredIndex(srcIdx, value));
+            }
         }
     }
 
@@ -76,11 +106,38 @@ public final class Tract {
 
     /** Fire-hook: batch an event for each edge whose source == who. */
     private void onSourceFired(Neuron who, double amplitude) {
+        // Windowed: if we have a center mapping, prefer direct delivery path
+        if (!centerIndexBySource.isEmpty() || !allowedSources.isEmpty()) {
+            // Without the index we cannot map; fall back to fan-out
+            for (Neuron target : destination.getNeurons()) {
+                boolean fired = target.onInput(amplitude);
+                if (fired) try { target.onOutput(amplitude); } catch (Throwable ignored) {}
+            }
+            return;
+        }
         for (Edge edge : edges) {
             if (edge.sourceNeuron == who) {
                 edge.lastStep = regionBus.getCurrentStep();
                 queue.add(new Event(edge.targetNeuron, amplitude));
             }
+        }
+    }
+
+    /** Windowed path: we already know the source index. */
+    private void onSourceFiredIndex(int sourceIndex, double amplitude) {
+        if (!centerIndexBySource.isEmpty()) {
+            Integer centerIdx = centerIndexBySource.get(sourceIndex);
+            if (centerIdx != null && centerIdx >= 0 && centerIdx < destination.getNeurons().size()) {
+                Neuron n = destination.getNeurons().get(centerIdx);
+                boolean fired = n.onInput(amplitude);
+                if (fired) try { n.onOutput(amplitude); } catch (Throwable ignored) {}
+            }
+            return;
+        }
+        // Generic: fan-out to all neurons in dest
+        for (Neuron target : destination.getNeurons()) {
+            boolean fired = target.onInput(amplitude);
+            if (fired) try { target.onOutput(amplitude); } catch (Throwable ignored) {}
         }
     }
 
@@ -125,11 +182,9 @@ public final class Tract {
      */
     public void attachSourceNeuron(int newSourceIndex) {
         if (source == null || destination == null) return;
+        if (!allowedSources.isEmpty() && !allowedSources.contains(newSourceIndex)) return;
         final List<Neuron> src = source.getNeurons();
         if (newSourceIndex < 0 || newSourceIndex >= src.size()) return;
-        src.get(newSourceIndex).registerFireHook((amplitude, who) -> {
-            // Deliver directly to the destination's fan-out helper.
-            destination.propagateFrom(newSourceIndex, amplitude);
-        });
+        src.get(newSourceIndex).registerFireHook((amplitude, who) -> onSourceFiredIndex(newSourceIndex, amplitude));
     }
 }
