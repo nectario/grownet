@@ -453,7 +453,7 @@ class Region:
             bound = self.input_ports.get(port, [])
             if os.environ.get("GROWNET_COMPAT_DELIVERED_COUNT") == "bound":
                 delivered = max(1, len(bound))
-                metrics.set_deliveredEvents(delivered)
+                metrics.delivered_events = delivered
         except Exception:
             pass
 
@@ -500,7 +500,7 @@ class Region:
             bound = self.input_ports.get(port, [])
             if os.environ.get("GROWNET_COMPAT_DELIVERED_COUNT") == "bound":
                 delivered = max(1, len(bound))
-                metrics.set_deliveredEvents(delivered)
+                metrics.delivered_events = delivered
         except Exception:
             pass
         for layer_obj in self.layers:
@@ -648,21 +648,12 @@ class Region:
             active = sum(1 for row_index in range(height) for col_index in range(width) if float(chosen_frame[row_index][col_index]) > 0.0)
 
         metrics.active_pixels = active
-        metrics.activePixels = active
         if total > 0.0:
             metrics.centroid_row = sum_r / total
             metrics.centroid_col = sum_c / total
-            metrics.centroidRow = metrics.centroid_row
-            metrics.centroidCol = metrics.centroid_col
         else:
             metrics.centroid_row = 0.0
             metrics.centroid_col = 0.0
-            metrics.centroidRow = 0.0
-            metrics.centroidCol = 0.0
 
         bbox = (0, -1, 0, -1) if rmax < rmin or cmax < cmin else (rmin, rmax, cmin, cmax)
         metrics.bbox = bbox
-        try:
-            metrics.bboxRowMin, metrics.bboxRowMax, metrics.bboxColMin, metrics.bboxColMax = bbox
-        except Exception:
-            pass

@@ -8,9 +8,9 @@ def test_single_tick_no_tracts():
     input_layer_idx = region.add_layer(1, 0, 0)
     region.bind_input("x", [input_layer_idx])
     metrics = region.tick("x", 0.42)
-    assert getattr(metrics, "deliveredEvents", None) == 1
-    assert getattr(metrics, "totalSlots", None) >= 1
-    assert getattr(metrics, "totalSynapses", None) >= 0
+    assert metrics.delivered_events == 1
+    assert metrics.total_slots >= 1
+    assert metrics.total_synapses >= 0
 
 def test_connect_layers_full_mesh():
     region = Region("t")
@@ -25,4 +25,4 @@ def test_image_input_event_count():
     region.bind_input("pixels", [in_idx])
     frame = [[0.0, 1.0],[0.0, 0.0]]
     m = region.tick_image("pixels", frame)
-    assert getattr(m, "deliveredEvents", None) == 1
+    assert m.delivered_events == 1

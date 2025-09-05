@@ -32,7 +32,7 @@ def test_spatial_slotting_first_anchor_and_bins():
     m = region.tick_2d("img", f2)
 
     # Structural evidence of slotting occurred
-    assert getattr(m, "totalSlots", 0) >= 1
+    assert m.total_slots >= 1
 
 
 def test_spatial_metrics_centroid_and_bbox(monkeypatch):

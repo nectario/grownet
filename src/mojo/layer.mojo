@@ -73,60 +73,17 @@ struct Layer:
         var i = 0
         while i < alln.len:
             var n = alln[i]
-            var C = n.slot_cfg
-            if C.growth_enabled and C.neuron_growth_enabled:
+            var slot_config = n.slot_cfg
+            if slot_config.growth_enabled and slot_config.neuron_growth_enabled:
                 var at_capacity: Bool = (n.slot_limit >= 0) and (Int(n.slots.size()) >= n.slot_limit)
                 if at_capacity and n.last_slot_used_fallback:
-                    if n.fallback_streak >= (if C.fallback_growth_threshold > 0 then C.fallback_growth_threshold else 1):
-                        var cooldown = if C.neuron_growth_cooldown_ticks > 0 then C.neuron_growth_cooldown_ticks else 0
+                    if n.fallback_streak >= (if slot_config.fallback_growth_threshold > 0 then slot_config.fallback_growth_threshold else 1):
+                        var cooldown = if slot_config.neuron_growth_cooldown_ticks > 0 then slot_config.neuron_growth_cooldown_ticks else 0
                         if (n.last_growth_tick < 0) or (now - n.last_growth_tick >= cooldown):
-                            # Best-effort: grow same kind as seed neuron
-                            var grew_index = -1
-                            var j = 0
-                            var classified: Bool = False
-                            # Check inhibitory membership
-                            j = 0
-                            while j < self.neurons_inh.len and not classified:
-                                if self.neurons_inh[j].core == n:
-                                    var neu = InhibitoryNeuron("G" + String(alln.len))
-                                    neu.core.bus = self.bus
-                                    neu.core.slot_cfg = C
-                                    neu.core.slot_engine = SlotEngine(C)
-                                    neu.core.slot_limit = n.slot_limit
-                                    self.neurons_inh.append(neu)
-                                    grew_index = (self.neurons_inh.len - 1)  # position within inh
-                                    # unified index = inh_index
-                                    classified = True
-                                j = j + 1
-                            # Check modulatory membership
-                            j = 0
-                            if not classified:
-                                while j < self.neurons_mod.len and not classified:
-                                    if self.neurons_mod[j].core == n:
-                                        var neu2 = ModulatoryNeuron("G" + String(alln.len))
-                                        neu2.core.bus = self.bus
-                                        neu2.core.slot_cfg = C
-                                        neu2.core.slot_engine = SlotEngine(C)
-                                        neu2.core.slot_limit = n.slot_limit
-                                        self.neurons_mod.append(neu2)
-                                        grew_index = self.neurons_inh.len + (self.neurons_mod.len - 1)
-                                        classified = True
-                                    j = j + 1
-                            # Else treat as excitatory
-                            if not classified:
-                                var neu3 = ExcitatoryNeuron("G" + String(alln.len))
-                                neu3.core.bus = self.bus
-                                neu3.core.slot_cfg = C
-                                neu3.core.slot_engine = SlotEngine(C)
-                                neu3.core.slot_limit = n.slot_limit
-                                self.neurons_exc.append(neu3)
-                                grew_index = self.neurons_inh.len + self.neurons_mod.len + (self.neurons_exc.len - 1)
-                            var new_unified_index = grew_index
+                            # Grow same kind via helper (includes autowiring)
+                            var new_unified_index = self.try_grow_neuron(n)
                             n.last_growth_tick = now
                             n.fallback_streak = 0
-                            # Region-level autowiring if region backref exists
-                            if self.region is not None and self.region.autowire_new_neuron_by_ref is not None:
-                                self.region.autowire_new_neuron_by_ref(self, new_unified_index)
             i = i + 1
         # Bus decay increments current_step
         self.bus.decay()
@@ -136,3 +93,49 @@ struct Layer:
 
     fn set_region(mut self, region_ref: any) -> None:
         self.region = region_ref
+
+    # Same-kind neuron growth helper (E/I/M), returns unified neuron index and autowires it
+    fn try_grow_neuron(mut self, seed: Neuron) -> Int:
+        var slot_config = seed.slot_cfg
+        # Determine seed kind by membership
+        var group_index = 0
+        while group_index < self.neurons_inh.len:
+            if self.neurons_inh[group_index].core == seed:
+                var new_inhibitory = InhibitoryNeuron("G" + String(self.get_neurons().len))
+                new_inhibitory.core.bus = self.bus
+                new_inhibitory.core.slot_cfg = slot_config
+                new_inhibitory.core.slot_engine = SlotEngine(slot_config)
+                new_inhibitory.core.slot_limit = seed.slot_limit
+                self.neurons_inh.append(new_inhibitory)
+                var new_unified_index = (self.neurons_inh.len - 1)  # unified = inhibitory index
+                if (self.region is not None) and (self.region.autowire_new_neuron_by_ref is not None):
+                    self.region.autowire_new_neuron_by_ref(self, new_unified_index)
+                return new_unified_index
+            group_index = group_index + 1
+
+        group_index = 0
+        while group_index < self.neurons_mod.len:
+            if self.neurons_mod[group_index].core == seed:
+                var new_modulatory = ModulatoryNeuron("G" + String(self.get_neurons().len))
+                new_modulatory.core.bus = self.bus
+                new_modulatory.core.slot_cfg = slot_config
+                new_modulatory.core.slot_engine = SlotEngine(slot_config)
+                new_modulatory.core.slot_limit = seed.slot_limit
+                self.neurons_mod.append(new_modulatory)
+                var new_unified_index_mod = self.neurons_inh.len + (self.neurons_mod.len - 1)
+                if (self.region is not None) and (self.region.autowire_new_neuron_by_ref is not None):
+                    self.region.autowire_new_neuron_by_ref(self, new_unified_index_mod)
+                return new_unified_index_mod
+            group_index = group_index + 1
+
+        # Default to excitatory
+        var new_excitatory = ExcitatoryNeuron("G" + String(self.get_neurons().len))
+        new_excitatory.core.bus = self.bus
+        new_excitatory.core.slot_cfg = slot_config
+        new_excitatory.core.slot_engine = SlotEngine(slot_config)
+        new_excitatory.core.slot_limit = seed.slot_limit
+        self.neurons_exc.append(new_excitatory)
+        var new_unified_index_exc = self.neurons_inh.len + self.neurons_mod.len + (self.neurons_exc.len - 1)
+        if (self.region is not None) and (self.region.autowire_new_neuron_by_ref is not None):
+            self.region.autowire_new_neuron_by_ref(self, new_unified_index_exc)
+        return new_unified_index_exc

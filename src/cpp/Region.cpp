@@ -350,6 +350,12 @@ PruneSummary Region::prune(long long /*synapseStaleWindow*/, double /*synapseMin
 
 // Drive a 2D frame into an InputLayer2D edge bound to `port`.
 RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::vector<double>>& frame) {
+    // Specific image helper delegates to the general 2D tick
+    return tick2D(port, frame);
+}
+
+// General 2D tick (preferred)
+RegionMetrics Region::tick2D(const std::string& port, const std::vector<std::vector<double>>& frame) {
     RegionMetrics metrics;
 
     auto edgeIt = inputEdges.find(port);

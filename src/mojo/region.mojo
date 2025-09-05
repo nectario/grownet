@@ -244,34 +244,34 @@ struct Region:
         # Deterministic unique source subscriptions; center rule if dest is OutputLayer2D
         var source_layer = self.layers[src_index]
         var dest_layer = self.layers[dest_index]
-        var H = source_layer.height
-        var W = source_layer.width
-        var KH = kernel_h
-        var KW = kernel_w
-        var SH = if stride_h > 0 then stride_h else 1
-        var SW = if stride_w > 0 then stride_w else 1
+        var source_height = source_layer.height
+        var source_width = source_layer.width
+        var kernel_height = kernel_h
+        var kernel_width = kernel_w
+        var stride_height = if stride_h > 0 then stride_h else 1
+        var stride_width = if stride_w > 0 then stride_w else 1
         var same = (padding == "same" or padding == "SAME")
 
         # Window origins
         var origins: list[tuple[Int, Int]] = []
         if same:
-            var pr = (KH - 1) / 2
-            var pc = (KW - 1) / 2
-            var r0 = -pr
-            while r0 + KH <= H + pr + pr:
-                var c0 = -pc
-                while c0 + KW <= W + pc + pc:
+            var pad_rows = (kernel_height - 1) / 2
+            var pad_cols = (kernel_width - 1) / 2
+            var r0 = -pad_rows
+            while r0 + kernel_height <= source_height + pad_rows + pad_rows:
+                var c0 = -pad_cols
+                while c0 + kernel_width <= source_width + pad_cols + pad_cols:
                     origins.append((r0, c0))
-                    c0 = c0 + SW
-                r0 = r0 + SH
+                    c0 = c0 + stride_width
+                r0 = r0 + stride_height
         else:
             var r0v = 0
-            while r0v + KH <= H:
+            while r0v + kernel_height <= source_height:
                 var c0v = 0
-                while c0v + KW <= W:
+                while c0v + kernel_width <= source_width:
                     origins.append((r0v, c0v))
-                    c0v = c0v + SW
-                r0v = r0v + SH
+                    c0v = c0v + stride_width
+                r0v = r0v + stride_height
 
         # Unique participating sources
         var allowed_sources = dict[Int, Bool]()
@@ -281,32 +281,32 @@ struct Region:
         # Check if dest is OutputLayer2D by duck-typing height/width and get_neurons
         var dst_has_frame = (dest_layer.height is not None) and (dest_layer.width is not None) and (dest_layer.get_frame is not None)
         if dst_has_frame:
-            var DH = dest_layer.height
-            var DW = dest_layer.width
+            var dest_height = dest_layer.height
+            var dest_width = dest_layer.width
             var oi = 0
             while oi < origins.len:
                 var orow = origins[oi][0]
                 var ocol = origins[oi][1]
                 var rstart = if orow > 0 then orow else 0
                 var cstart = if ocol > 0 then ocol else 0
-                var rend = if (orow + KH) < H then (orow + KH) else H
-                var cend = if (ocol + KW) < W then (ocol + KW) else W
+                var rend = if (orow + kernel_height) < source_height then (orow + kernel_height) else source_height
+                var cend = if (ocol + kernel_width) < source_width then (ocol + kernel_width) else source_width
                 if rstart < rend and cstart < cend:
-                    var center_r = orow + (KH / 2)
+                    var center_r = orow + (kernel_height / 2)
                     if center_r < 0: center_r = 0
-                    if center_r > (H - 1): center_r = H - 1
-                    var center_c = ocol + (KW / 2)
+                    if center_r > (source_height - 1): center_r = source_height - 1
+                    var center_c = ocol + (kernel_width / 2)
                     if center_c < 0: center_c = 0
-                    if center_c > (W - 1): center_c = W - 1
+                    if center_c > (source_width - 1): center_c = source_width - 1
                     # Clamp to destination bounds
-                    if center_r > (DH - 1): center_r = DH - 1
-                    if center_c > (DW - 1): center_c = DW - 1
-                    var center_idx = center_r * DW + center_c
+                    if center_r > (dest_height - 1): center_r = dest_height - 1
+                    if center_c > (dest_width - 1): center_c = dest_width - 1
+                    var center_idx = center_r * dest_width + center_c
                     var rr = rstart
                     while rr < rend:
                         var cc = cstart
                         while cc < cend:
-                            var sidx = rr * W + cc
+                            var sidx = rr * source_width + cc
                             allowed_sources[sidx] = True
                             var key = String(sidx) + ":" + String(center_idx)
                             if not made.contains(key):
@@ -324,14 +324,14 @@ struct Region:
                 var oc2 = origins[oi2][1]
                 var rstart2 = if or2 > 0 then or2 else 0
                 var cstart2 = if oc2 > 0 then oc2 else 0
-                var rend2 = if (or2 + KH) < H then (or2 + KH) else H
-                var cend2 = if (oc2 + KW) < W then (oc2 + KW) else W
+                var rend2 = if (or2 + kernel_height) < source_height then (or2 + kernel_height) else source_height
+                var cend2 = if (oc2 + kernel_width) < source_width then (oc2 + kernel_width) else source_width
                 if rstart2 < rend2 and cstart2 < cend2:
                     var rr2 = rstart2
                     while rr2 < rend2:
                         var cc2 = cstart2
                         while cc2 < cend2:
-                            var sidx2 = rr2 * W + cc2
+                            var sidx2 = rr2 * source_width + cc2
                             if not allowed_sources.contains(sidx2):
                                 allowed_sources[sidx2] = True
                                 var dj = 0
@@ -343,6 +343,21 @@ struct Region:
                         rr2 = rr2 + 1
                 oi2 = oi2 + 1
         return Int(allowed_sources.size())
+
+    # Request a spillover layer and wire deterministically (snake_case; Python-Mojo parity)
+    fn request_layer_growth(mut self, layerRef: any, connection_probability: Float64 = 1.0) -> Int:
+        var li = -1
+        var i = 0
+        while i < self.layers.len:
+            if self.layers[i] == layerRef:
+                li = i
+                break
+            i = i + 1
+        if li < 0:
+            return -1
+        var new_index = self.add_layer(4, 0, 0)
+        _ = self.connect_layers(li, new_index, connection_probability, False)
+        return new_index
 
     # ---------------- edge helpers ----------------
     fn ensure_input_edge(mut self, port: String) -> Int:
@@ -516,10 +531,10 @@ struct Region:
                 if not all_zero:
                     chosen = img
 
-            var H = Int(chosen.size())
-            var W = 0
-            if H > 0:
-                W = Int(chosen[0].size())
+            var frame_height = Int(chosen.size())
+            var frame_width = 0
+            if frame_height > 0:
+                frame_width = Int(chosen[0].size())
             var total = 0.0
             var sumR = 0.0
             var sumC = 0.0
@@ -529,9 +544,9 @@ struct Region:
             var cmax = -1
             var active: Int64 = 0
             var r = 0
-            while r < H:
+            while r < frame_height:
                 var c = 0
-                while c < W:
+                while c < frame_width:
                     var v = chosen[r][c]
                     if v > 0.0:
                         active = active + 1
@@ -625,11 +640,11 @@ struct Region:
 
         var li3 = 0
         while li3 < self.layers.len:
-            var N = self.layers[li3].get_neurons()
+            var neuron_list = self.layers[li3].get_neurons()
             var ni = 0
-            while ni < N.len:
-                metrics.add_slots(Int64(N[ni].slots.size()))
-                metrics.add_synapses(Int64(N[ni].outgoing.size()))
+            while ni < neuron_list.len:
+                metrics.add_slots(Int64(neuron_list[ni].slots.size()))
+                metrics.add_synapses(Int64(neuron_list[ni].outgoing.size()))
                 ni = ni + 1
             li3 = li3 + 1
         return metrics

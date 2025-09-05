@@ -16,9 +16,9 @@ def main():
                 r.bind_input("scalar", [idx])
         if r and hasattr(r, "tick"):
             m = r.tick("scalar", 1.0)
-            print("deliveredEvents:", getattr(m, 'deliveredEvents', None))
-            print("totalSlots:", getattr(m, 'totalSlots', None))
-            print("totalSynapses:", getattr(m, 'totalSynapses', None))
+            print("delivered_events:", m.delivered_events)
+            print("total_slots:", m.total_slots)
+            print("total_synapses:", m.total_synapses)
     except Exception as e:
         print("Smoke test error:", e)
         raise

@@ -32,10 +32,10 @@ class OutputNeuron(Neuron):
         self.last_emitted *= (1.0 - self.smoothing)
 
     # ---- metrics-facing helpers expected by Region aggregation ----
-    def getSlots(self):
+    def get_slots(self):
         return self.slots
 
-    def getOutgoing(self):
+    def get_outgoing(self):
         return self.outgoing
 
     # ---- new method for parity ----

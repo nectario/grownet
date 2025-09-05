@@ -1,0 +1,121 @@
+project: GrowNet
+purpose: >
+  AI Research project aimed at NeurIPS. Biologically-inspired network that self-organizes by
+  growing Slots → Neurons → Layers → Regions under clear, testable rules.
+
+architecture:
+  hierarchy:
+    - Region: holds Layers, growth policy, mesh rules, and (optionally) Tracts for windowed wiring
+    - Layer: holds a population of E/I/M neurons + shared LateralBus; can add neurons (same kind)
+    - Neuron: holds slot memory, threshold dynamics, and outgoing synapses
+    - Slot: scalar or 2D memory bins chosen by delta-from-anchor
+  tick_discipline:
+    - phase_A: neurons integrate input, choose/reinforce slot, maybe fire (emit events)
+    - phase_B: events/synapses propagate; demos/tract hooks observe these firings
+    - end_tick: each layer calls `neuron.end_tick()` then `bus.decay()`
+    - bus_decay: inhibition decays multiplicatively; modulation resets to 1.0; `current_step += 1`
+
+slot_selection:
+  anchor_mode: FIRST (anchor fixed on first observation)
+  scalar:
+    - delta_pct = |x - anchor| / max(|anchor|, epsilon_scale) * 100
+    - bin_width_pct controls binning
+  two_d:
+    - separate row/col binning; packs (row_bin, col_bin) -> integer key (e.g., r*100000 + c)
+  capacity:
+    - strict: never allocate new slot when at capacity (bootstrap exception if empty)
+    - fallback: when new bin is desired but blocked (out-of-domain or at-capacity),
+      reuse a deterministic fallback id and set `last_slot_used_fallback = true`
+  freeze_unfreeze:
+    - `freeze_last_slot()` locks a slot
+    - `unfreeze_last_slot()` triggers a one-shot preference to reuse that same slot on next tick
+      (no leading underscores in Python/Mojo; flag name = `prefer_last_slot_once`)
+
+growth_rules:
+  slots_to_neuron:
+    trigger:
+      - per-neuron strict capacity reached AND
+      - fallback bin used in consecutive inputs ≥ `fallback_growth_threshold`
+      - cooldown (ticks) since last neuron growth ≥ `neuron_growth_cooldown_ticks`
+    action:
+      - layer adds **one neuron of the same kind** as the seed neuron
+      - copy bus, slot config, slot limit; set `owner` backref
+      - auto-wire deterministically (see autowiring)
+  neuron_to_layer (region growth):
+    triggers (OR):
+      - region average slots/neuron ≥ `avg_slots_threshold`
+      - percent(neurons at capacity AND using fallback) ≥ `percent_at_cap_fallback_threshold`
+    rules:
+      - one growth per region per tick
+      - respect `max_layers` and `layer_cooldown_ticks`
+    action:
+      - add small spillover layer (usually excitatory-only by default)
+      - connect saturated → new **with p=1.0** (deterministic topology; policy may override)
+      - use region RNG for all cross-boundary wiring for reproducibility
+
+autowiring:
+  mesh_rules:
+    - whenever `connect_layers(src, dst, p, feedback)` is called, record a mesh rule
+    - when a neuron grows in a layer:
+      - outbound: new source → each recorded dst-layer neuron with recorded p
+      - inbound: each recorded src-layer neuron → new target with recorded p
+  windowed_tracts:
+    - `connect_layers_windowed(...)` builds Tracts (or equivalent explicit edges)
+    - when a source-layer neuron grows, re-attach it via `tract.attach_source_neuron(new_idx)`
+    - for `OutputLayer2D`, map each sliding window to its **center** target index
+
+language_parity:
+  python:
+    - strict capacity (scalar & 2D), fallback marking, prefer-last-slot-once, owner backrefs
+    - neuron growth via per-neuron escalation; region growth policy supports OR-trigger and cooldown
+    - windowed tracts implemented; `attach_source_neuron` present
+    - `request_layer_growth` uses p=1.0 wiring
+  cxx:
+    - SlotEngine strict capacity (scalar & 2D) + fallback marking
+    - `preferLastSlotOnce` honored in selectors; bus `currentStep` increments in `decay()`
+    - SlotConfig has knobs: growthEnabled, neuronGrowthEnabled, layerGrowthEnabled,
+      fallbackGrowthThreshold, neuronGrowthCooldownTicks
+    - Neuron triggers growth via config-driven fallback-streak + cooldown; Layer grows same kind
+    - Region records mesh rules; `requestLayerGrowth` uses p=1.0
+  java:
+    - SlotEngine strict capacity (scalar & 2D) + fallback marking; one-shot reuse after unfreeze
+    - GrowthPolicy: avg-slots threshold, max layers, cooldown, **percent-at-cap-fallback** OR-trigger
+    - Region growth deterministic; mesh rules recorded; windowed wiring + `Tract.attachSourceNeuron`
+    - owner backrefs on Input/Output 2D and ND inputs
+  mojo:
+    - `struct` + `fn` with typed params (no leading underscores)
+    - strict capacity (scalar & 2D) + fallback marking
+    - `prefer_last_slot_once` implemented; bus decay parity (mult. inhibition, modulation=1.0, step++)
+    - `connect_layers_windowed` implemented (unique sources + center rule for OutputLayer2D)
+    - `try_grow_neuron(seed)` grows same kind and calls `region.autowire_new_neuron_by_ref(...)`
+
+style_and_conventions:
+  - Python & Mojo: **no names starting with `_`** (no leading-underscore identifiers)
+  - Mojo: use `struct`, `fn`, and **typed** parameters
+  - No single/double-character variable names in any language
+  - Keep RNG seeds deterministic where used (e.g., 1234)
+  - Use p=1.0 for spillover wiring unless a policy specifically says otherwise
+
+switches_and_defaults:
+  python.slot_cfg:
+    - growth_enabled: true
+    - neuron_growth_enabled: true
+    - layer_growth_enabled: false (opt-in)
+    - fallback_growth_threshold: 3
+    - neuron_growth_cooldown_ticks: 0
+  cxx.SlotConfig (same fields & defaults as above)
+  java.GrowthPolicy:
+    - avgSlotsThreshold: project-specific
+    - maxLayers: project-specific
+    - layerCooldownTicks: 500 (example)
+    - percentAtCapFallbackThreshold: 0.0 (off) → set >0 to enable OR-trigger
+
+tests_and_demos:
+  - python: growth tests exist (fallback → neuron growth; autowiring smoke)
+  - java: growth smoke; windowed wiring present; add tests for OR-trigger if desired
+  - cxx/mojo: consider adding focused tests for unfreeze preference and windowed return semantics
+
+open_items_to_watch:
+  - Keep windowed-tract re-attach verified across Java/Mojo as code evolves
+  - Maintain “one growth per tick” invariant at region level
+  - Ensure `owner` backrefs are set for any new layer types

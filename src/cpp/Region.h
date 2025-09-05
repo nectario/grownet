@@ -90,6 +90,7 @@ public:
     void pulseModulation(double factor);
 
     RegionMetrics tick(const std::string& port, double value);
+    RegionMetrics tick2D(const std::string& port, const std::vector<std::vector<double>>& frame);
     RegionMetrics tickImage(const std::string& port, const std::vector<std::vector<double>>& frame);
 
     // --- No-op prune stubs to keep demos/tests compiling ---

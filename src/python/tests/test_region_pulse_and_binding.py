@@ -7,7 +7,7 @@ def test_multi_layer_input_binding(compat_bound_delivered_count):
     layer_b = region.add_layer(1, 0, 0)
     region.bind_input("x", [layer_a, layer_b])
     metrics = region.tick("x", 1.0)
-    assert getattr(metrics, "deliveredEvents", None) == 2
+    assert metrics.delivered_events == 2
 
 def test_pulse_checks():
     region = Region("t")
