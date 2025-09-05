@@ -23,20 +23,28 @@ public final class GrowthEngine {
         if (region == null || policy == null) return;
         if (!policy.isEnableLayerGrowth()) return;
 
-        // Compute avg slots/neuron across region
+        // Compute avg slots/neuron and optional OR-trigger (% neurons at cap & fallback)
         double totalSlots = 0.0;
-        double totalNeurons = 0.0;
+        int totalNeurons = 0;
+        int atCapAndFallback = 0;
         final List<Layer> layers = region.getLayers();
         for (Layer l : layers) {
             for (Neuron n : l.getNeurons()) {
-                totalSlots   += n.getSlots().size();
-                totalNeurons += 1.0;
+                totalSlots += n.getSlots().size();
+                totalNeurons += 1;
+                int cap = n.slotLimit;
+                boolean atCap = (cap >= 0) && (n.getSlots().size() >= cap);
+                if (atCap && n.lastSlotUsedFallback) atCapAndFallback += 1;
             }
         }
-        if (totalNeurons <= 0.0) return;
-        final double avgSlots = totalSlots / totalNeurons;
+        if (totalNeurons <= 0) return;
+        final double avgSlots = totalSlots / Math.max(1.0, totalNeurons);
+        final double pctAtCapFallback = 100.0 * ((double) atCapAndFallback) / Math.max(1.0, totalNeurons);
 
-        if (avgSlots < policy.getAvgSlotsThreshold()) return;
+        boolean avgOk = avgSlots >= policy.getAvgSlotsThreshold();
+        boolean pctOk = policy.getPercentAtCapFallbackThreshold() > 0.0
+                && pctAtCapFallback >= policy.getPercentAtCapFallbackThreshold();
+        if (!avgOk && !pctOk) return;
         if (layers.size() >= policy.getMaxLayers()) return;
 
         // cooldown via first layer's bus tick (if available); fallback to 0

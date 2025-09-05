@@ -85,6 +85,10 @@ public:
     int lastSlotId { -1 };
     void setLastSlotId(int slotId) { lastSlotId = slotId; }
     int  getLastSlotId() const { return lastSlotId; }
+    // One-shot preference to reuse last slot after unfreeze (parity with Python/Java)
+    bool preferLastSlotOnce { false };
+    bool getPreferLastSlotOnce() const { return preferLastSlotOnce; }
+    void setPreferLastSlotOnce(bool v) { preferLastSlotOnce = v; }
     bool freezeLastSlot() {
         auto slotIter = slots.find(lastSlotId);
         if (slotIter == slots.end()) return false;
@@ -95,6 +99,8 @@ public:
         auto slotIter = slots.find(lastSlotId);
         if (slotIter == slots.end()) return false;
         slotIter->second.unfreeze();
+        // Hint selector to reuse this slot once on the next input
+        preferLastSlotOnce = true;
         return true;
     }
 

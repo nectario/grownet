@@ -217,7 +217,7 @@ int Region::requestLayerGrowth(Layer* saturated) {
     }
     if (idx < 0) return -1;
     int newIdx = addLayer(4, 0, 0);
-    connectLayers(idx, newIdx, 0.15, false);
+    connectLayers(idx, newIdx, 1.0, false);
     return newIdx;
 }
 

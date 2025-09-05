@@ -12,6 +12,8 @@ public final class GrowthPolicy {
     private int     maxLayers         = 8;      // hard cap
     private double  avgSlotsThreshold = 24.0;   // grow if avg slots/neuron >= threshold
     private long    layerCooldownTicks = 500;   // wait between layer additions
+    // Optional OR trigger: grow if percent of neurons at capacity & using fallback exceeds this
+    private double  percentAtCapFallbackThreshold = 0.0; // 0 disables OR-trigger
 
     // ---------------- neuron growth (best‑effort) ----------------
     private boolean enableNeuronGrowth = false;
@@ -32,6 +34,9 @@ public final class GrowthPolicy {
     public double getAvgSlotsThreshold() { return Math.max(0.0, avgSlotsThreshold); }
     public GrowthPolicy setAvgSlotsThreshold(double v) { this.avgSlotsThreshold = Math.max(0.0, v); return this; }
 
+    public double getPercentAtCapFallbackThreshold() { return Math.max(0.0, percentAtCapFallbackThreshold); }
+    public GrowthPolicy setPercentAtCapFallbackThreshold(double v) { this.percentAtCapFallbackThreshold = Math.max(0.0, v); return this; }
+
     public long getLayerCooldownTicks() { return Math.max(0, layerCooldownTicks); }
     public GrowthPolicy setLayerCooldownTicks(long v) { this.layerCooldownTicks = Math.max(0, v); return this; }
 
@@ -50,4 +55,3 @@ public final class GrowthPolicy {
     public long getLastNeuronGrowthTick() { return lastNeuronGrowthTick; }
     public void setLastNeuronGrowthTick(long t) { this.lastNeuronGrowthTick = t; }
 }
-

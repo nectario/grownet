@@ -14,6 +14,8 @@ class SlotEngine {
 public:
     explicit SlotEngine(const SlotConfig& c) : cfg(c) {}
 
+    const SlotConfig& getConfig() const { return cfg; }
+
     // Pick slot ID based on percent delta.
     int slotId(double lastInput, double currentInput, int knownSlots) const {
         (void)knownSlots;

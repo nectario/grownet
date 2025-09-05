@@ -241,59 +241,107 @@ struct Region:
                                stride_w: Int = 1,
                                padding: String = "valid",
                                feedback: Bool = False) -> Int:
-        # Deterministic unique source subscriptions like Python
-        var source_layer_any = self.layers[src_index]
-        var dest_layer_any = self.layers[dest_index]
-        var source_input_2d = source_layer_any  # expect InputLayer2D
-        var source_height = source_input_2d.height
-        var source_width = source_input_2d.width
-        var kernel_height = kernel_h
-        var kernel_width = kernel_w
-        var stride_height = if stride_h > 0 then stride_h else 1
-        var stride_width = if stride_w > 0 then stride_w else 1
-        var use_same_padding = (padding == "same" or padding == "SAME")
+        # Deterministic unique source subscriptions; center rule if dest is OutputLayer2D
+        var source_layer = self.layers[src_index]
+        var dest_layer = self.layers[dest_index]
+        var H = source_layer.height
+        var W = source_layer.width
+        var KH = kernel_h
+        var KW = kernel_w
+        var SH = if stride_h > 0 then stride_h else 1
+        var SW = if stride_w > 0 then stride_w else 1
+        var same = (padding == "same" or padding == "SAME")
 
         # Window origins
-        var window_origins: list[tuple[Int, Int]] = []
-        if use_same_padding:
-            var pad_rows = (kernel_height - 1) / 2
-            var pad_cols = (kernel_width - 1) / 2
-            var origin_row = -pad_rows
-            while origin_row + kernel_height <= source_height + pad_rows + pad_rows:
-                var origin_col = -pad_cols
-                while origin_col + kernel_width <= source_width + pad_cols + pad_cols:
-                    window_origins.append((origin_row, origin_col))
-                    origin_col = origin_col + stride_width
-                origin_row = origin_row + stride_height
+        var origins: list[tuple[Int, Int]] = []
+        if same:
+            var pr = (KH - 1) / 2
+            var pc = (KW - 1) / 2
+            var r0 = -pr
+            while r0 + KH <= H + pr + pr:
+                var c0 = -pc
+                while c0 + KW <= W + pc + pc:
+                    origins.append((r0, c0))
+                    c0 = c0 + SW
+                r0 = r0 + SH
         else:
-            var origin_row = 0
-            while origin_row + kernel_height <= source_height:
-                var origin_col = 0
-                while origin_col + kernel_width <= source_width:
-                    window_origins.append((origin_row, origin_col))
-                    origin_col = origin_col + stride_width
-                origin_row = origin_row + stride_height
+            var r0v = 0
+            while r0v + KH <= H:
+                var c0v = 0
+                while c0v + KW <= W:
+                    origins.append((r0v, c0v))
+                    c0v = c0v + SW
+                r0v = r0v + SH
 
-        # Unique set of participating source pixel indices
+        # Unique participating sources
         var allowed_sources = dict[Int, Bool]()
-        var origin_index = 0
-        while origin_index < window_origins.len:
-            var origin_row_val = window_origins[origin_index][0]
-            var origin_col_val = window_origins[origin_index][1]
-            var row_start = if origin_row_val > 0 then origin_row_val else 0
-            var col_start = if origin_col_val > 0 then origin_col_val else 0
-            var row_end = if (origin_row_val + kernel_height) < source_height then (origin_row_val + kernel_height) else source_height
-            var col_end = if (origin_col_val + kernel_width) < source_width then (origin_col_val + kernel_width) else source_width
-            if row_start < row_end and col_start < col_end:
-                var row_iter = row_start
-                while row_iter < row_end:
-                    var col_iter = col_start
-                    while col_iter < col_end:
-                        var source_flat_index = row_iter * source_width + col_iter
-                        allowed_sources[source_flat_index] = True
-                        col_iter = col_iter + 1
-                    row_iter = row_iter + 1
-            origin_index = origin_index + 1
+        # Optional dedupe for created edges
+        var made: dict[String, Bool] = {}
+
+        # Check if dest is OutputLayer2D by duck-typing height/width and get_neurons
+        var dst_has_frame = (dest_layer.height is not None) and (dest_layer.width is not None) and (dest_layer.get_frame is not None)
+        if dst_has_frame:
+            var DH = dest_layer.height
+            var DW = dest_layer.width
+            var oi = 0
+            while oi < origins.len:
+                var orow = origins[oi][0]
+                var ocol = origins[oi][1]
+                var rstart = if orow > 0 then orow else 0
+                var cstart = if ocol > 0 then ocol else 0
+                var rend = if (orow + KH) < H then (orow + KH) else H
+                var cend = if (ocol + KW) < W then (ocol + KW) else W
+                if rstart < rend and cstart < cend:
+                    var center_r = orow + (KH / 2)
+                    if center_r < 0: center_r = 0
+                    if center_r > (H - 1): center_r = H - 1
+                    var center_c = ocol + (KW / 2)
+                    if center_c < 0: center_c = 0
+                    if center_c > (W - 1): center_c = W - 1
+                    # Clamp to destination bounds
+                    if center_r > (DH - 1): center_r = DH - 1
+                    if center_c > (DW - 1): center_c = DW - 1
+                    var center_idx = center_r * DW + center_c
+                    var rr = rstart
+                    while rr < rend:
+                        var cc = cstart
+                        while cc < cend:
+                            var sidx = rr * W + cc
+                            allowed_sources[sidx] = True
+                            var key = String(sidx) + ":" + String(center_idx)
+                            if not made.contains(key):
+                                # connect sidx -> center_idx once
+                                self.layers[src_index].get_neurons()[sidx].connect(center_idx, feedback)
+                                made[key] = True
+                            cc = cc + 1
+                        rr = rr + 1
+                oi = oi + 1
+        else:
+            # Generic destination: connect each participating source to all dest neurons once
+            var oi2 = 0
+            while oi2 < origins.len:
+                var or2 = origins[oi2][0]
+                var oc2 = origins[oi2][1]
+                var rstart2 = if or2 > 0 then or2 else 0
+                var cstart2 = if oc2 > 0 then oc2 else 0
+                var rend2 = if (or2 + KH) < H then (or2 + KH) else H
+                var cend2 = if (oc2 + KW) < W then (oc2 + KW) else W
+                if rstart2 < rend2 and cstart2 < cend2:
+                    var rr2 = rstart2
+                    while rr2 < rend2:
+                        var cc2 = cstart2
+                        while cc2 < cend2:
+                            var sidx2 = rr2 * W + cc2
+                            if not allowed_sources.contains(sidx2):
+                                allowed_sources[sidx2] = True
+                                var dj = 0
+                                var dest_neurons = dest_layer.get_neurons()
+                                while dj < dest_neurons.len:
+                                    self.layers[src_index].get_neurons()[sidx2].connect(dj, feedback)
+                                    dj = dj + 1
+                            cc2 = cc2 + 1
+                        rr2 = rr2 + 1
+                oi2 = oi2 + 1
         return Int(allowed_sources.size())
 
     # ---------------- edge helpers ----------------

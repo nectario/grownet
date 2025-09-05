@@ -14,7 +14,7 @@
    - `GrowNet_Contract_v5_master.yaml` *(or)* `GrowNet_Contract_v4_master.yaml`
       *Why:* public methods, fields, naming per language; the source of truth for signatures.
 4. **Growth (how + when)**
-   - `GROWTH.md`
+   - `GROWTH.md` and `The_conditions_of_growth_in_simple_terms_for_all_parts.md` and `What_is_a_cooldown.md` and `GROWTH_CHEATSHEET.md`
       *Why:* strict slot capacity + fallback, frozen slots, **fallback streak** → neuron growth, layer/region growth, cooldowns, deterministic auto-wiring.
 5. **Spatial Focus / Windowed wiring**
    - `SPATIAL_FOCUS.md`

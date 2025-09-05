@@ -1,4 +1,5 @@
 #include "Neuron.h"
+#include "Layer.h"
 
 namespace grownet {
 
@@ -8,6 +9,33 @@ bool Neuron::onInput(double value) {
     bool fired = weight.updateThreshold(value);
     setFiredLast(fired);
     setLastInputValue(value);
+    // Best-effort growth trigger: at-capacity + fallback streak with cooldown
+    try {
+        const SlotConfig& C = slotEngine.getConfig();
+        const bool growthEnabled = true; // default-on parity
+        const bool neuronGrowthEnabled = true; // default-on parity
+        if (growthEnabled && neuronGrowthEnabled) {
+            const int limit = getSlotLimit();
+            const bool atCap = (limit >= 0) && (static_cast<int>(getSlots().size()) >= limit);
+            if (atCap && getLastSlotUsedFallback()) {
+                fallbackStreak += 1;
+            } else {
+                fallbackStreak = 0;
+            }
+            const int threshold = 3; // conservative default if not modeled in cfg
+            if (owner != nullptr && fallbackStreak >= threshold) {
+                const long long now = getBus().getCurrentStep();
+                const int cooldown = 0; // default demo-friendly cooldown
+                if (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown) {
+                    // Call back into owner layer to add a neuron of same kind
+                    auto* L = reinterpret_cast<Layer*>(owner);
+                    if (L) (void)L->tryGrowNeuron(*this);
+                    lastGrowthTick = now;
+                }
+                fallbackStreak = 0;
+            }
+        }
+    } catch (...) { /* best-effort; swallow */ }
     return fired;
 }
 

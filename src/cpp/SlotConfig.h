@@ -22,6 +22,13 @@ struct SlotConfig {
     double outlierGrowthThresholdPct { 60.0 };
     int    slotLimit { 16 };
 
+    // -------- Growth knobs (parity with Python/Java) --------
+    bool growthEnabled { true };
+    bool neuronGrowthEnabled { true };
+    bool layerGrowthEnabled { false }; // reserved for future region policy in C++
+    int  fallbackGrowthThreshold { 3 }; // consecutive fallback uses before growth
+    int  neuronGrowthCooldownTicks { 0 }; // ticks between neuron growth events
+
     static SlotConfig fixed(double binPercent, int limit = -1) {
         SlotConfig cfg;
         cfg.policy = SlotPolicy::FIXED;
@@ -29,6 +36,13 @@ struct SlotConfig {
         cfg.maxSlots = limit;
         return cfg;
     }
+
+    // Optional fluent setters (keep header-only for simplicity)
+    SlotConfig& setGrowthEnabled(bool v)                 { growthEnabled = v; return *this; }
+    SlotConfig& setNeuronGrowthEnabled(bool v)           { neuronGrowthEnabled = v; return *this; }
+    SlotConfig& setLayerGrowthEnabled(bool v)            { layerGrowthEnabled = v; return *this; }
+    SlotConfig& setFallbackGrowthThreshold(int v)        { fallbackGrowthThreshold = (v < 1 ? 1 : v); return *this; }
+    SlotConfig& setNeuronGrowthCooldownTicks(int ticks)  { neuronGrowthCooldownTicks = (ticks < 0 ? 0 : ticks); return *this; }
 };
 
 } // namespace grownet

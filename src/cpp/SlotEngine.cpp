@@ -14,6 +14,20 @@ Weight& SlotEngine::selectOrCreateSlot(Neuron& neuron, double inputValue) const 
         neuron.focusAnchor = inputValue;
         neuron.focusSet = true;
     }
+    const int lastSid = neuron.getLastSlotId();
+    // One-shot reuse after unfreeze
+    if (neuron.getPreferLastSlotOnce() && lastSid >= 0) {
+        auto& slotsReuse = neuron.getSlots();
+        auto iterReuse = slotsReuse.find(lastSid);
+        if (iterReuse != slotsReuse.end()) {
+            neuron.setPreferLastSlotOnce(false);
+            neuron.setLastSlotUsedFallback(false);
+            return iterReuse->second;
+        }
+        // if last id not present, fall through to normal selection
+        neuron.setPreferLastSlotOnce(false);
+    }
+
     const double anchor = neuron.focusAnchor;
     const double denom = std::max(std::abs(anchor), std::max(1e-12, cfg.epsilonScale));
     const double deltaPct = std::abs(inputValue - anchor) / denom * 100.0;
@@ -64,6 +78,17 @@ Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const
     if (neuron.anchorRow < 0 || neuron.anchorCol < 0) {
         neuron.anchorRow = row;
         neuron.anchorCol = col;
+    }
+    const int lastSid = neuron.getLastSlotId();
+    if (neuron.getPreferLastSlotOnce() && lastSid >= 0) {
+        auto& slotsReuse = neuron.getSlots();
+        auto itReuse = slotsReuse.find(lastSid);
+        if (itReuse != slotsReuse.end()) {
+            neuron.setPreferLastSlotOnce(false);
+            neuron.setLastSlotUsedFallback(false);
+            return itReuse->second;
+        }
+        neuron.setPreferLastSlotOnce(false);
     }
 
     auto rowColPair = slotId2D(neuron.anchorRow, neuron.anchorCol, row, col);
