@@ -272,6 +272,7 @@ public class Neuron {
     public List<Synapse>        getOutgoing(){ return outgoing; }
     public LateralBus           getBus()     { return bus; }
     public String getId()         { return neuronId; }
+    public int getSlotLimit()     { return slotLimit; }
 
     public double getLastInputValue() {
         return lastInputValue;

@@ -32,7 +32,7 @@ public final class GrowthEngine {
             for (Neuron neuron : layer.getNeurons()) {
                 totalSlots += neuron.getSlots().size();
                 totalNeurons += 1;
-                int cap = neuron.slotLimit;
+                int cap = neuron.getSlotLimit();
                 boolean atCap = (cap >= 0) && (neuron.getSlots().size() >= cap);
                 if (atCap && neuron.lastSlotUsedFallback) atCapAndFallback += 1;
             }
