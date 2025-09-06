@@ -1,7 +1,7 @@
 # GROWTH.md — How GrowNet grows
 
 GrowNet follows a simple escalation rule:
-
+ 
 1. Grow slots until the per‑neuron `slot_limit` is reached.
 2. If novelty still pushes into the fallback bin repeatedly, grow a neuron in that layer.
 3. If a layer reaches its neuron limit and novelty pressure persists, grow a new layer (optional, off by default).
