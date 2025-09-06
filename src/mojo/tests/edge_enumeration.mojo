@@ -27,8 +27,8 @@ fn enumerate_edges_output2d(region: any, src_layer_index: Int, dst_layer_index: 
 
 fn test_center_edges_are_deduped() -> None:
     var region = Region("dedupe")
-    let src_idx = region.add_input_2d_layer(4, 4)
-    let dst_idx = region.add_output_2d_layer(4, 4)
+    var src_idx = region.add_input_2d_layer(4, 4)
+    var dst_idx = region.add_output_2d_layer(4, 4)
     # 3x3 SAME should create windows whose centers cover entire 4x4
     _ = region.connect_layers_windowed(src_idx, dst_idx, 3, 3, 1, 1, "same", False)
     var edges = enumerate_edges_output2d(region, src_idx, dst_idx)
@@ -38,7 +38,7 @@ fn test_center_edges_are_deduped() -> None:
         var tlist = edges[source_index]
         var idx = 0
         while idx < tlist.len:
-            let t = tlist[idx]
+            var t = tlist[idx]
             check(not unique.contains(t), "Duplicate center target detected for a source neuron.")
             unique[t] = True
             idx = idx + 1

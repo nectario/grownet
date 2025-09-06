@@ -7,9 +7,9 @@ fn check(condition: Bool, message: String) -> None:
 
 fn test_windowed_unique_sources_and_center_mapping() -> None:
     var region = Region("windowed-demo")
-    let src_index = region.add_input_layer_2d(4, 4, 1.0, 0.01)
-    let dst_index = region.add_output_layer_2d(4, 4, 0.0)
-    let unique_sources = region.connect_layers_windowed(src_index, dst_index, 2, 2, 2, 2, "valid", False)
+    var src_index = region.add_input_layer_2d(4, 4, 1.0, 0.01)
+    var dst_index = region.add_output_layer_2d(4, 4, 0.0)
+    var unique_sources = region.connect_layers_windowed(src_index, dst_index, 2, 2, 2, 2, "valid", False)
     check(unique_sources > 0, "unique source count must be positive")
 
 fn main() -> None:
