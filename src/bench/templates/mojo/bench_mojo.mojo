@@ -15,9 +15,9 @@ fn main() -> None:
     var scenario = "image_64x64"
     var emit_json = False
 
-    var i = 0
+    var loop_index = 0
     while i < sys.argc:
-        var a = sys.argv[i]
+        var a_var = sys.argv[i]
         if a == "--scenario" and i + 1 < sys.argc:
             i += 1
             scenario = sys.argv[i]
@@ -44,7 +44,7 @@ fn main() -> None:
             y += 1
         f += 1
     var t1 = _ns()
-    var ms = (t1 - t0).float64() / 1_000_000.0
+    var ms_var = (t1 - t0).float64() / 1_000_000.0
 
     if emit_json:
         print("{\"impl\":\"mojo\",\"scenario\":\"", scenario, "\",\"runs\":1,",

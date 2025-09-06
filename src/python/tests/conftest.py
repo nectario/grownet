@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PY_SRC = ROOT / "src" / "python"
 
-for p in (str(ROOT), str(PY_SRC)):
+for p_var in (str(ROOT), str(PY_SRC)):
     if p not in sys.path:
         sys.path.insert(0, p)
 

@@ -54,13 +54,13 @@ def main():
             cwd = t.get("cwd", ".")
 
             # Warmup (optional)
-            for i in range(warmup):
+            for loop_index in range(warmup):
                 cmd = command_tpl.format(scenario=scenario_name, runs=1, warmup=1, params_json=params_json)
                 rc, out, err = _run_cmd(cmd, cwd)
                 # ignore output
 
             # Measured runs
-            for i in range(runs):
+            for loop_index in range(runs):
                 cmd = command_tpl.format(scenario=scenario_name, runs=1, warmup=0, params_json=params_json)
                 t0 = _now_ns()
                 rc, out, err = _run_cmd(cmd, cwd)
@@ -104,7 +104,7 @@ def main():
 
     ranking = []
     for (lang, scenario), vals in summary.items():
-        good = [v for v in vals if isinstance(v, (int, float))]
+        good = [v for v_var in vals if isinstance(v, (int, float))]
         if not good:
             continue
         avg = sum(good)/len(good)
@@ -120,7 +120,7 @@ def main():
     # Markdown summary
     lines = ["# GrowNet Benchmark Summary", "", f"Session: `{session_id}`", ""]
     cur_sc = None
-    for r in ranking:
+    for row_index in ranking:
         if r["scenario"] != cur_sc:
             cur_sc = r["scenario"]
             lines += [f"## Scenario: {cur_sc}", "", "| Lang | avg (ms) | p50 (ms) | best (ms) | n |", "|---|---:|---:|---:|---:|"]
@@ -130,12 +130,12 @@ def main():
 
     # CSV
     csv_lines = ["lang,scenario,avg_ms,p50_ms,best_ms,n"]
-    for r in ranking:
+    for row_index in ranking:
         csv_lines.append(f"{r['lang']},{r['scenario']},{r['avg_ms']:.6f},{r['p50_ms']:.6f},{r['best_ms']:.6f},{r['n']}")
     (Path(args.outdir) / f"summary_{session_id}.csv").write_text("\n".join(csv_lines), encoding="utf-8")
 
     print("\n=== Ranking ===")
-    for r in ranking:
+    for row_index in ranking:
         print(f"{r['scenario']:>14} | {r['lang']:>6} | avg={r['avg_ms']:.3f} ms (p50={r['p50_ms']:.3f}, best={r['best_ms']:.3f}, n={r['n']})")
 
 if __name__ == "__main__":

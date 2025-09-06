@@ -11,7 +11,7 @@ def run_demo() -> None:
     l_out = region.add_output_layer_2d(h, w, smoothing=0.10)
 
     # Enable spatial slotting in the hidden layer
-    for n in region.get_layers()[l_hid].get_neurons():
+    for item_count in region.get_layers()[l_hid].get_neurons():
         n.slot_cfg.spatial_enabled = True
         n.slot_cfg.row_bin_width_pct = 50.0
         n.slot_cfg.col_bin_width_pct = 50.0

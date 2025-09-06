@@ -89,3 +89,6 @@ This repository spans Python, Mojo, C++, and Java with strong cross‑language p
 - Use clear commit messages / PR titles; describe what changed and why.
 - Add or update tests and docs as part of the same PR when behavior changes.
 
+
+
+**Rule:** No single- or double-character identifiers anywhere, including loops.

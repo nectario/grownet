@@ -24,7 +24,7 @@ def main():
     # Critical-period like boost
     region.pulse_modulation(0.25)
 
-    for t in range(3):
+    for tick_index in range(3):
         # breakpoint()  # Step into tick -> layer -> neuron -> slot engine
         metrics = region.tick("stim", 0.6)
         print(f"t={t} delivered={metrics.delivered_events} "

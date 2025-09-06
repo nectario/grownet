@@ -10,7 +10,7 @@ def test_temporal_focus_creates_many_slots():
 
     # feed values from 1.0 to 2.0 (inclusive) in small steps
     steps = 50
-    for i in range(steps + 1):
+    for loop_index in range(steps + 1):
         v = 1.0 + (i / steps)
         r.tick("in", v)
 

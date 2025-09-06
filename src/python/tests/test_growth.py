@@ -9,7 +9,7 @@ def mk_region_for_growth():
     r.bind_input("img", [lin])
     # Enable spatial slotting + aggressive growth on hidden neurons
     layer = r.get_layers()[lhid]
-    for n in layer.get_neurons():
+    for item_count in layer.get_neurons():
         n.slot_cfg.spatial_enabled = True
         n.slot_cfg.row_bin_width_pct = 10.0
         n.slot_cfg.col_bin_width_pct = 10.0
@@ -30,7 +30,7 @@ def test_neuron_growth_on_fallback():
         [[0, 0, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
         [[0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
     ]
-    for f in frames:
+    for f_var in frames:
         r.tick_2d("img", f)
     assert len(layer.get_neurons()) > base_count
 

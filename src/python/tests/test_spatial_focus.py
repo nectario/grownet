@@ -8,7 +8,7 @@ def test_spatial_slotting_first_anchor_and_bins():
 
     # Enable spatial slotting in hidden neurons (coarse 2x2 bins => 50% per axis)
     layer = region.get_layers()[l_hid]
-    for n in layer.get_neurons():
+    for item_count in layer.get_neurons():
         n.slot_cfg.spatial_enabled = True
         n.slot_cfg.row_bin_width_pct = 50.0
         n.slot_cfg.col_bin_width_pct = 50.0

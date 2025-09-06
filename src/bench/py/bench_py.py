@@ -63,7 +63,7 @@ def bench_micro(mods) -> dict:
         last = 1.0
         t0 = _ns()
         n = 300_000
-        for i in range(n):
+        for loop_index in range(n):
             x = math.sin(i * 0.01) + 1.01
             # simulate work (abs + division + mul + floor)
             delta_percent = abs(x - last) / (abs(last) + 1e-9) * 100.0
@@ -188,11 +188,11 @@ def main():
             exc = mods["neuron_exc"].ExicitatoryNeuron  # typo fallback
         except Exception:
             exc = mods["neuron_exc"].ExcitatoryNeuron
-        neurons = [exc(f"E{i}") for i in range(excit)]
+        neurons = [exc(f"E{i}") for loop_index in range(excit)]
         t0 = _ns()
-        for i in range(ticks):
+        for loop_index in range(ticks):
             x = 0.42
-            for n in neurons:
+            for item_count in neurons:
                 (n._on_input(x) if hasattr(n, "_on_input") else n.on_input(x))
         t1 = _ns()
         metrics = {
