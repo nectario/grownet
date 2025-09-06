@@ -355,9 +355,9 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 // Prefer furthest downstream OutputLayer2D frame; fallback to input if output is all zeros
                 double[][] chosen = null;
                 for (int i = layers.size() - 1; i >= 0; --i) {
-                    Layer layer = layers.get(i);
-                    if (layer instanceof OutputLayer2D) {
-                        chosen = ((OutputLayer2D) layer).getFrame();
+                    Layer candidateLayer = layers.get(i);
+                    if (candidateLayer instanceof OutputLayer2D) {
+                        chosen = ((OutputLayer2D) candidateLayer).getFrame();
                         break;
                     }
                 }
