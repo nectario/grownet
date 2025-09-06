@@ -8,32 +8,34 @@
    - `CODING_STYLE_MUST_READ.md` and `STYLE_AND_PARITY.md`
       *Why:* norms Codex must follow (no leading underscores in public Python/Mojo, `struct`+`fn` in Mojo, no 1–2 char names, deterministic RNG, doc rules).
 2. **Big-picture design**
-   - `GrowNet_Design_Spec_V5.md` *(or)* `GrowNet_Design_Spec_V4.md`
-      *Why:* end-to-end architecture (Region/Layer/Neuron/Slot), two-phase ticks, focus, growth, windowed wiring. Use V5 if present.
-3. **Authoritative API surface**
+   - `GrowNet_Design_Spec_V5.md`
+      *Why:* end-to-end architecture (Region/Layer/Neuron/Slot), two-phase ticks, focus, growth, windowed wiring. 
+3. **Project Memory**
+   - PROJECT_MEMORY.md
+4. **Authoritative API surface**
    - `GrowNet_Contract_v5_master.yaml` *(or)* `GrowNet_Contract_v4_master.yaml`
       *Why:* public methods, fields, naming per language; the source of truth for signatures.
-4. **Growth (how + when)**
+5. **Growth (how + when)**
    - `GROWTH.md` and `The_conditions_of_growth_in_simple_terms_for_all_parts.md` and `What_is_a_cooldown.md` and `GROWTH_CHEATSHEET.md`
       *Why:* strict slot capacity + fallback, frozen slots, **fallback streak** → neuron growth, layer/region growth, cooldowns, deterministic auto-wiring.
-5. **Spatial Focus / Windowed wiring**
+6. **Spatial Focus / Windowed wiring**
    - `SPATIAL_FOCUS.md`
       *Why:* 2D bins, VALID/SAME padding, **center rule (floor + clamp)**, **return = unique source subscriptions**, tract re-attachment on growth.
-6. **Testing & invariants**
+7. **Testing & invariants**
    - `TESTING.md`
       *Why:* how to run tests, special env flags (e.g., delivered events, spatial metrics), what “pass” means.
    - *(If present)* `Readiness_autogrowth_what_complete_looks_like.md`
       *Why:* the exact **checklist** Codex must satisfy/verify (slots→neurons→layers→region).
-7. **Project overview (context)**
+8. **Project overview (context)**
    - `What_this_codebase_is_about.md` *(or)* `PROJECT_OVERVIEW.md`
       *Why:* narrative “why” + terminology; helps Codex write better PR messages.
-8. **FAQ / Cheatsheets**
+9. **FAQ / Cheatsheets**
    - `FAQ.md` *(and)* `FOCUS_AND_GROWTH_CHEATSHEET.md` (if present)
       *Why:* quick clarifications on ticks, buses, frozen slots, cooldowns, growth order.
-9. **Demo / Runbooks**
+10. **Demo / Runbooks**
    - `DEMO_RUN.md` *(or)* `Demos.md`
       *Why:* how to exercise focus, windowed wiring, growth; useful for Codex to validate patches.
-10. **PR & CR packs (if you plan to drive Codex via change requests)**
+11. **PR & CR packs (if you plan to drive Codex via change requests)**
 
 - `codex/PR_*.md` *(in docs root or codex/docs)*
 - `codex/cr/PHASE_A.yaml`, `codex/cr/PHASE_B.yaml`, and individual `CR-*.yaml`
