@@ -17,7 +17,8 @@ fn main() -> None:
         False)
     print("unique_sources=", unique_sources)
 
-    # Bind input edge
+    # Enable spatial metrics and bind input edge
+    region.enable_spatial_metrics = True
     var attach: list[Int] = []
     attach.append(input_index)
     region.bind_input_2d("pixels", height, width, 1.0, 0.01, attach)
@@ -39,7 +40,10 @@ fn main() -> None:
     var metrics1 = region.tick_2d("pixels", frame)
     print("tick#1 delivered=", metrics1.delivered_events,
           " slots=", metrics1.total_slots,
-          " synapses=", metrics1.total_synapses)
+          " synapses=", metrics1.total_synapses,
+          " active=", metrics1.active_pixels,
+          " centroid=(", metrics1.centroid_row, ",", metrics1.centroid_col, ")",
+          " bbox=", metrics1.bbox)
 
     # Tick #2, move bright pixel
     frame[3][4] = 0.0
@@ -47,5 +51,7 @@ fn main() -> None:
     var metrics2 = region.tick_2d("pixels", frame)
     print("tick#2 delivered=", metrics2.delivered_events,
           " slots=", metrics2.total_slots,
-          " synapses=", metrics2.total_synapses)
-
+          " synapses=", metrics2.total_synapses,
+          " active=", metrics2.active_pixels,
+          " centroid=(", metrics2.centroid_row, ",", metrics2.centroid_col, ")",
+          " bbox=", metrics2.bbox)

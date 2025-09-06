@@ -1,6 +1,7 @@
 #include "Region.h"
 #include <iostream>
 #include <vector>
+#include <cstdlib>
 
 using namespace grownet;
 
@@ -9,6 +10,13 @@ int main() {
     const int width  = 8;
 
     Region region("two-d-tick-demo");
+
+    // Enable spatial metrics via env var (portable across platforms)
+#ifdef _WIN32
+    _putenv_s("GROWNET_ENABLE_SPATIAL_METRICS", "1");
+#else
+    setenv("GROWNET_ENABLE_SPATIAL_METRICS", "1", 1);
+#endif
 
     int inputIndex  = region.addInputLayer2D(height, width, /*gain=*/1.0, /*epsilonFire=*/0.01);
     int outputIndex = region.addOutputLayer2D(height, width, /*smoothing=*/0.0);
@@ -31,15 +39,22 @@ int main() {
     auto m1 = region.tick2D("pixels", frame);
     std::cout << "tick#1 delivered=" << m1.delivered_events
               << " slots=" << m1.total_slots
-              << " synapses=" << m1.total_synapses << "\n";
+              << " synapses=" << m1.total_synapses
+              << " active=" << m1.activePixels
+              << " centroid=(" << m1.centroidRow << "," << m1.centroidCol << ")"
+              << " bbox=(" << m1.bboxRowMin << "," << m1.bboxRowMax << ","
+              << m1.bboxColMin << "," << m1.bboxColMax << ")\n";
 
     frame[3][4] = 0.0;
     frame[5][6] = 1.0;
     auto m2 = region.tick2D("pixels", frame);
     std::cout << "tick#2 delivered=" << m2.delivered_events
               << " slots=" << m2.total_slots
-              << " synapses=" << m2.total_synapses << "\n";
+              << " synapses=" << m2.total_synapses
+              << " active=" << m2.activePixels
+              << " centroid=(" << m2.centroidRow << "," << m2.centroidCol << ")"
+              << " bbox=(" << m2.bboxRowMin << "," << m2.bboxRowMax << ","
+              << m2.bboxColMin << "," << m2.bboxColMax << ")\n";
 
     return 0;
 }
-

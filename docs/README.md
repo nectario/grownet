@@ -59,17 +59,18 @@ Run small 2D demos that wire an 8×8 input to an 8×8 output with a 3×3 SAME wi
 
 - Python
   - `PYTHONPATH=src/python python src/python/demos/two_dim_tick_demo.py`
-  - Prints: `unique_sources`, then per‑tick `delivered_events`, `total_slots`, `total_synapses`.
+  - Prints: `unique_sources`, then per‑tick core metrics and spatial metrics (`active_pixels`, `centroid_row/col`, `bbox`).
 
 - Mojo
   - `mojo run src/mojo/tests/two_dim_tick_demo.mojo`
-  - Prints: `unique_sources`, then per‑tick metrics.
+  - Prints: `unique_sources`, then per‑tick core + spatial metrics.
 
 - C++ (CMake)
   - Build targets in `src/cpp` (see `src/cpp/CMakeLists.txt`), then run:
     - `two_dim_tick_demo`
-  - Prints: `unique_sources`, then per‑tick metrics.
+  - Prints: `unique_sources`, then per‑tick core + spatial metrics (env `GROWNET_ENABLE_SPATIAL_METRICS=1` set in demo).
 
 - Java (IDE)
   - `src/java/ai/nektron/grownet/demo/TwoDimTickDemo.java`
   - Set breakpoints in `Region.connectLayersWindowed`, `Region.tick2D`, `InputLayer2D.forwardImage`, `Tract.onSourceFiredIndex`, `OutputLayer2D.propagateFrom`.
+  - Demo enables spatial metrics and prints `activePixels`, centroid and bbox.
