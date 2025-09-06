@@ -25,14 +25,14 @@ public class InputLayer2D extends Layer {
         for (int row = 0; row < height; ++row) {
             for (int col = 0; col < width; ++col) {
                 // InputNeuron is single‑slot; share the layer’s bus
-                InputNeuron n = new InputNeuron(
+                InputNeuron inputNeuron = new InputNeuron(
                         "IN[" + row + "," + col + "]",
                         getBus(),
                         gain,
                         epsilonFire
                 );
-                n.owner = this;
-                list.add(n);
+                inputNeuron.owner = this;
+                list.add(inputNeuron);
             }
         }
     }
@@ -57,9 +57,9 @@ public class InputLayer2D extends Layer {
         for (int row = 0; row < height; ++row) {
             for (int col = 0; col < width; ++col) {
                 double value = image[row][col];
-                InputNeuron n = (InputNeuron) getNeurons().get(index(row, col));
-                boolean fired = n.onInput(value);     // unified API: single argument
-                if (fired) n.onOutput(value);         // keeps the onOutput contract
+                InputNeuron inputNeuron = (InputNeuron) getNeurons().get(index(row, col));
+                boolean fired = inputNeuron.onInput(value);     // unified API: single argument
+                if (fired) inputNeuron.onOutput(value);         // keeps the onOutput contract
             }
         }
     }

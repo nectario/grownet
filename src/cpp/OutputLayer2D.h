@@ -17,11 +17,11 @@ public:
         SlotConfig cfg = SlotConfig::fixed(10.0);
         for (int row = 0; row < height; ++row) {
             for (int col = 0; col < width; ++col) {
-                auto n = std::make_shared<OutputNeuron>(
+                auto output_neuron_ptr = std::make_shared<OutputNeuron>(
                     "OUT[" + std::to_string(row) + "," + std::to_string(col) + "]",
                     getBus(), cfg, smoothing);
-                n->setOwner(this);
-                neuronList.push_back(n);
+                output_neuron_ptr->setOwner(this);
+                neuronList.push_back(output_neuron_ptr);
             }
         }
     }

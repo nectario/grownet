@@ -438,9 +438,9 @@ class Region:
         # This ensures downstream layers receive input even if the edge neuron doesn't fire.
         try:
             bound_targets = self.input_ports.get(port, [])
-            for li in bound_targets:
-                if li != edge_idx:
-                    self.layers[li].forward(value)
+            for target_layer_index in bound_targets:
+                if target_layer_index != edge_idx:
+                    self.layers[target_layer_index].forward(value)
         except Exception:
             pass
 

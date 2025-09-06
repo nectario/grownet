@@ -36,19 +36,19 @@ public:
         int slotLimit = -1;
         excitCount = excitatoryCount; inhibCount = inhibitoryCount; modCount = modulatoryCount;
         for (int index = 0; index < excitatoryCount; ++index) {
-            auto n = std::make_shared<ExcitatoryNeuron>("E" + std::to_string(index), bus, cfg, slotLimit);
-            n->setOwner(this);
-            neurons.push_back(n);
+            auto new_neuron_ptr = std::make_shared<ExcitatoryNeuron>("E" + std::to_string(index), bus, cfg, slotLimit);
+            new_neuron_ptr->setOwner(this);
+            neurons.push_back(new_neuron_ptr);
         }
         for (int index = 0; index < inhibitoryCount; ++index) {
-            auto n = std::make_shared<InhibitoryNeuron>("I" + std::to_string(index), bus, cfg, slotLimit);
-            n->setOwner(this);
-            neurons.push_back(n);
+            auto new_neuron_ptr = std::make_shared<InhibitoryNeuron>("I" + std::to_string(index), bus, cfg, slotLimit);
+            new_neuron_ptr->setOwner(this);
+            neurons.push_back(new_neuron_ptr);
         }
         for (int index = 0; index < modulatoryCount; ++index) {
-            auto n = std::make_shared<ModulatoryNeuron>("M" + std::to_string(index), bus, cfg, slotLimit);
-            n->setOwner(this);
-            neurons.push_back(n);
+            auto new_neuron_ptr = std::make_shared<ModulatoryNeuron>("M" + std::to_string(index), bus, cfg, slotLimit);
+            new_neuron_ptr->setOwner(this);
+            neurons.push_back(new_neuron_ptr);
         }
     }
 

@@ -28,13 +28,13 @@ public final class GrowthEngine {
         int totalNeurons = 0;
         int atCapAndFallback = 0;
         final List<Layer> layers = region.getLayers();
-        for (Layer l : layers) {
-            for (Neuron n : l.getNeurons()) {
-                totalSlots += n.getSlots().size();
+        for (Layer layer : layers) {
+            for (Neuron neuron : layer.getNeurons()) {
+                totalSlots += neuron.getSlots().size();
                 totalNeurons += 1;
-                int cap = n.slotLimit;
-                boolean atCap = (cap >= 0) && (n.getSlots().size() >= cap);
-                if (atCap && n.lastSlotUsedFallback) atCapAndFallback += 1;
+                int cap = neuron.slotLimit;
+                boolean atCap = (cap >= 0) && (neuron.getSlots().size() >= cap);
+                if (atCap && neuron.lastSlotUsedFallback) atCapAndFallback += 1;
             }
         }
         if (totalNeurons <= 0) return;
@@ -79,29 +79,29 @@ public final class GrowthEngine {
         }
         if ((tick - policy.getLastNeuronGrowthTick()) < policy.getNeuronCooldownTicks()) return;
 
-        for (Layer l : layers) {
-            for (Neuron n : l.getNeurons()) {
+        for (Layer layer : layers) {
+            for (Neuron neuron : layer.getNeurons()) {
                 try {
                     // Access temporal focus fields via public/protected API
                     double anchor = 0.0;
                     boolean set = false;
-                    try { anchor = n.getFocusAnchor(); set = (n.getSlots() != null); } catch (Throwable ignored) { }
+                    try { anchor = neuron.getFocusAnchor(); set = (neuron.getSlots() != null); } catch (Throwable ignored) { }
 
                     // derive epsilon and bin width from a default SlotConfig; best‑effort
                     SlotConfig cfg = new SlotConfig();
                     double denom = Math.max(Math.abs(anchor), cfg.getEpsilonScale());
                     double last = 0.0;
                     boolean haveLast = false;
-                    try { last = n.getLastInputValue(); haveLast = true; } catch (Throwable ignored) { }
+                    try { last = neuron.getLastInputValue(); haveLast = true; } catch (Throwable ignored) { }
                     if (!set || !haveLast) continue;
                     double deltaPct = Math.abs(last - anchor) / (denom <= 0.0 ? 1e-6 : denom) * 100.0;
                     if (deltaPct >= policy.getNeuronOutlierThresholdPct()) {
                         // Lock briefly to avoid repeated triggers; reflection‑safe attempt
                         try {
-                            java.lang.reflect.Field f = n.getClass().getDeclaredField("focusLockUntilTick");
+                            java.lang.reflect.Field f = neuron.getClass().getDeclaredField("focusLockUntilTick");
                             f.setAccessible(true);
                             long lockUntil = tick + Math.max(1, policy.getNeuronCooldownTicks() / 4);
-                            f.setLong(n, lockUntil);
+                            f.setLong(neuron, lockUntil);
                         } catch (Throwable ignored) { /* optional field */ }
                     }
                 } catch (Throwable ignored) { /* best‑effort only */ }

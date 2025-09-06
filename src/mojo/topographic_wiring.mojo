@@ -28,24 +28,24 @@ fn connect_layers_topographic(
 
     let src = region.layers[source_layer_index]
     let dst = region.layers[destination_layer_index]
-    let Hs = src.height; let Ws = src.width
-    let Hd = dst.height; let Wd = dst.width
+    let source_height = src.height; let source_width = src.width
+    let dest_height = dst.height; let dest_width = dst.width
 
     # Step 2: compute weights and assign to synapses (source → center)
-    var incoming_sums = [Float64](repeating: 0.0, count: Hd * Wd)
+    var incoming_sums = [Float64](repeating: 0.0, count: dest_height * dest_width)
     let neuron_list = src.get_neurons()
     var neuron_index = 0
     while neuron_index < neuron_list.len:
-        let source_row_index = neuron_index / Ws
-        let source_col_index = neuron_index % Ws
+        let source_row_index = neuron_index / source_width
+        let source_col_index = neuron_index % source_width
         var synapse_index = 0
         var outgoing_synapses = neuron_list[neuron_index].outgoing
         while synapse_index < outgoing_synapses.len:
             let center_index = outgoing_synapses[synapse_index].target_index
-            let cr = center_index / Wd
-            let cc = center_index % Wd
-            let delta_row = Float64(source_row_index - cr)
-            let delta_col = Float64(source_col_index - cc)
+            let center_row_index = center_index / dest_width
+            let center_col_index = center_index % dest_width
+            let delta_row = Float64(source_row_index - center_row_index)
+            let delta_col = Float64(source_col_index - center_col_index)
             let squared_distance = delta_row*delta_row + delta_col*delta_col
             var w: Float64 = 0.0
             if config.weight_mode == "dog":
