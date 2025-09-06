@@ -17,6 +17,7 @@ public final class ModulatoryNeuron extends Neuron {
     @Override
     protected void fire(double inputValue) {
         getBus().setModulationFactor(kappa);
+
         // As with InhibitoryNeuron, we keep the role pure by default (no edge propagation).
     }
 }
