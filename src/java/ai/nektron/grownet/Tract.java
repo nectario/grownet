@@ -76,7 +76,8 @@ public final class Tract {
         for (int i = 0; i < source.getNeurons().size(); ++i) {
             if (this.allowedSources.isEmpty() || this.allowedSources.contains(i)) {
                 final int srcIdx = i;
-                source.getNeurons().get(i).registerFireHook((value, who) -> onSourceFiredIndex(srcIdx, value));
+                BiConsumer<Double, Neuron> indexHook = (value, who) -> onSourceFiredIndex(srcIdx, value);
+                source.getNeurons().get(i).registerFireHook(indexHook);
             }
         }
     }
