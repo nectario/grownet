@@ -27,18 +27,23 @@ public final class OneDimSlotDemo {
         // FIRST anchor at first value (100.0), then 10% jumps → bins 0..4 (5 slots total)
         double[] values = new double[] { 100.0, 110.0, 120.0, 130.0, 140.0 };
 
-        for (double v : values) {
+        for (double inputValue : values) {
             // Breakpoint here to follow a single tick
-            RegionMetrics m = region.tick("x", v);
-            System.out.printf("tick value=%.2f  delivered=%d  slots=%d  synapses=%d%n",
-                    v, m.delivered_events, m.total_slots, m.total_synapses);
+            RegionMetrics metrics = region.tick("x", inputValue);
+            System.out.printf(
+                    "tick value=%.2f  delivered=%d  slots=%d  synapses=%d%n",
+                    inputValue,
+                    metrics.getDeliveredEvents(),
+                    metrics.getTotalSlots(),
+                    metrics.getTotalSynapses()
+            );
         }
 
-        Layer L = region.getLayers().get(layerIndex);
-        Neuron n = L.getNeurons().get(0);
-        int slotCount = n.getSlots().size();
+        Layer layerRef = region.getLayers().get(layerIndex);
+        Neuron neuronRef = layerRef.getNeurons().get(0);
+        int slotCount = neuronRef.getSlots().size();
         System.out.println("\nFinal slot count: " + slotCount);
-        System.out.println("Slot IDs (bins): " + n.getSlots().keySet());
+        System.out.println("Slot IDs (bins): " + neuronRef.getSlots().keySet());
     }
 }
 
