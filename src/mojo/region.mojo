@@ -1,119 +1,6 @@
-# src/mojo/region.mojo
+# src/mojo/region.mojo — Mojo Region implementation (Python-parity: snake_case)
 
-from .region_metrics import RegionMetrics
-
-# Import/forward-declare your types as needed:
-# from .layer import Layer
-# from .input_layer_2d import InputLayer2D
-# from .output_layer_2d import OutputLayer2D
-# from .region_bus import RegionBus
-# from stdlib.list import List
-# from stdlib.dict import Dict
-# from stdlib.random import Random
-
-struct PruneSummary:
-    var pruned_synapses: Int
-    var pruned_edges: Int
-
-    fn __init__(mut self):
-        self.pruned_synapses = 0
-        self.pruned_edges = 0
-
-struct Region:
-    var input_edges: Dictionary[String, Int]
-    var output_edges: Dictionary[String, Int]
-    var layers: List[Layer]            # or whatever list/vector type you use
-    var input_ports: Dictionary[String, List[Int]]
-    var output_ports: Dictionary[String, List[Int]]
-    var bus: RegionBus                  # or Optional if your code uses it
-
-    fn __init__(mut self, name: String):
-        self.name = name
-        self.layers = List[any]()        # LayerRef
-        self.input_ports = Dict[String, List[Int]]()
-        self.output_ports = Dict[String, List[Int]]()
-        self.bus = None                  # RegionBusRef
-
-
-    # Drive a scalar into the edge bound to `port` and collect metrics.
-    fn tick(self, port: String, value: Float64) -> RegionMetrics:
-        var metrics = RegionMetrics()
-
-        # Prefer delivery to InputEdge if present
-        var maybe_edge = self.input_edges.get(port)
-        if maybe_edge is not None:
-            var edge_index = maybe_edge
-            self.layers[edge_index].forward(value)
-            metrics.inc_delivered_events()
-        else:
-
-            # Fallback to original: fan directly into bound layers (if any)
-            var maybe_bound = self.input_ports.get(port)
-            if maybe_bound is not None:
-                for entry_layer_index in maybe_bound:
-                    self.layers[entry_layer_index].forward(value)
-                    metrics.inc_delivered_events()
-
-        # End-of-tick housekeeping: per-layer, then region bus decay
-        for layer in self.layers:
-            layer.end_tick()
-
-        if self.bus is not None:
-            self.bus.decay()
-
-        # Aggregate structural metrics
-        for layer in self.layers:
-            for neuron in layer.get_neurons():
-                metrics.add_slots(neuron.slots().size)        # or len(slots) equivalent
-                metrics.add_synapses(neuron.get_outgoing().size)
-
-        return metrics
-
-    # In src/mojo/region.mojo (inside struct Region)
-
-    
-
-// Drive a 2D frame into an InputLayer2D edge bound to `port`.
-fn tick_2d(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
-    var metrics = RegionMetrics()
-
-    var maybe_edge = self.input_edges.get(port)
-    if maybe_edge is None:
-        raise Exception("No InputEdge for port '" + port + "'. Call bind_input_2d(...) first.")
-    var edge_index = maybe_edge
-
-    # Expect the edge layer to implement forward_image(...)
-    self.layers[edge_index].forward_image(frame)
-    metrics.inc_delivered_events(1)
-
-    # End-of-tick housekeeping
-    for layer_ref in self.layers:
-        layer_ref.end_tick()
-
-    if self.bus is not None:
-        self.bus.decay()
-
-    # Aggregate structural metrics
-    for layer_ref in self.layers:
-        for neuron in layer_ref.get_neurons():
-            metrics.add_slots(neuron.slots().size)
-            metrics.add_synapses(neuron.get_outgoing().size)
-    return metrics
-fn tick_image(mut self, port: String, frame: List[List[Float64]]) -> RegionMetrics:
-        return self.tick_2d(port, frame)
-
-    # Windowed deterministic wiring helper (parity stub)
-    fn connect_layers_windowed(self,
-        src_index: Int, dest_index: Int,
-        kernel_h: Int, kernel_w: Int,
-        stride_h: Int = 1, stride_w: Int = 1,
-        padding: String = "valid",
-        feedback: Bool = False) -> Int:
-        # TODO: implement deterministic windowed wiring (Phase B parity)
-        return 0
-# region.mojo — Mojo Region implementation (Python-parity: fn/struct/typed)
-
-from metrics import RegionMetrics
+from region_metrics import RegionMetrics
 from layer import Layer
 from input_layer_2d import InputLayer2D
 from input_layer_nd import InputLayerND
@@ -121,6 +8,8 @@ from output_layer_2d import OutputLayer2D
 from region_bus import RegionBus
 from growth_policy import GrowthPolicy
 from growth_engine import maybe_grow
+from synapse import Synapse
+from tract import Tract
 
 struct MeshRule:
     var src: Int
@@ -137,6 +26,7 @@ struct Region:
     var output_edges: dict[String, Int]
     var bus: RegionBus
     var mesh_rules: list[MeshRule]
+    var tracts: list[Tract]
     var enable_spatial_metrics: Bool
     var rng_state: UInt64
     var output_layer_indices: list[Int]
@@ -153,6 +43,7 @@ struct Region:
         self.output_edges = dict[String, Int]()
         self.bus = RegionBus()
         self.mesh_rules = []
+        self.tracts = []
         self.enable_spatial_metrics = False
         self.rng_state = 0x9E3779B97F4A7C15
         self.output_layer_indices = []
@@ -179,20 +70,19 @@ struct Region:
     # ---------------- construction ----------------
     fn add_layer(mut self, excitatory_count: Int, inhibitory_count: Int, modulatory_count: Int) -> Int:
         var new_layer = Layer(excitatory_count, inhibitory_count, modulatory_count)
-        # best-effort region backref for autowiring
         if new_layer.set_region is not None:
             new_layer.set_region(self)
         self.layers.append(new_layer)
         return self.layers.len - 1
 
     fn add_input_layer_2d(mut self, height: Int, width: Int, gain: Float64, epsilon_fire: Float64) -> Int:
-        var new_input_layer_2d = InputLayer2D(height, width, gain, epsilon_fire)
-        self.layers.append(new_input_layer_2d)
+        var new_input_layer = InputLayer2D(height, width, gain, epsilon_fire)
+        self.layers.append(new_input_layer)
         return self.layers.len - 1
 
     fn add_input_layer_nd(mut self, shape: list[Int], gain: Float64, epsilon_fire: Float64) -> Int:
-        var new_input_layer_nd = InputLayerND(shape, gain, epsilon_fire)
-        self.layers.append(new_input_layer_nd)
+        var new_input_nd = InputLayerND(shape, gain, epsilon_fire)
+        self.layers.append(new_input_nd)
         return self.layers.len - 1
 
     fn add_output_layer_2d(mut self, height: Int, width: Int, smoothing: Float64) -> Int:
@@ -224,7 +114,6 @@ struct Region:
             var dest_counter = 0
             while dest_counter < dest_neurons.len:
                 if self.rand_f64() <= probability:
-                    # Store target index; propagation is a later concern
                     source_neurons[source_counter].connect(dest_counter, feedback)
                     edge_count = edge_count + 1
                 dest_counter = dest_counter + 1
@@ -232,6 +121,7 @@ struct Region:
         self.mesh_rules.append(MeshRule(source_index, dest_index, probability, feedback))
         return edge_count
 
+    # Windowed deterministic wiring (Python/C++ parity)
     fn connect_layers_windowed(mut self,
                                src_index: Int,
                                dest_index: Int,
@@ -241,20 +131,22 @@ struct Region:
                                stride_w: Int = 1,
                                padding: String = "valid",
                                feedback: Bool = False) -> Int:
-        # Deterministic unique source subscriptions; center rule if dest is OutputLayer2D
+        if src_index < 0 or src_index >= self.layers.len: raise Error("src_index out of range")
+        if dest_index < 0 or dest_index >= self.layers.len: raise Error("dest_index out of range")
         var source_layer = self.layers[src_index]
         var dest_layer = self.layers[dest_index]
+        if not hasattr(source_layer, "height") or not hasattr(source_layer, "width"):
+            raise Error("connect_layers_windowed requires src to be InputLayer2D")
         var source_height = source_layer.height
         var source_width = source_layer.width
-        var kernel_height = kernel_h
-        var kernel_width = kernel_w
+        var kernel_height = if kernel_h > 0 then kernel_h else 1
+        var kernel_width = if kernel_w > 0 then kernel_w else 1
         var stride_height = if stride_h > 0 then stride_h else 1
         var stride_width = if stride_w > 0 then stride_w else 1
-        var same = (padding == "same" or padding == "SAME")
+        var use_same = (padding == "same") or (padding == "SAME")
 
-        # Window origins
         var origins: list[tuple[Int, Int]] = []
-        if same:
+        if use_same:
             var pad_rows = (kernel_height - 1) / 2
             var pad_cols = (kernel_width - 1) / 2
             var r0 = -pad_rows
@@ -265,105 +157,97 @@ struct Region:
                     c0 = c0 + stride_width
                 r0 = r0 + stride_height
         else:
-            var r0v = 0
-            while r0v + kernel_height <= source_height:
-                var c0v = 0
-                while c0v + kernel_width <= source_width:
-                    origins.append((r0v, c0v))
-                    c0v = c0v + stride_width
-                r0v = r0v + stride_height
+            var origin_row_valid = 0
+            while origin_row_valid + kernel_height <= source_height:
+                var origin_col_valid = 0
+                while origin_col_valid + kernel_width <= source_width:
+                    origins.append((origin_row_valid, origin_col_valid))
+                    origin_col_valid = origin_col_valid + stride_width
+                origin_row_valid = origin_row_valid + stride_height
 
-        # Unique participating sources
         var allowed_sources = dict[Int, Bool]()
-        # Optional dedupe for created edges
-        var made: dict[String, Bool] = {}
-
-        # Check if dest is OutputLayer2D by duck-typing height/width and get_neurons
-        var dst_has_frame = (dest_layer.height is not None) and (dest_layer.width is not None) and (dest_layer.get_frame is not None)
-        if dst_has_frame:
+        var dest_is_output = hasattr(dest_layer, "height") and hasattr(dest_layer, "width")
+        if dest_is_output:
             var dest_height = dest_layer.height
             var dest_width = dest_layer.width
-            var oi = 0
-            while oi < origins.len:
-                var orow = origins[oi][0]
-                var ocol = origins[oi][1]
-                var rstart = if orow > 0 then orow else 0
-                var cstart = if ocol > 0 then ocol else 0
-                var rend = if (orow + kernel_height) < source_height then (orow + kernel_height) else source_height
-                var cend = if (ocol + kernel_width) < source_width then (ocol + kernel_width) else source_width
-                if rstart < rend and cstart < cend:
-                    var center_r = orow + (kernel_height / 2)
-                    if center_r < 0: center_r = 0
-                    if center_r > (source_height - 1): center_r = source_height - 1
-                    var center_c = ocol + (kernel_width / 2)
-                    if center_c < 0: center_c = 0
-                    if center_c > (source_width - 1): center_c = source_width - 1
-                    # Clamp to destination bounds
-                    if center_r > (dest_height - 1): center_r = dest_height - 1
-                    if center_c > (dest_width - 1): center_c = dest_width - 1
-                    var center_idx = center_r * dest_width + center_c
-                    var rr = rstart
-                    while rr < rend:
-                        var cc = cstart
-                        while cc < cend:
-                            var sidx = rr * source_width + cc
+            var seen: dict[tuple[Int, Int], Bool] = dict[tuple[Int, Int], Bool]()
+            var origin_index_center = 0
+            while origin_index_center < origins.len:
+                var origin_row = origins[origin_index_center][0]
+                var origin_col = origins[origin_index_center][1]
+                var row_start = if origin_row > 0 then origin_row else 0
+                var col_start = if origin_col > 0 then origin_col else 0
+                var row_end = if (origin_row + kernel_height) < source_height then (origin_row + kernel_height) else source_height
+                var col_end = if (origin_col + kernel_width) < source_width then (origin_col + kernel_width) else source_width
+                if row_start < row_end and col_start < col_end:
+                    var center_row = origin_row + (kernel_height / 2)
+                    if center_row < 0: center_row = 0
+                    if center_row > (dest_height - 1): center_row = dest_height - 1
+                    var center_col = origin_col + (kernel_width / 2)
+                    if center_col < 0: center_col = 0
+                    if center_col > (dest_width - 1): center_col = dest_width - 1
+                    var center_index = center_row * dest_width + center_col
+                    var row_iter_center = row_start
+                    while row_iter_center < row_end:
+                        var col_iter_center = col_start
+                        while col_iter_center < col_end:
+                            var sidx = row_iter_center * source_width + col_iter_center
                             allowed_sources[sidx] = True
-                            var key = String(sidx) + ":" + String(center_idx)
-                            if not made.contains(key):
-                                # connect sidx -> center_idx once
-                                self.layers[src_index].get_neurons()[sidx].connect(center_idx, feedback)
-                                made[key] = True
-                            cc = cc + 1
-                        rr = rr + 1
-                oi = oi + 1
-        else:
-            # Generic destination: connect each participating source to all dest neurons once
-            var oi2 = 0
-            while oi2 < origins.len:
-                var or2 = origins[oi2][0]
-                var oc2 = origins[oi2][1]
-                var rstart2 = if or2 > 0 then or2 else 0
-                var cstart2 = if oc2 > 0 then oc2 else 0
-                var rend2 = if (or2 + kernel_height) < source_height then (or2 + kernel_height) else source_height
-                var cend2 = if (oc2 + kernel_width) < source_width then (oc2 + kernel_width) else source_width
-                if rstart2 < rend2 and cstart2 < cend2:
-                    var rr2 = rstart2
-                    while rr2 < rend2:
-                        var cc2 = cstart2
-                        while cc2 < cend2:
-                            var sidx2 = rr2 * source_width + cc2
-                            if not allowed_sources.contains(sidx2):
-                                allowed_sources[sidx2] = True
-                                var dj = 0
-                                var dest_neurons = dest_layer.get_neurons()
-                                while dj < dest_neurons.len:
-                                    self.layers[src_index].get_neurons()[sidx2].connect(dj, feedback)
-                                    dj = dj + 1
-                            cc2 = cc2 + 1
-                        rr2 = rr2 + 1
-                oi2 = oi2 + 1
-        return Int(allowed_sources.size())
+                            var edge_key = (sidx, center_index)
+                            if not seen.contains(edge_key):
+                                self.layers[src_index].get_neurons()[sidx].connect(center_index, feedback)
+                                seen[edge_key] = True
+                            col_iter_center = col_iter_center + 1
+                        row_iter_center = row_iter_center + 1
+                origin_index_center = origin_index_center + 1
+            # Register tract for growth re-attach
+            var tract_out2d = Tract(src_index, dest_index,
+                                    kernel_height, kernel_width,
+                                    stride_height, stride_width,
+                                    use_same, feedback,
+                                    source_height, source_width,
+                                    dest_height, dest_width)
+            self.tracts.append(tract_out2d)
+            return Int(allowed_sources.size())
 
-    # Request a spillover layer and wire deterministically (snake_case; Python-Mojo parity)
-    fn request_layer_growth(mut self, layerRef: any, connection_probability: Float64 = 1.0) -> Int:
-        var li = -1
-        var i = 0
-        while i < self.layers.len:
-            if self.layers[i] == layerRef:
-                li = i
-                break
-            i = i + 1
-        if li < 0:
-            return -1
-        var new_index = self.add_layer(4, 0, 0)
-        _ = self.connect_layers(li, new_index, connection_probability, False)
-        return new_index
+        # generic destination: unique sources connect to all dest neurons
+        var origin_index_generic = 0
+        while origin_index_generic < origins.len:
+            var origin_row_generic = origins[origin_index_generic][0]
+            var origin_col_generic = origins[origin_index_generic][1]
+            var row_start_generic = if origin_row_generic > 0 then origin_row_generic else 0
+            var col_start_generic = if origin_col_generic > 0 then origin_col_generic else 0
+            var row_end_generic = if (origin_row_generic + kernel_height) < source_height then (origin_row_generic + kernel_height) else source_height
+            var col_end_generic = if (origin_col_generic + kernel_width) < source_width then (origin_col_generic + kernel_width) else source_width
+            if row_start_generic < row_end_generic and col_start_generic < col_end_generic:
+                var row_iter_generic = row_start_generic
+                while row_iter_generic < row_end_generic:
+                    var col_iter_generic = col_start_generic
+                    while col_iter_generic < col_end_generic:
+                        var flat = row_iter_generic * source_width + col_iter_generic
+                        allowed_sources[flat] = True
+                        col_iter_generic = col_iter_generic + 1
+                    row_iter_generic = row_iter_generic + 1
+            origin_index_generic = origin_index_generic + 1
+        var dst_neurons = dest_layer.get_neurons()
+        for src_flat in allowed_sources.keys():
+            var dest_neuron_index = 0
+            while dest_neuron_index < dst_neurons.len:
+                self.layers[src_index].get_neurons()[src_flat].connect(dest_neuron_index, feedback)
+                dest_neuron_index = dest_neuron_index + 1
+        var tract_generic = Tract(src_index, dest_index,
+                                  kernel_height, kernel_width,
+                                  stride_height, stride_width,
+                                  use_same, feedback,
+                                  source_height, source_width,
+                                  1, 1)
+        self.tracts.append(tract_generic)
+        return Int(allowed_sources.size())
 
     # ---------------- edge helpers ----------------
     fn ensure_input_edge(mut self, port: String) -> Int:
         if self.input_edges.contains(port):
             return self.input_edges[port]
-        # Minimal scalar input edge: a 1-neuron layer that forwards downstream
         var edge = self.add_layer(1, 0, 0)
         self.input_edges[port] = edge
         return edge
@@ -378,101 +262,58 @@ struct Region:
     fn bind_input(mut self, port: String, layer_indices: list[Int]) -> None:
         self.input_ports[port] = layer_indices
         var edge = self.ensure_input_edge(port)
-        var i = 0
-        while i < layer_indices.len:
-            self.connect_layers(edge, layer_indices[i], 1.0, False)
-            i = i + 1
+        var bind_index = 0
+        while bind_index < layer_indices.len:
+            self.connect_layers(edge, layer_indices[bind_index], 1.0, False)
+            bind_index = bind_index + 1
 
     fn bind_input_2d(mut self, port: String, height: Int, width: Int, gain: Float64, epsilon_fire: Float64, layer_indices: list[Int]) -> None:
-        var need_new = True
-        if self.input_edges.contains(port):
-            var idx = self.input_edges[port]
-            var maybe = self.layers[idx]
-            # crude type check: InputLayer2D has 'height' field
-            if maybe.height == height and maybe.width == width:
-                need_new = False
-        var idx2: Int
-        if not self.input_edges.contains(port) or need_new:
-            idx2 = self.add_input_layer_2d(height, width, gain, epsilon_fire)
-            self.input_edges[port] = idx2
+        var edge = self.ensure_input_edge(port)
+        var layer_ref = self.layers[edge]
+        if hasattr(layer_ref, "height") and hasattr(layer_ref, "width") and layer_ref.height == height and layer_ref.width == width:
+            # reuse
+            pass
         else:
-            idx2 = self.input_edges[port]
-        self.input_ports[port] = layer_indices
-        var i = 0
-        while i < layer_indices.len:
-            self.connect_layers(idx2, layer_indices[i], 1.0, False)
-            i = i + 1
+            var new_edge = self.add_input_layer_2d(height, width, gain, epsilon_fire)
+            self.input_edges[port] = new_edge
+            edge = new_edge
+        var attach_index = 0
+        while attach_index < layer_indices.len:
+            self.connect_layers(edge, layer_indices[attach_index], 1.0, False)
+            attach_index = attach_index + 1
 
     fn bind_output(mut self, port: String, layer_indices: list[Int]) -> None:
         self.output_ports[port] = layer_indices
         var edge = self.ensure_output_edge(port)
-        var i = 0
-        while i < layer_indices.len:
-            self.connect_layers(layer_indices[i], edge, 1.0, False)
-            i = i + 1
+        var output_attach_index = 0
+        while output_attach_index < layer_indices.len:
+            self.connect_layers(layer_indices[output_attach_index], edge, 1.0, False)
+            output_attach_index = output_attach_index + 1
 
     fn bind_input_nd(mut self, port: String, shape: list[Int], gain: Float64, epsilon_fire: Float64, layer_indices: list[Int]) -> None:
-        var need_new = True
-        if self.input_edges.contains(port):
-            var idx = self.input_edges[port]
-            var maybe = self.layers[idx]
-            if maybe.has_shape(shape):
-                need_new = False
-        var idx2: Int
-        if not self.input_edges.contains(port) or need_new:
-            idx2 = self.add_input_layer_nd(shape, gain, epsilon_fire)
-            self.input_edges[port] = idx2
-        else:
-            idx2 = self.input_edges[port]
-        self.input_ports[port] = layer_indices
-        var i = 0
-        while i < layer_indices.len:
-            self.connect_layers(idx2, layer_indices[i], 1.0, False)
-            i = i + 1
-
-    # ---------------- pulses ----------------
-    fn pulse_inhibition(mut self, factor: Float64) -> None:
-        # region bus + per-layer buses
-        self.bus.set_inhibition_factor(factor)
-        var i = 0
-        while i < self.layers.len:
-            var L = self.layers[i]
-            L.get_bus().set_inhibition_factor(factor)
-            i = i + 1
-
-    fn pulse_modulation(mut self, factor: Float64) -> None:
-        self.bus.set_modulation_factor(factor)
-        var i = 0
-        while i < self.layers.len:
-            var L = self.layers[i]
-            L.get_bus().set_modulation_factor(factor)
-            i = i + 1
+        var edge = self.ensure_input_edge(port)
+        var new_edge = self.add_input_layer_nd(shape, gain, epsilon_fire)
+        self.input_edges[port] = new_edge
+        var nd_attach_index = 0
+        while nd_attach_index < layer_indices.len:
+            self.connect_layers(new_edge, layer_indices[nd_attach_index], 1.0, False)
+            nd_attach_index = nd_attach_index + 1
 
     # ---------------- ticks ----------------
     fn tick(mut self, port: String, value: Float64) -> RegionMetrics:
         var metrics = RegionMetrics()
         if not self.input_edges.contains(port):
-            raise Exception("No InputEdge for port '" + port + "'. Call bind_input(...) first.")
+            raise Error("No InputEdge for port '" + port + "'. Call bind_input(...) first.")
         var edge_idx = self.input_edges[port]
         self.layers[edge_idx].forward(value)
-
-        if self.input_ports.contains(port):
-            var targets = self.input_ports[port]
-            var i = 0
-            while i < targets.len:
-                var li = targets[i]
-                if li != edge_idx:
-                    self.layers[li].forward(value)
-                i = i + 1
         metrics.inc_delivered_events(1)
 
-        # End-of-tick housekeeping
-        var layer_index_endtick = 0
-        while layer_index_endtick < self.layers.len:
-            self.layers[layer_index_endtick].end_tick()
-            layer_index_endtick = layer_index_endtick + 1
+        var layer_index_end = 0
+        while layer_index_end < self.layers.len:
+            self.layers[layer_index_end].end_tick()
+            layer_index_end = layer_index_end + 1
+        self.bus.decay()
 
-        # Aggregate structural metrics
         var layer_index_aggregate = 0
         while layer_index_aggregate < self.layers.len:
             var neuron_list = self.layers[layer_index_aggregate].get_neurons()
@@ -482,7 +323,7 @@ struct Region:
                 metrics.add_synapses(Int64(neuron_list[neuron_index].outgoing.size()))
                 neuron_index = neuron_index + 1
             layer_index_aggregate = layer_index_aggregate + 1
-        # Consider automatic region growth (after end_tick aggregation)
+
         if self.growth_policy_enabled:
             _ = maybe_grow(self, self.growth_policy)
         return metrics
@@ -490,7 +331,7 @@ struct Region:
     fn tick_2d(mut self, port: String, frame: list[list[Float64]]) -> RegionMetrics:
         var metrics = RegionMetrics()
         if not self.input_edges.contains(port):
-            raise Exception("No InputEdge for port '" + port + "'. Call bind_input_2d(...) first.")
+            raise Error("No InputEdge for port '" + port + "'. Call bind_input_2d(...) first.")
         var edge_idx = self.input_edges[port]
         self.layers[edge_idx].forward_image(frame)
         metrics.inc_delivered_events(1)
@@ -499,128 +340,63 @@ struct Region:
         while layer_index_tick < self.layers.len:
             self.layers[layer_index_tick].end_tick()
             layer_index_tick = layer_index_tick + 1
+        self.bus.decay()
 
         var layer_index_aggregate2 = 0
         while layer_index_aggregate2 < self.layers.len:
-            var neuron_list2 = self.layers[layer_index_aggregate2].get_neurons()
+            var list_neurons = self.layers[layer_index_aggregate2].get_neurons()
             var neuron_index2 = 0
-            while neuron_index2 < neuron_list2.len:
-                metrics.add_slots(Int64(neuron_list2[neuron_index2].slots.size()))
-                metrics.add_synapses(Int64(neuron_list2[neuron_index2].outgoing.size()))
+            while neuron_index2 < list_neurons.len:
+                metrics.add_slots(Int64(list_neurons[neuron_index2].slots.size()))
+                metrics.add_synapses(Int64(list_neurons[neuron_index2].outgoing.size()))
                 neuron_index2 = neuron_index2 + 1
             layer_index_aggregate2 = layer_index_aggregate2 + 1
 
-        # Optional spatial metrics: prefer last OutputLayer2D frame, fall back to input if all-zero
-        if self.enable_spatial_metrics:
-            var chosen = frame
-            if self.output_layer_indices.len > 0:
-                var out_idx = self.output_layer_indices[self.output_layer_indices.len - 1]
-                var img = self.layers[out_idx].get_frame()
-                # Check if all zero
-                var all_zero = True
-                var rr = 0
-                while rr < Int(img.size()):
-                    var cc = 0
-                    while cc < Int(img[rr].size()):
-                        if img[rr][cc] != 0.0:
-                            all_zero = False
-                            break
-                        cc = cc + 1
-                    if not all_zero: break
-                    rr = rr + 1
-                if not all_zero:
-                    chosen = img
-
-            var frame_height = Int(chosen.size())
-            var frame_width = 0
-            if frame_height > 0:
-                frame_width = Int(chosen[0].size())
-            var total = 0.0
-            var sumR = 0.0
-            var sumC = 0.0
-            var rmin = 1000000000
-            var rmax = -1
-            var cmin = 1000000000
-            var cmax = -1
-            var active: Int64 = 0
-            var r = 0
-            while r < frame_height:
-                var c = 0
-                while c < frame_width:
-                    var v = chosen[r][c]
-                    if v > 0.0:
-                        active = active + 1
-                        total = total + v
-                        sumR = sumR + (Float64(r) * v)
-                        sumC = sumC + (Float64(c) * v)
-                        if r < rmin: rmin = r
-                        if r > rmax: rmax = r
-                        if c < cmin: cmin = c
-                        if c > cmax: cmax = c
-                    c = c + 1
-                r = r + 1
-            metrics.activePixels = active
-            if total > 0.0:
-                metrics.centroidRow = sumR / total
-                metrics.centroidCol = sumC / total
-            else:
-                metrics.centroidRow = 0.0
-                metrics.centroidCol = 0.0
-            if rmax >= rmin and cmax >= cmin:
-                metrics.bboxRowMin = rmin
-                metrics.bboxRowMax = rmax
-                metrics.bboxColMin = cmin
-                metrics.bboxColMax = cmax
-            else:
-                metrics.bboxRowMin = 0
-                metrics.bboxRowMax = -1
-                metrics.bboxColMin = 0
-                metrics.bboxColMax = -1
-        # Consider automatic region growth (after end_tick aggregation)
+        # spatial metrics (optional)
+        if self.enable_spatial_metrics and self.output_layer_indices.len > 0:
+            var out_idx = self.output_layer_indices[self.output_layer_indices.len - 1]
+            var out = self.layers[out_idx]
+            if hasattr(out, "pixels") and hasattr(out, "height") and hasattr(out, "width"):
+                var image_height = out.height
+                var image_width = out.width
+                var active: Int64 = 0
+                var total: Float64 = 0.0
+                var sum_r: Float64 = 0.0
+                var sum_c: Float64 = 0.0
+                var rmin = image_height
+                var rmax = -1
+                var cmin = image_width
+                var cmax = -1
+                var row_iter = 0
+                while row_iter < image_height:
+                    var col_iter = 0
+                    while col_iter < image_width:
+                        var pixel_value = out.pixels[row_iter][col_iter]
+                        if pixel_value != 0.0:
+                            active = active + 1
+                            total = total + pixel_value
+                            sum_r = sum_r + Float64(row_iter) * pixel_value
+                            sum_c = sum_c + Float64(col_iter) * pixel_value
+                            if row_iter < rmin: rmin = row_iter
+                            if row_iter > rmax: rmax = row_iter
+                            if col_iter < cmin: cmin = col_iter
+                            if col_iter > cmax: cmax = col_iter
+                        col_iter = col_iter + 1
+                    row_iter = row_iter + 1
+                metrics.active_pixels = active
+                if total > 0.0:
+                    metrics.centroid_row = sum_r / total
+                    metrics.centroid_col = sum_c / total
+                else:
+                    metrics.centroid_row = 0.0
+                    metrics.centroid_col = 0.0
+                if rmax >= rmin and cmax >= cmin:
+                    metrics.set_bbox(rmin, rmax, cmin, cmax)
+                else:
+                    metrics.set_bbox(0, -1, 0, -1)
         if self.growth_policy_enabled:
             _ = maybe_grow(self, self.growth_policy)
         return metrics
-
-    # -------- autowiring for grown neurons (by layer ref) --------
-    fn autowire_new_neuron_by_ref(mut self, layer_ref: any, new_idx: Int) -> None:
-        # find layer index
-        var li = -1
-        var i = 0
-        while i < self.layers.len:
-            if self.layers[i] == layer_ref:
-                li = i
-                break
-            i = i + 1
-        if li < 0: return
-
-        # Outbound mesh: this layer -> dst
-        var r = 0
-        while r < self.mesh_rules.len:
-            var mr = self.mesh_rules[r]
-            if mr.src == li:
-                var dstN = self.layers[mr.dst].get_neurons()
-                var sN = self.layers[li].get_neurons()
-                if new_idx >= 0 and new_idx < sN.len:
-                    var s = sN[new_idx]
-                    var j = 0
-                    while j < dstN.len:
-                        if self.rand_f64() <= mr.prob:
-                            s.connect(j, mr.feedback)
-                        j = j + 1
-            r = r + 1
-
-        # Inbound mesh: src -> this layer
-        r = 0
-        while r < self.mesh_rules.len:
-            var mr2 = self.mesh_rules[r]
-            if mr2.dst == li:
-                var srcN = self.layers[mr2.src].get_neurons()
-                var j = 0
-                while j < srcN.len:
-                    if self.rand_f64() <= mr2.prob:
-                        srcN[j].connect(new_idx, mr2.feedback)
-                    j = j + 1
-            r = r + 1
 
     fn tick_image(mut self, port: String, frame: list[list[Float64]]) -> RegionMetrics:
         return self.tick_2d(port, frame)
@@ -628,23 +404,79 @@ struct Region:
     fn tick_nd(mut self, port: String, flat: list[Float64], shape: list[Int]) -> RegionMetrics:
         var metrics = RegionMetrics()
         if not self.input_edges.contains(port):
-            raise Exception("No InputEdge for port '" + port + "'. Call bind_input_nd(...) first.")
+            raise Error("No InputEdge for port '" + port + "'. Call bind_input_nd(...) first.")
         var edge_idx = self.input_edges[port]
         self.layers[edge_idx].forward_nd(flat, shape)
         metrics.inc_delivered_events(1)
-
-        var i = 0
-        while i < self.layers.len:
-            self.layers[i].end_tick()
-            i = i + 1
-
-        var li3 = 0
-        while li3 < self.layers.len:
-            var neuron_list = self.layers[li3].get_neurons()
-            var ni = 0
-            while ni < neuron_list.len:
-                metrics.add_slots(Int64(neuron_list[ni].slots.size()))
-                metrics.add_synapses(Int64(neuron_list[ni].outgoing.size()))
-                ni = ni + 1
-            li3 = li3 + 1
+        var layer_index_end_nd = 0
+        while layer_index_end_nd < self.layers.len:
+            self.layers[layer_index_end_nd].end_tick()
+            layer_index_end_nd = layer_index_end_nd + 1
+        self.bus.decay()
+        var layer_index_nd = 0
+        while layer_index_nd < self.layers.len:
+            var neurons = self.layers[layer_index_nd].get_neurons()
+            var neuron_index_nd = 0
+            while neuron_index_nd < neurons.len:
+                metrics.add_slots(Int64(neurons[neuron_index_nd].slots.size()))
+                metrics.add_synapses(Int64(neurons[neuron_index_nd].outgoing.size()))
+                neuron_index_nd = neuron_index_nd + 1
+            layer_index_nd = layer_index_nd + 1
         return metrics
+
+    # -------- autowiring for grown neurons (by layer ref) --------
+    fn autowire_new_neuron_by_ref(mut self, layer_ref: any, new_idx: Int) -> None:
+        var layer_index = -1
+        var search_index = 0
+        while search_index < self.layers.len:
+            if self.layers[search_index] == layer_ref:
+                layer_index = search_index
+                break
+            search_index = search_index + 1
+        if layer_index < 0: return
+        # Outbound
+        var rule_index = 0
+        while rule_index < self.mesh_rules.len:
+            var rule = self.mesh_rules[rule_index]
+            if rule.src == layer_index:
+                var dst_neurons = self.layers[rule.dst].get_neurons()
+                var dest_neuron_index = 0
+                while dest_neuron_index < dst_neurons.len:
+                    if self.rand_f64() <= rule.prob:
+                        self.layers[layer_index].get_neurons()[new_idx].connect(dest_neuron_index, rule.feedback)
+                    dest_neuron_index = dest_neuron_index + 1
+            rule_index = rule_index + 1
+        # Inbound
+        var rule_index_inbound = 0
+        while rule_index_inbound < self.mesh_rules.len:
+            var rule2 = self.mesh_rules[rule_index_inbound]
+            if rule2.dst == layer_index:
+                var src_neurons = self.layers[rule2.src].get_neurons()
+                var src_index = 0
+                while src_index < src_neurons.len:
+                    if self.rand_f64() <= rule2.prob:
+                        src_neurons[src_index].connect(new_idx, rule2.feedback)
+                    src_index = src_index + 1
+            rule_index_inbound = rule_index_inbound + 1
+
+        # Windowed tracts: if this layer is a source, attach grown neuron
+        var tract_index = 0
+        while tract_index < self.tracts.len:
+            var tract_obj = self.tracts[tract_index]
+            if tract_obj.src_layer_index == layer_index:
+                _ = tract_obj.attach_source_neuron(self, new_idx)
+            tract_index = tract_index + 1
+
+    # Request a spillover layer and wire deterministically
+    fn request_layer_growth(mut self, layerRef: any, connection_probability: Float64 = 1.0) -> Int:
+        var layer_index_ref = -1
+        var search_index2 = 0
+        while search_index2 < self.layers.len:
+            if self.layers[search_index2] == layerRef:
+                layer_index_ref = search_index2
+                break
+            search_index2 = search_index2 + 1
+        if layer_index_ref < 0: return -1
+        var new_index = self.add_layer(4, 0, 0)
+        _ = self.connect_layers(layer_index_ref, new_index, connection_probability, False)
+        return new_index

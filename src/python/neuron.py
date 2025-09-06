@@ -82,16 +82,11 @@ class Neuron:
         """Select/reinforce a slot, update threshold, and optionally fire. May request growth."""
 
         # Choose (or create) slot, reinforce with current modulation, update θ, decide to fire
-        # Optional one-shot preference: reuse the last slot immediately after unfreeze
-        prefer_slot = getattr(self, "prefer_specific_slot_once", None)
-        if prefer_slot is not None:
-            slot = prefer_slot
-            try:
-                delattr(self, "prefer_specific_slot_once")
-            except Exception:
-                self.prefer_specific_slot_once = None
-        else:
-            slot = None
+        # Optional one-shot preference: reuse the last selected slot immediately after unfreeze
+        slot = None
+        if getattr(self, "prefer_last_slot_once", False) and getattr(self, "last_slot", None) is not None:
+            slot = self.last_slot
+            self.prefer_last_slot_once = False
         if self.slot_limit >= 0 and len(self.slots) >= self.slot_limit:
 
             # if saturated, reuse slot 0
@@ -153,13 +148,9 @@ class Neuron:
             return self.on_input(value)
 
         # Optional one-shot preference: reuse the last slot immediately after unfreeze
-        prefer_slot = getattr(self, "prefer_specific_slot_once", None)
-        if prefer_slot is not None:
-            slot = prefer_slot
-            try:
-                delattr(self, "prefer_specific_slot_once")
-            except Exception:
-                self.prefer_specific_slot_once = None
+        if getattr(self, "prefer_last_slot_once", False) and getattr(self, "last_slot", None) is not None:
+            slot = self.last_slot
+            self.prefer_last_slot_once = False
         else:
             # choose/create spatial slot via engine (engine enforces capacity rules)
             slot = self.slot_engine.select_or_create_slot_2d(self, int(row), int(col))
@@ -216,14 +207,11 @@ class Neuron:
             return False
         try:
             slot_obj.unfreeze()
-            # Hint selector to reuse this slot on the next tick once.
-            try:
-                self.prefer_specific_slot_once = slot_obj
-            except Exception:
-                pass
-            return True
         except Exception:
-            return False
+            pass
+        # Hint selector to reuse this slot on the next tick once.
+        self.prefer_last_slot_once = True
+        return True
 
     # ---------- growth helpers ----------
     def maybe_request_neuron_growth(self) -> None:

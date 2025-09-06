@@ -1,11 +1,116 @@
-from layer import Layer, Spike
+from synapse import Synapse
 
 struct Tract:
-    var source_index: Int
-    var dest_index: Int
-    var feedback: Bool = False
+    var src_layer_index: Int
+    var dst_layer_index: Int
+    var kernel_height: Int
+    var kernel_width: Int
+    var stride_height: Int
+    var stride_width: Int
+    var use_same_padding: Bool
+    var feedback_enabled: Bool
 
-    fn init(mut self, source_index: Int, dest_index: Int, feedback: Bool = False) -> None:
-        self.source_index = source_index
-        self.dest_index = dest_index
-        self.feedback = feedback
+    # Cached geometry
+    var source_height: Int
+    var source_width: Int
+    var dest_height: Int
+    var dest_width: Int
+
+    fn init(mut self,
+            src_layer_index: Int, dst_layer_index: Int,
+            kernel_height: Int, kernel_width: Int,
+            stride_height: Int, stride_width: Int,
+            use_same_padding: Bool, feedback_enabled: Bool,
+            source_height: Int, source_width: Int,
+            dest_height: Int, dest_width: Int) -> None:
+        self.src_layer_index = src_layer_index
+        self.dst_layer_index = dst_layer_index
+        self.kernel_height = if kernel_height > 0 then kernel_height else 1
+        self.kernel_width  = if kernel_width  > 0 then kernel_width  else 1
+        self.stride_height = if stride_height > 0 then stride_height else 1
+        self.stride_width  = if stride_width  > 0 then stride_width  else 1
+        self.use_same_padding = use_same_padding
+        self.feedback_enabled = feedback_enabled
+        self.source_height = source_height
+        self.source_width  = source_width
+        self.dest_height   = dest_height
+        self.dest_width    = dest_width
+
+    fn _origin_list(self) -> list[tuple[Int, Int]]:
+        var origins: list[tuple[Int, Int]] = []
+        if self.use_same_padding:
+            var pad_rows = (self.kernel_height - 1) / 2
+            var pad_cols = (self.kernel_width  - 1) / 2
+            var origin_row = -pad_rows
+            while origin_row + self.kernel_height <= self.source_height + pad_rows + pad_rows:
+                var origin_col = -pad_cols
+                while origin_col + self.kernel_width <= self.source_width + pad_cols + pad_cols:
+                    origins.append((origin_row, origin_col))
+                    origin_col = origin_col + self.stride_width
+                origin_row = origin_row + self.stride_height
+        else:
+            var origin_row_valid = 0
+            while origin_row_valid + self.kernel_height <= self.source_height:
+                var origin_col_valid = 0
+                while origin_col_valid + self.kernel_width <= self.source_width:
+                    origins.append((origin_row_valid, origin_col_valid))
+                    origin_col_valid = origin_col_valid + self.stride_width
+                origin_row_valid = origin_row_valid + self.stride_height
+        return origins
+
+    fn _row_col_from_flat(self, flat_index: Int) -> tuple[Int, Int]:
+        var row_index = flat_index / self.source_width
+        var col_index = flat_index % self.source_width
+        return (row_index, col_index)
+
+    fn _center_for_origin(self, origin_row: Int, origin_col: Int) -> Int:
+        var center_row = origin_row + (self.kernel_height / 2)
+        var center_col = origin_col + (self.kernel_width  / 2)
+        if center_row < 0: center_row = 0
+        if center_col < 0: center_col = 0
+        if center_row > (self.dest_height - 1): center_row = self.dest_height - 1
+        if center_col > (self.dest_width  - 1): center_col = self.dest_width  - 1
+        return center_row * self.dest_width + center_col
+
+    fn attach_source_neuron(mut self, region: any, new_source_index: Int) -> Int:
+        # Wires just-grown source neuron through this tract; returns created edge count.
+        var created_edges = 0
+        var (row_index, col_index) = self._row_col_from_flat(new_source_index)
+        var origins = self._origin_list()
+
+        # Determine if destination is OutputLayer2D
+        var dest_is_output_2d = hasattr(region.layers[self.dst_layer_index], "height") \
+                                and hasattr(region.layers[self.dst_layer_index], "width")
+
+        if dest_is_output_2d:
+            var seen_center_indices: dict[Int, Bool] = dict[Int, Bool]()
+            var origin_iter = 0
+            while origin_iter < origins.len:
+                var origin_row = origins[origin_iter][0]
+                var origin_col = origins[origin_iter][1]
+                var window_row_start = if origin_row > 0 then origin_row else 0
+                var window_col_start = if origin_col > 0 then origin_col else 0
+                var window_row_end   = if (origin_row + self.kernel_height) < self.source_height \
+                                       then (origin_row + self.kernel_height) else self.source_height
+                var window_col_end   = if (origin_col + self.kernel_width) < self.source_width \
+                                       then (origin_col + self.kernel_width) else self.source_width
+                if row_index >= window_row_start and row_index < window_row_end \
+                   and col_index >= window_col_start and col_index < window_col_end:
+                    var center_flat_index = self._center_for_origin(origin_row, origin_col)
+                    if not seen_center_indices.contains(center_flat_index):
+                        var syn = Synapse(center_flat_index, self.feedback_enabled)
+                        region.layers[self.src_layer_index].get_neurons()[new_source_index].outgoing.append(syn)
+                        seen_center_indices[center_flat_index] = True
+                        created_edges = created_edges + 1
+                origin_iter = origin_iter + 1
+            return created_edges
+
+        # Generic destination: connect to all destination neurons
+        var dest_neuron_list = region.layers[self.dst_layer_index].get_neurons()
+        var dest_index = 0
+        while dest_index < dest_neuron_list.len:
+            var syn_generic = Synapse(dest_index, self.feedback_enabled)
+            region.layers[self.src_layer_index].get_neurons()[new_source_index].outgoing.append(syn_generic)
+            dest_index = dest_index + 1
+            created_edges = created_edges + 1
+        return created_edges

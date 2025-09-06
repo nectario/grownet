@@ -31,17 +31,17 @@ struct SlotEngine:
 
     fn slot_id_2d(self, anchor_row: Int, anchor_col: Int, row: Int, col: Int,
                   row_bin_width_pct: Float64, col_bin_width_pct: Float64, epsilon_scale: Float64) -> (Int, Int):
-        var ar = Float64(anchor_row); var ac = Float64(anchor_col)
-        var r = Float64(row); var c = Float64(col)
-        var denom_r = if ar >= 0.0 then ar else -ar
-        var denom_c = if ac >= 0.0 then ac else -ac
-        if denom_r < epsilon_scale: denom_r = epsilon_scale
-        if denom_c < epsilon_scale: denom_c = epsilon_scale
-        var dpr = r - ar; if dpr < 0.0: dpr = -dpr
-        var dpc = c - ac; if dpc < 0.0: dpc = -dpc
-        var rbin = Int((100.0 * dpr / denom_r) / (if row_bin_width_pct > 0.1 then row_bin_width_pct else 0.1))
-        var cbin = Int((100.0 * dpc / denom_c) / (if col_bin_width_pct > 0.1 then col_bin_width_pct else 0.1))
-        return (rbin, cbin)
+        var anchor_row_value = Float64(anchor_row); var anchor_col_value = Float64(anchor_col)
+        var current_row_value = Float64(row); var current_col_value = Float64(col)
+        var denom_row = if anchor_row_value >= 0.0 then anchor_row_value else -anchor_row_value
+        var denom_col = if anchor_col_value >= 0.0 then anchor_col_value else -anchor_col_value
+        if denom_row < epsilon_scale: denom_row = epsilon_scale
+        if denom_col < epsilon_scale: denom_col = epsilon_scale
+        var delta_row = current_row_value - anchor_row_value; if delta_row < 0.0: delta_row = -delta_row
+        var delta_col = current_col_value - anchor_col_value; if delta_col < 0.0: delta_col = -delta_col
+        var row_bin = Int((100.0 * delta_row / denom_row) / (if row_bin_width_pct > 0.1 then row_bin_width_pct else 0.1))
+        var col_bin = Int((100.0 * delta_col / denom_col) / (if col_bin_width_pct > 0.1 then col_bin_width_pct else 0.1))
+        return (row_bin, col_bin)
 
     # Python-parity: select_or_create_slot with strict capacity + fallback marking.
     fn select_or_create_slot(self, neuron: inout Neuron, input_value: Float64) -> Int:

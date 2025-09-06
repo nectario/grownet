@@ -11,9 +11,9 @@ fn test_single_tick_no_tracts():
     region.bind_input("x", [input_idx])
     var metrics = region.tick("x", 0.42)   # use public method if available
     print("[MOJO] singleTickNoTracts -> ", metrics)
-    check(metrics.deliveredEvents == 1, "deliveredEvents == 1")
-    check(metrics.totalSlots >= 1, "totalSlots >= 1")
-    check(metrics.totalSynapses >= 0, "totalSynapses >= 0")
+    check(metrics.delivered_events == 1, "delivered_events == 1")
+    check(metrics.total_slots >= 1, "total_slots >= 1")
+    check(metrics.total_synapses >= 0, "total_synapses >= 0")
 
 fn test_connect_layers_full_mesh():
     var region = Region("t")
@@ -31,7 +31,7 @@ fn test_image_input_event_count():
     var frame = [[0.0, 1.0], [0.0, 0.0]]
     var metrics = region.tick_image("pixels", frame)
     print("[MOJO] imageInputEventCount -> ", metrics)
-    check(metrics.deliveredEvents == 1, "image tick counts as one event")
+    check(metrics.delivered_events == 1, "image tick counts as one event")
 
 fn main():
     test_single_tick_no_tracts()

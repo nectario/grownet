@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ban-short-identifiers-java-cpp
+        name: Ban 1–2 char identifiers in Java/C++
+        entry: python3 scripts/lint/check_short_identifiers.py
+        language: system
+        types: [c++, java]
+      - id: checkstyle
+        name: Checkstyle
+        entry: bash -lc 'mvn -q -DskipTests=false checkstyle:check'
+        language: system
+        files: \.java$
+      - id: clang-tidy
+        name: clang-tidy
+        entry: bash -lc 'clang-tidy -p build $(git ls-files "*.cpp" "*.cc" "*.cxx")'
+        language: system
+        pass_filenames: false

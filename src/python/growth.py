@@ -32,7 +32,7 @@ class GrowthPolicy:
         self.wire_probability = float(wire_probability)
 
 
-def _is_trainable_layer(layer_obj: Any) -> bool:
+def is_trainable_layer(layer_obj: Any) -> bool:
     name = layer_obj.__class__.__name__.lower()
     return ("input" not in name) and ("output" not in name) and hasattr(layer_obj, "get_neurons")
 
@@ -72,7 +72,7 @@ def maybe_grow(region, policy: Optional[GrowthPolicy]) -> bool:
     except Exception:
         return False
 
-    trainable_indices = [i for i, layer in enumerate(all_layers) if _is_trainable_layer(layer)]
+    trainable_indices = [i for i, layer in enumerate(all_layers) if is_trainable_layer(layer)]
     if not trainable_indices:
         return False
 
@@ -147,4 +147,3 @@ def maybe_grow(region, policy: Optional[GrowthPolicy]) -> bool:
         return True
     except Exception:
         return False
-

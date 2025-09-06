@@ -1,20 +1,20 @@
 from region import Region
 
 fn generate_frame(height: Int, width: Int, step: Int) -> list[list[Float64]]:
-    var img = []
-    var r = 0
-    while r < height:
+    var image = []
+    var row_index = 0
+    while row_index < height:
         var row = []
-        var c = 0
-        while c < width:
+        var col_index = 0
+        while col_index < width:
             row.append(0.0)
-            c = c + 1
-        img.append(row)
-        r = r + 1
-    var rr = (step * 2) % height
-    var cc = (step * 3) % width
-    img[rr][cc] = 1.0
-    return img
+            col_index = col_index + 1
+        image.append(row)
+        row_index = row_index + 1
+    var bright_row = (step * 2) % height
+    var bright_col = (step * 3) % width
+    image[bright_row][bright_col] = 1.0
+    return image
 
 fn main():
     var height: Int = 8
@@ -28,12 +28,12 @@ fn main():
 
     # Enable spatial slotting on hidden neurons (coarse 2x2 bins => 50% per axis)
     var neurons = region.get_layers()[hidden_layer_index].get_neurons()
-    var i = 0
-    while i < neurons.len:
-        neurons[i].slot_cfg.spatial_enabled = True
-        neurons[i].slot_cfg.row_bin_width_pct = 50.0
-        neurons[i].slot_cfg.col_bin_width_pct = 50.0
-        i = i + 1
+    var neuron_index = 0
+    while neuron_index < neurons.len:
+        neurons[neuron_index].slot_cfg.spatial_enabled = True
+        neurons[neuron_index].slot_cfg.row_bin_width_pct = 50.0
+        neurons[neuron_index].slot_cfg.col_bin_width_pct = 50.0
+        neuron_index = neuron_index + 1
 
     # Deterministic windowed wiring: 3x3 kernel, stride 2
     var unique_source_count = region.connect_layers_windowed(input_layer_index, hidden_layer_index, 3, 3, 2, 2, "valid", False)
@@ -45,12 +45,12 @@ fn main():
     var step = 0
     while step < 10:
         var frame = generate_frame(height, width, step)
-        var m = region.tick_image("pixels", frame)
+        var metrics = region.tick_image("pixels", frame)
         if ((step + 1) % 2) == 0:
-            print("[", step + 1, "] delivered=", m.get_delivered_events(),
-                  " active=", m.activePixels,
-                  " centroid=(", m.centroidRow, ",", m.centroidCol, ")",
-                  " bbox=(", m.bboxRowMin, ",", m.bboxRowMax, ",", m.bboxColMin, ",", m.bboxColMax, ")",
+            print("[", step + 1, "] delivered=", metrics.delivered_events,
+                  " active=", metrics.active_pixels,
+                  " centroid=(", metrics.centroid_row, ",", metrics.centroid_col, ")",
+                  " bbox=", metrics.bbox,
                   " unique_sources=", unique_source_count)
         step = step + 1
 

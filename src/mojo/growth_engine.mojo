@@ -3,18 +3,18 @@ from growth_policy import GrowthPolicy
 fn _is_output_layer_index(region: any, index: Int) -> Bool:
     if region.output_layer_indices is None:
         return False
-    var i = 0
-    while i < region.output_layer_indices.len:
-        if region.output_layer_indices[i] == index:
+    var output_index_iter = 0
+    while output_index_iter < region.output_layer_indices.len:
+        if region.output_layer_indices[output_index_iter] == index:
             return True
-        i = i + 1
+        output_index_iter = output_index_iter + 1
     return False
 
 fn _is_input_edge_index(region: any, index: Int) -> Bool:
     # crude check: does any input_edges value match this index?
-    var it = region.input_edges
-    for key in it.keys():
-        if it[key] == index:
+    var input_map = region.input_edges
+    for key in input_map.keys():
+        if input_map[key] == index:
             return True
     return False
 
@@ -38,11 +38,11 @@ fn maybe_grow(mut region: any, policy: GrowthPolicy) -> Bool:
 
     # candidates: exclude input edges and output layers
     var candidate_indices = []
-    var li = 0
-    while li < layers.len:
-        if (not _is_output_layer_index(region, li)) and (not _is_input_edge_index(region, li)):
-            candidate_indices.append(li)
-        li = li + 1
+    var layer_iter = 0
+    while layer_iter < layers.len:
+        if (not _is_output_layer_index(region, layer_iter)) and (not _is_input_edge_index(region, layer_iter)):
+            candidate_indices.append(layer_iter)
+        layer_iter = layer_iter + 1
     if candidate_indices.len == 0:
         return False
 
@@ -50,21 +50,21 @@ fn maybe_grow(mut region: any, policy: GrowthPolicy) -> Bool:
     var neuron_count = 0
     var total_slots = 0
     var at_cap_and_fallback = 0
-    var idx = 0
-    while idx < candidate_indices.len:
-        var L = layers[candidate_indices[idx]]
-        var neurons = L.get_neurons()
-        var j = 0
-        while j < neurons.len:
-            var n = neurons[j]
+    var candidate_index = 0
+    while candidate_index < candidate_indices.len:
+        var layer_ref = layers[candidate_indices[candidate_index]]
+        var neurons = layer_ref.get_neurons()
+        var neuron_iter = 0
+        while neuron_iter < neurons.len:
+            var neuron_core = neurons[neuron_iter]
             neuron_count = neuron_count + 1
-            total_slots = total_slots + Int(n.slots.size())
-            var limit = n.slot_limit
+            total_slots = total_slots + Int(neuron_core.slots.size())
+            var limit = neuron_core.slot_limit
             var at_capacity = (limit >= 0) and (Int(n.slots.size()) >= limit)
-            if at_capacity and n.last_slot_used_fallback:
+            if at_capacity and neuron_core.last_slot_used_fallback:
                 at_cap_and_fallback = at_cap_and_fallback + 1
-            j = j + 1
-        idx = idx + 1
+            neuron_iter = neuron_iter + 1
+        candidate_index = candidate_index + 1
     if neuron_count == 0:
         return False
 
@@ -76,25 +76,25 @@ fn maybe_grow(mut region: any, policy: GrowthPolicy) -> Bool:
     # pick most saturated layer
     var best_index = -1
     var best_score = -1.0
-    var ci = 0
-    while ci < candidate_indices.len:
-        var L2 = layers[candidate_indices[ci]]
-        var ns = L2.get_neurons()
-        if ns.len > 0:
+    var candidate_index_2 = 0
+    while candidate_index_2 < candidate_indices.len:
+        var layer_ref_2 = layers[candidate_indices[candidate_index_2]]
+        var neuron_list = layer_ref_2.get_neurons()
+        if neuron_list.len > 0:
             var saturated = 0
-            var k = 0
-            while k < ns.len:
-                var n2 = ns[k]
-                var limit2 = n2.slot_limit
-                var at_cap2 = (limit2 >= 0) and (Int(n2.slots.size()) >= limit2)
-                if at_cap2 and n2.last_slot_used_fallback:
+            var neuron_iter_2 = 0
+            while neuron_iter_2 < neuron_list.len:
+                var neuron_core_2 = neuron_list[neuron_iter_2]
+                var limit2 = neuron_core_2.slot_limit
+                var at_cap2 = (limit2 >= 0) and (Int(neuron_core_2.slots.size()) >= limit2)
+                if at_cap2 and neuron_core_2.last_slot_used_fallback:
                     saturated = saturated + 1
-                k = k + 1
-            var score = Float64(saturated) / Float64(ns.len)
+                neuron_iter_2 = neuron_iter_2 + 1
+            var score = Float64(saturated) / Float64(neuron_list.len)
             if score > best_score:
                 best_score = score
-                best_index = candidate_indices[ci]
-        ci = ci + 1
+                best_index = candidate_indices[candidate_index_2]
+        candidate_index_2 = candidate_index_2 + 1
     if best_index < 0:
         best_index = candidate_indices[candidate_indices.len - 1]
 
@@ -105,4 +105,3 @@ fn maybe_grow(mut region: any, policy: GrowthPolicy) -> Bool:
     region.connect_layers(best_index, new_idx, policy.wire_probability, False)
     region.last_layer_growth_step = now
     return True
-

@@ -1,49 +1,36 @@
 # metrics.mojo
-# GrowNet: Region metrics (Mojo mirror of Java/C++)
+# GrowNet: Region metrics (Mojo mirror of Python snake_case)
 
 struct RegionMetrics:
-    var deliveredEvents: Int64
-    var totalSlots: Int64
-    var totalSynapses: Int64
-    # Optional spatial metrics (parity fields)
-    var activePixels: Int64
-    var centroidRow: Float64
-    var centroidCol: Float64
-    var bboxRowMin: Int
-    var bboxRowMax: Int
-    var bboxColMin: Int
-    var bboxColMax: Int
+    var delivered_events: Int64
+    var total_slots: Int64
+    var total_synapses: Int64
+    # Optional spatial metrics
+    var active_pixels: Int64
+    var centroid_row: Float64
+    var centroid_col: Float64
+    var bbox: tuple[Int, Int, Int, Int]
 
     fn __init__() -> Self:
-        return Self(deliveredEvents=0, totalSlots=0, totalSynapses=0,
-                    activePixels=0, centroidRow=0.0, centroidCol=0.0,
-                    bboxRowMin=0, bboxRowMax=-1, bboxColMin=0, bboxColMax=-1)
-
-    # getters / setters
-    fn get_delivered_events(self) -> Int64:
-        return self.deliveredEvents
-
-    fn set_delivered_events(mut self, value: Int64) -> None:
-        self.deliveredEvents = value
-
-    fn get_total_slots(self) -> Int64:
-        return self.totalSlots
-
-    fn set_total_slots(mut self, value: Int64) -> None:
-        self.totalSlots = value
-
-    fn get_total_synapses(self) -> Int64:
-        return self.totalSynapses
-
-    fn set_total_synapses(mut self, value: Int64) -> None:
-        self.totalSynapses = value
+        return Self(
+            delivered_events=0,
+            total_slots=0,
+            total_synapses=0,
+            active_pixels=0,
+            centroid_row=0.0,
+            centroid_col=0.0,
+            bbox=(0, -1, 0, -1)
+        )
 
     # helpers
     fn inc_delivered_events(mut self, amount: Int64 = 1) -> None:
-        self.deliveredEvents += amount
+        self.delivered_events = self.delivered_events + amount
 
     fn add_slots(mut self, count: Int64) -> None:
-        self.totalSlots += count
+        self.total_slots = self.total_slots + count
 
     fn add_synapses(mut self, count: Int64) -> None:
-        self.totalSynapses += count
+        self.total_synapses = self.total_synapses + count
+
+    fn set_bbox(mut self, row_min: Int, row_max: Int, col_min: Int, col_max: Int) -> None:
+        self.bbox = (row_min, row_max, col_min, col_max)

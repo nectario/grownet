@@ -40,20 +40,20 @@ struct Layer:
         for m in self.neurons_mod: m.core.bus = self.bus
 
     fn get_neurons(self) -> list[Neuron]:
-        var alln = []
-        for n in self.neurons_inh: alln.append(n.core)
-        for n in self.neurons_mod: alln.append(n.core)
-        for n in self.neurons_exc: alln.append(n.core)
-        return alln
+        var neuron_list = []
+        for inhib in self.neurons_inh: neuron_list.append(inhib.core)
+        for modul in self.neurons_mod: neuron_list.append(modul.core)
+        for excit in self.neurons_exc: neuron_list.append(excit.core)
+        return neuron_list
 
     fn forward(mut self, value: Float64) -> None:
         # Inhibit/modulate classes can express pulses in on_output; execute in order
-        for n in self.neurons_inh:
-            if n.on_input(value): n.on_output(value)
-        for n in self.neurons_mod:
-            if n.on_input(value): n.on_output(value)
-        for n in self.neurons_exc:
-            if n.on_input(value): n.on_output(value)
+        for inhib in self.neurons_inh:
+            if inhib.on_input(value): inhib.on_output(value)
+        for modul in self.neurons_mod:
+            if modul.on_input(value): modul.on_output(value)
+        for excit in self.neurons_exc:
+            if excit.on_input(value): excit.on_output(value)
 
     fn propagate_from(mut self, source_index: Int, value: Float64) -> None:
         # Default: treat like uniform drive from external source
@@ -63,28 +63,28 @@ struct Layer:
         # Compute (row,col) from flattened index and call spatial on_input if available
         var row = source_index / width
         var col = source_index % width
-        for n in self.get_neurons():
-            if n.on_input_2d(value, row, col): n.on_output(value)
+        for neuron_core in self.get_neurons():
+            if neuron_core.on_input_2d(value, row, col): neuron_core.on_output(value)
 
     fn end_tick(mut self) -> None:
         # Growth escalation (fallback streak + cooldown)
         var now = self.bus.get_current_step()
-        var alln = self.get_neurons()
-        var i = 0
-        while i < alln.len:
-            var n = alln[i]
-            var slot_config = n.slot_cfg
+        var neuron_list = self.get_neurons()
+        var neuron_list_index = 0
+        while neuron_list_index < neuron_list.len:
+            var neuron_core = neuron_list[neuron_list_index]
+            var slot_config = neuron_core.slot_cfg
             if slot_config.growth_enabled and slot_config.neuron_growth_enabled:
-                var at_capacity: Bool = (n.slot_limit >= 0) and (Int(n.slots.size()) >= n.slot_limit)
-                if at_capacity and n.last_slot_used_fallback:
-                    if n.fallback_streak >= (if slot_config.fallback_growth_threshold > 0 then slot_config.fallback_growth_threshold else 1):
+                var at_capacity: Bool = (neuron_core.slot_limit >= 0) and (Int(neuron_core.slots.size()) >= neuron_core.slot_limit)
+                if at_capacity and neuron_core.last_slot_used_fallback:
+                    if neuron_core.fallback_streak >= (if slot_config.fallback_growth_threshold > 0 then slot_config.fallback_growth_threshold else 1):
                         var cooldown = if slot_config.neuron_growth_cooldown_ticks > 0 then slot_config.neuron_growth_cooldown_ticks else 0
-                        if (n.last_growth_tick < 0) or (now - n.last_growth_tick >= cooldown):
+                        if (neuron_core.last_growth_tick < 0) or (now - neuron_core.last_growth_tick >= cooldown):
                             # Grow same kind via helper (includes autowiring)
-                            var new_unified_index = self.try_grow_neuron(n)
-                            n.last_growth_tick = now
-                            n.fallback_streak = 0
-            i = i + 1
+                            var new_unified_index = self.try_grow_neuron(neuron_core)
+                            neuron_core.last_growth_tick = now
+                            neuron_core.fallback_streak = 0
+            neuron_list_index = neuron_list_index + 1
         # Bus decay increments current_step
         self.bus.decay()
 

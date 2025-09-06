@@ -93,10 +93,10 @@ struct Neuron:
         if not self.prefer_last_slot_once or self.last_slot_id < 0:
             key = self.slot_engine.select_or_create_slot_2d(self, row, col)
         self.prefer_last_slot_once = False
-        var w = self.slots[key] if self.slots.contains(key) else Weight()
-        w.reinforce(self.bus.modulation_factor)
-        var fired = w.update_threshold(value)
-        self.slots[key] = w
+        var slot_weight = self.slots[key] if self.slots.contains(key) else Weight()
+        slot_weight.reinforce(self.bus.modulation_factor)
+        var fired = slot_weight.update_threshold(value)
+        self.slots[key] = slot_weight
         self.last_fired = fired
         self.have_last_input = True
         self.last_input_value = value
