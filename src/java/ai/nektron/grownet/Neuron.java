@@ -61,9 +61,9 @@ public class Neuron {
 
     // -------- wiring (optional, still useful for unit tests) --------
     public Synapse connect(Neuron target, boolean feedback) {
-        Synapse s = new Synapse(target, feedback);
-        outgoing.add(s);
-        return s;
+        Synapse edge = new Synapse(target, feedback);
+        outgoing.add(edge);
+        return edge;
     }
 
     // -------- IO --------

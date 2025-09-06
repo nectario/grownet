@@ -92,12 +92,12 @@ public final class Tract {
         List<Neuron> src = source.getNeurons();
         List<Neuron> dst = destination.getNeurons();
 
-        for (Neuron a : src) {
-            for (Neuron b : dst) {
+        for (Neuron sourceNeuron : src) {
+            for (Neuron targetNeuron : dst) {
                 if (rng.nextDouble() < probability) {
-                    edges.add(new Edge(a, b));
+                    edges.add(new Edge(sourceNeuron, targetNeuron));
                     edgesCreated++;
-                    // a.connect(b, feedback) — optional, if you mirror adjacency elsewhere
+                    // sourceNeuron.connect(targetNeuron, feedback) — optional, if you mirror adjacency elsewhere
                 }
             }
         }
@@ -126,11 +126,11 @@ public final class Tract {
     /** Windowed path: we already know the source index. */
     private void onSourceFiredIndex(int sourceIndex, double amplitude) {
         if (!centerIndexBySource.isEmpty()) {
-            Integer centerIdx = centerIndexBySource.get(sourceIndex);
-            if (centerIdx != null && centerIdx >= 0 && centerIdx < destination.getNeurons().size()) {
-                Neuron n = destination.getNeurons().get(centerIdx);
-                boolean fired = n.onInput(amplitude);
-                if (fired) try { n.onOutput(amplitude); } catch (Throwable ignored) {}
+            Integer centerIndex = centerIndexBySource.get(sourceIndex);
+            if (centerIndex != null && centerIndex >= 0 && centerIndex < destination.getNeurons().size()) {
+                Neuron centerNeuron = destination.getNeurons().get(centerIndex);
+                boolean fired = centerNeuron.onInput(amplitude);
+                if (fired) try { centerNeuron.onOutput(amplitude); } catch (Throwable ignored) {}
             }
             return;
         }

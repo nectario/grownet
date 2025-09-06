@@ -142,8 +142,8 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         inputPorts.put(port, List.copyOf(layerIndices)); // for introspection only
 
         int edge = ensureInputEdge(port);
-        for (int li : layerIndices) {
-            connectLayers(edge, li, /*probability=*/1.0, /*feedback=*/false);
+        for (int layerIndex : layerIndices) {
+            connectLayers(edge, layerIndex, /*probability=*/1.0, /*feedback=*/false);
         }
     }
 
@@ -154,8 +154,8 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         outputPorts.put(port, List.copyOf(layerIndices));
 
         int edge = ensureOutputEdge(port);
-        for (int li : layerIndices) {
-            connectLayers(li, edge, /*probability=*/1.0, /*feedback=*/false);
+        for (int layerIndex : layerIndices) {
+            connectLayers(layerIndex, edge, /*probability=*/1.0, /*feedback=*/false);
         }
     }
 
@@ -184,8 +184,8 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         }
         inputPorts.put(port, List.copyOf(layerIndices));
 
-        for (int li : layerIndices) {
-            connectLayers(idx, li, /*probability=*/1.0, /*feedback=*/false);
+        for (int layerIndex : layerIndices) {
+            connectLayers(idx, layerIndex, /*probability=*/1.0, /*feedback=*/false);
         }
     }
 
@@ -211,8 +211,8 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
             idx = edgeIndex;
         }
         inputPorts.put(port, List.copyOf(layerIndices)); // introspection only
-        for (int li : layerIndices) {
-            connectLayers(idx, li, /*probability=*/1.0, /*feedback=*/false);
+        for (int layerIndex : layerIndices) {
+            connectLayers(idx, layerIndex, /*probability=*/1.0, /*feedback=*/false);
         }
     }
 
@@ -460,38 +460,38 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
     }
 
     // ---- growth plumbing ----
-    void autowireNewNeuron(Layer L, int newIdx) {
-        int li = layers.indexOf(L); if (li < 0) return;
+    void autowireNewNeuron(Layer layerRef, int newIdx) {
+        int layerIndex = layers.indexOf(layerRef); if (layerIndex < 0) return;
         // Outbound
-        for (MeshRule r : meshRules) if (r.src == li) {
-            Neuron s = layers.get(li).getNeurons().get(newIdx);
-            for (Neuron t : layers.get(r.dst).getNeurons()) if (rng.nextDouble() <= r.prob) s.connect(t, r.feedback);
+        for (MeshRule rule : meshRules) if (rule.src == layerIndex) {
+            Neuron sourceNeuron = layers.get(layerIndex).getNeurons().get(newIdx);
+            for (Neuron targetNeuron : layers.get(rule.dst).getNeurons()) if (rng.nextDouble() <= rule.prob) sourceNeuron.connect(targetNeuron, rule.feedback);
         }
         // Inbound
-        for (MeshRule r : meshRules) if (r.dst == li) {
-            Neuron t = layers.get(li).getNeurons().get(newIdx);
-            for (Neuron s : layers.get(r.src).getNeurons()) if (rng.nextDouble() <= r.prob) s.connect(t, r.feedback);
+        for (MeshRule rule : meshRules) if (rule.dst == layerIndex) {
+            Neuron targetNeuron = layers.get(layerIndex).getNeurons().get(newIdx);
+            for (Neuron sourceNeuron : layers.get(rule.src).getNeurons()) if (rng.nextDouble() <= rule.prob) sourceNeuron.connect(targetNeuron, rule.feedback);
         }
         // Tracts where this layer is the source: subscribe the new source neuron (if any tracts exist)
-        for (Tract t : tracts) {
-            if (t != null && t.getSource() == L) {
-                t.attachSourceNeuron(newIdx);
+        for (Tract tractEntry : tracts) {
+            if (tractEntry != null && tractEntry.getSource() == layerRef) {
+                tractEntry.attachSourceNeuron(newIdx);
             }
         }
     }
     public int requestLayerGrowth(Layer saturated) {
-        int li = layers.indexOf(saturated); if (li < 0) return -1;
+        int layerIndex = layers.indexOf(saturated); if (layerIndex < 0) return -1;
         int newIdx = addLayer(4, 0, 0);
         // Deterministic spillover wiring (contract default): p = 1.0
-        connectLayers(li, newIdx, 1.0, false);
+        connectLayers(layerIndex, newIdx, 1.0, false);
         return newIdx;
     }
 
     /** Overload with explicit connection probability for saturated → new wiring. */
     public int requestLayerGrowth(Layer saturated, double connectionProbability) {
-        int li = layers.indexOf(saturated); if (li < 0) return -1;
+        int layerIndex = layers.indexOf(saturated); if (layerIndex < 0) return -1;
         int newIdx = addLayer(4, 0, 0);
-        connectLayers(li, newIdx, connectionProbability, false);
+        connectLayers(layerIndex, newIdx, connectionProbability, false);
         return newIdx;
     }
 

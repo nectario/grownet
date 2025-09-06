@@ -530,20 +530,20 @@ void Region::maybeGrowRegion() {
     int bestLayerIndex = -1;
     double bestScore = -1.0;
     for (int layerIndex = 0; layerIndex < static_cast<int>(layers.size()); ++layerIndex) {
-        auto& L = layers[layerIndex];
-        auto& neurons = L->getNeurons();
+        auto& layer_ptr = layers[layerIndex];
+        auto& neurons = layer_ptr->getNeurons();
         const int neuronCount = static_cast<int>(neurons.size());
         if (neuronCount <= 0) continue;
 
         int totalSlots = 0;
         int atCapCount = 0;
         int fallbackCount = 0;
-        for (auto& n : neurons) {
-            totalSlots += static_cast<int>(n->getSlots().size());
-            const int limit = n->getSlotLimit();
-            const bool atCap = (limit >= 0) && (static_cast<int>(n->getSlots().size()) >= limit);
+        for (auto& neuron_ptr : neurons) {
+            totalSlots += static_cast<int>(neuron_ptr->getSlots().size());
+            const int limit = neuron_ptr->getSlotLimit();
+            const bool atCap = (limit >= 0) && (static_cast<int>(neuron_ptr->getSlots().size()) >= limit);
             if (atCap) atCapCount += 1;
-            if (n->getLastSlotUsedFallback()) fallbackCount += 1;
+            if (neuron_ptr->getLastSlotUsedFallback()) fallbackCount += 1;
         }
         const double avgSlots = static_cast<double>(totalSlots) / std::max(1, neuronCount);
         if (avgSlots < growthPolicy.averageSlotsThreshold) continue;
