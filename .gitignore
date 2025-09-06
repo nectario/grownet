@@ -1,7 +1,6 @@
 # pixi environments
 .pixi/*
 !.pixi/config.toml
-/src/java/
 /cmake-build-*/
 **/cmake-build-*/
 CMakeCache.txt
@@ -11,4 +10,3 @@ CMakeFiles/
 __pycache__/
 *.pyc
 .idea
-JavaProject/
