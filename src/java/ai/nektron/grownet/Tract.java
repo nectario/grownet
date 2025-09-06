@@ -186,6 +186,7 @@ public final class Tract {
         if (!allowedSources.isEmpty() && !allowedSources.contains(newSourceIndex)) return;
         final List<Neuron> src = source.getNeurons();
         if (newSourceIndex < 0 || newSourceIndex >= src.size()) return;
-        src.get(newSourceIndex).registerFireHook((amplitude, who) -> onSourceFiredIndex(newSourceIndex, amplitude));
+        BiConsumer<Double, Neuron> indexHook = (amplitude, who) -> onSourceFiredIndex(newSourceIndex, amplitude);
+        src.get(newSourceIndex).registerFireHook(indexHook);
     }
 }
