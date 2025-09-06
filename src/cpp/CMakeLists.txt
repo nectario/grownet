@@ -25,3 +25,7 @@ target_link_libraries(grownet_demo PRIVATE grownet)
 # Topographic wiring demo
 add_executable(topographic_demo demo_topographic.cpp)
 target_link_libraries(topographic_demo PRIVATE grownet)
+
+# 2D tick demo
+add_executable(two_dim_tick_demo TwoDimTickDemo.cpp)
+target_link_libraries(two_dim_tick_demo PRIVATE grownet)
