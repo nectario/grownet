@@ -12,9 +12,16 @@ add_library(grownet
         ModulatoryNeuron.cpp
         Layer.cpp
         demo/region_demo.cpp
+        src/TopographicWiring.cpp
 )
-target_include_directories(grownet PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(grownet PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # ✅ Use DemoMain.cpp (not main.cpp)
 add_executable(grownet_demo DemoMain.cpp)
 target_link_libraries(grownet_demo PRIVATE grownet)
+
+# Topographic wiring demo
+add_executable(topographic_demo demo_topographic.cpp)
+target_link_libraries(topographic_demo PRIVATE grownet)
