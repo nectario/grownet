@@ -55,10 +55,11 @@ public final class TestSingleTick {
             final int layerIdx = li;
             List<Neuron> neurons = region.getLayers().get(li).getNeurons();
             for (Neuron neuron : neurons) {
-                neuron.registerFireHook((who, value) -> {
+                java.util.function.BiConsumer<Double, Neuron> hook = (value, who) -> {
                     // ---- BREAKPOINT: hook (fires on each neuron emission) ----
                     System.out.printf("FIRE id=%s value=%.6f layer=%d%n", who.getId(), value, layerIdx);
-                });
+                };
+                neuron.registerFireHook(hook);
             }
         }
 
