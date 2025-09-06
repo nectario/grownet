@@ -21,6 +21,7 @@ public final class TwoDimTickDemo {
         final int width  = 8;
 
         Region region = new Region("two-d-tick-demo");
+        region.setEnableSpatialMetrics(true);
 
         // Build a simple 2D pipeline: Input2D → Output2D, windowed wiring (3x3, SAME)
         int inputIndex  = region.addInputLayer2D(height, width, /*gain=*/1.0, /*epsilonFire=*/0.01);
@@ -42,15 +43,19 @@ public final class TwoDimTickDemo {
 
         // Breakpoint here to step through Region.tick2D → forwardImage → tract delivery → output update
         RegionMetrics m1 = region.tick2D("pixels", frame);
-        System.out.printf("tick#1 delivered=%d slots=%d synapses=%d%n",
-                m1.delivered_events, m1.total_slots, m1.total_synapses);
+        System.out.printf("tick#1 delivered=%d slots=%d synapses=%d active=%d centroid=(%.3f,%.3f) bbox=(%d,%d,%d,%d)%n",
+                m1.getDeliveredEvents(), m1.getTotalSlots(), m1.getTotalSynapses(),
+                m1.getActivePixels(), m1.getCentroidRow(), m1.getCentroidCol(),
+                m1.getBboxRowMin(), m1.getBboxRowMax(), m1.getBboxColMin(), m1.getBboxColMax());
 
         // Move the bright pixel; this exercises a different (source → center) mapping
         frame[3][4] = 0.0;
         frame[5][6] = 1.0;
         RegionMetrics m2 = region.tick2D("pixels", frame);
-        System.out.printf("tick#2 delivered=%d slots=%d synapses=%d%n",
-                m2.delivered_events, m2.total_slots, m2.total_synapses);
+        System.out.printf("tick#2 delivered=%d slots=%d synapses=%d active=%d centroid=(%.3f,%.3f) bbox=(%d,%d,%d,%d)%n",
+                m2.getDeliveredEvents(), m2.getTotalSlots(), m2.getTotalSynapses(),
+                m2.getActivePixels(), m2.getCentroidRow(), m2.getCentroidCol(),
+                m2.getBboxRowMin(), m2.getBboxRowMax(), m2.getBboxColMin(), m2.getBboxColMax());
     }
 }
 

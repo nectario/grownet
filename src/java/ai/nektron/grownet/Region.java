@@ -33,6 +33,9 @@ public final class Region {
     // Optional: track tracts if you decide to bridge via Tract; kept empty by default.
     private final List<Tract> tracts = new ArrayList<>();
 
+    // Spatial metrics toggle (opt-in)
+    private boolean enableSpatialMetrics = false;
+
     private static final class MeshRule {
         final int src, dst; final double prob; final boolean feedback;
         MeshRule(int s, int d, double p, boolean f) { src=s; dst=d; prob=p; feedback=f; }
@@ -344,6 +347,61 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 metrics.addSynapses(neuron.getOutgoing().size());
             }
         }
+        // Optional spatial metrics (env or flag)
+        try {
+            String env = System.getenv("GROWNET_ENABLE_SPATIAL_METRICS");
+            boolean doSpatial = enableSpatialMetrics || "1".equals(env);
+            if (doSpatial) {
+                // Prefer furthest downstream OutputLayer2D frame; fallback to input if output is all zeros
+                double[][] chosen = null;
+                for (int i = layers.size() - 1; i >= 0; --i) {
+                    Layer layer = layers.get(i);
+                    if (layer instanceof OutputLayer2D) {
+                        chosen = ((OutputLayer2D) layer).getFrame();
+                        break;
+                    }
+                }
+                if (chosen == null) {
+                    chosen = frame;
+                } else if (isAllZero(chosen) && !isAllZero(frame)) {
+                    chosen = frame;
+                }
+
+                long active = 0L;
+                double total = 0.0, sumR = 0.0, sumC = 0.0;
+                int rmin = Integer.MAX_VALUE, rmax = -1, cmin = Integer.MAX_VALUE, cmax = -1;
+                int H = chosen.length;
+                int W = (H > 0 ? chosen[0].length : 0);
+                for (int r = 0; r < H; ++r) {
+                    double[] rowVec = chosen[r];
+                    int colLim = Math.min(W, rowVec.length);
+                    for (int c = 0; c < colLim; ++c) {
+                        double value = rowVec[c];
+                        if (value > 0.0) {
+                            active += 1;
+                            total  += value;
+                            sumR   += r * value;
+                            sumC   += c * value;
+                            if (r < rmin) rmin = r;
+                            if (r > rmax) rmax = r;
+                            if (c < cmin) cmin = c;
+                            if (c > cmax) cmax = c;
+                        }
+                    }
+                }
+                metrics.setActivePixels(active);
+                if (total > 0.0) {
+                    metrics.setCentroid(sumR / total, sumC / total);
+                } else {
+                    metrics.setCentroid(0.0, 0.0);
+                }
+                if (rmax >= rmin && cmax >= cmin) {
+                    metrics.setBBox(rmin, rmax, cmin, cmax);
+                } else {
+                    metrics.setBBox(0, -1, 0, -1);
+                }
+            }
+        } catch (Throwable ignored) { }
         // Best‑effort region growth (layers)
         try {
             if (growthPolicy != null) {
@@ -518,6 +576,20 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
     /** Back‑compat alias; prefer {@link #getLayers()}. */
     public List<Layer> layers() { return layers; }
     public RegionBus getBus() { return bus; }
+
+    // Spatial metrics toggle
+    public Region setEnableSpatialMetrics(boolean v) { this.enableSpatialMetrics = v; return this; }
+    public boolean isEnableSpatialMetrics() { return enableSpatialMetrics; }
+
+    private static boolean isAllZero(double[][] image) {
+        if (image == null || image.length == 0) return true;
+        for (double[] row : image) {
+            for (double value : row) {
+                if (value != 0.0) return false;
+            }
+        }
+        return true;
+    }
 
     // ------------------------------ growth policy ---------------------------
     public GrowthPolicy getGrowthPolicy() { return growthPolicy; }
