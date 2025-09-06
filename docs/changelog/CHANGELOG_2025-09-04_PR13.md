@@ -35,7 +35,7 @@ This PR aligns end‑of‑tick auto‑growth mechanics across languages and ensu
 
 ## Touched Files (selected)
 - C++: `src/cpp/Tract.h`, `src/cpp/Tract.cpp`, `src/cpp/Region.cpp`, `src/cpp/tests/GrowthSmoke.cpp`
-- Java: `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/Tract.java`, `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/Region.java`
+- Java: `src/java/ai/nektron/grownet/Tract.java`, `src/java/ai/nektron/grownet/Region.java`
 - Docs: `docs/GROWTH.md`
 
 ## Test Notes

@@ -1,7 +1,7 @@
 Java 1D Slot Formation Demo — Notes
 
 File:
-- JavaProject/GrowNet/src/main/java/ai/nektron/grownet/demo/OneDimSlotDemo.java
+- src/java/ai/nektron/grownet/demo/OneDimSlotDemo.java
 
 Behavior:
 - Builds a Region with a single excitatory neuron layer.
@@ -17,6 +17,4 @@ Suggested breakpoints (step-through debugging):
 - SlotEngine.selectOrCreateSlot(...)// bin computation + strict capacity fallback
 
 Notes:
-- src/java is a symlink to JavaProject, so this demo is visible in your IDE under:
-  src/java/ai/nektron/grownet/demo/OneDimSlotDemo.java
-- JavaProject is ignored by git per repo settings; this demo is for local debugging.
+- src/java is the canonical Java source root (Maven/IntelliJ).

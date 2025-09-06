@@ -62,7 +62,7 @@
 > - Deterministic fallback key when out‑of‑domain or at capacity + new
 > - Sets `lastSlotUsedFallback`
 
-**Patch** — `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/SlotEngine.java`
+**Patch** — `src/java/ai/nektron/grownet/SlotEngine.java`
 
 ```diff
 @@
@@ -115,7 +115,7 @@
 
 > *Why*: With (3) in place, this provides true 2D parity: strict cap, fallback marking, and growth escalation.
 
-**Patch** — `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/Neuron.java`
+**Patch** — `src/java/ai/nektron/grownet/Neuron.java`
 
 ```diff
 @@
@@ -186,7 +186,7 @@
 
 #### 5) Backref on ND input neurons (owner)
 
-**Patch** — `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/InputLayerND.java`
+**Patch** — `src/java/ai/nektron/grownet/InputLayerND.java`
 
 ```diff
 @@

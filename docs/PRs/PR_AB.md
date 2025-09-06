@@ -15,7 +15,7 @@ I kept names descriptive (no single‑letter variables), avoided leading undersc
 
 ## Java changes
 
-### 1) New file: `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/Tract.java`
+### 1) New file: `src/java/ai/nektron/grownet/Tract.java`
 
 ```java
 package ai.nektron.grownet;
@@ -94,7 +94,7 @@ public final class Tract {
 
 ------
 
-### 2) Update: `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/Region.java`
+### 2) Update: `src/java/ai/nektron/grownet/Region.java`
 
 **Add tract storage, a `connectLayersWindowed(...)` helper, and re‑attach during autowire.**
 

@@ -18,8 +18,8 @@ As requested: no single‑ or double‑character identifiers, and Mojo uses `str
 
 > **Files introduced/changed**
 >
-> - `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/Tract.java` (new)
-> - `JavaProject/GrowNet/src/main/java/ai/nektron/grownet/Region.java` (edit)
+> - `src/java/ai/nektron/grownet/Tract.java` (new)
+> - `src/java/ai/nektron/grownet/Region.java` (edit)
 > - *(no changes to existing neuron/slot code beyond what you already merged)*
 
 ### 1) New file: `Tract.java`

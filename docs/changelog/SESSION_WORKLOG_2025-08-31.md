@@ -26,7 +26,7 @@ Summary of changes, rationale, and how to run checks. This log is intended as a 
 - Python: descriptive variable names throughout core and demos.
 - C++: renamed short variables/parameters; clarified helper names in Region/Input/OutputLayer2D/InputLayerND; non-functional comments added near tick/thresholding.
 - Mojo: renamed short locals; clarified synapse weight field; comments on tick and image forward.
-- Java (JavaProject/GrowNet): descriptive renames in Tract/Region/Layer/Input/OutputLayer2D/SlotEngine/Neuron; tiny test comment to state edge-only assumption in one suite.
+- Java (src/java): descriptive renames in Tract/Region/Layer/Input/OutputLayer2D/SlotEngine/Neuron; tiny test comment to state edge-only assumption in one suite.
 
 ## Docs added/updated
 
@@ -55,4 +55,3 @@ Commits (high-level)
 - docs(code): add concise comments/docstrings across languages for clarity
 
 If anything needs to be rolled back or expanded next, ping me with the file and the desired scope.
-

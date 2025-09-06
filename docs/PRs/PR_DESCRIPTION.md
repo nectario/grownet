@@ -25,7 +25,7 @@ Changes (by language)
 - Mojo
   - Descriptive locals; comments in `region.mojo` and `input_layer_2d.mojo`.
 
-- Java (JavaProject/GrowNet)
+- Java (src/java)
   - Descriptive locals/params across Tract/Region/Layer/Input/OutputLayer2D/SlotEngine/Neuron.
   - Javadocs on Region tick methods; minimal test comment to document edge‑only expectation.
 
@@ -48,4 +48,3 @@ Verification
 Follow‑ups
 - Optional: add Doxygen/Javadoc headers to more C++/Java headers mirroring the Python docstrings.
 - Consider a CI job to build C++ and run a Java smoke test to validate signatures.
-
