@@ -5,26 +5,14 @@ import ai.nektron.grownet.metrics.RegionMetrics;
 
 import java.util.Arrays;
 
-/**
- * Minimal 2D tick demo to step through windowed wiring and event delivery.
- *
- * Suggested breakpoints for step‑through debugging:
- *  - Region.connectLayersWindowed(...)   // window origins, center mapping, unique sources
- *  - Region.tick2D(...)                  // per‑tick orchestration
- *  - InputLayer2D.forwardImage(...)      // drives input neurons row‑major
- *  - Tract.onSourceFiredIndex(...)       // routes source pixel → center output neuron
- *  - OutputLayer2D.propagateFrom(...)    // unified onInput/onOutput for outputs
- */
 public final class TwoDimTickDemo {
     public static void main(String[] args) {
         final int height = 8;
         final int width  = 8;
 
         Region region = new Region("two-d-tick-demo");
-
-        // Build a simple 2D pipeline: Input2D → Output2D, windowed wiring (3x3, SAME)
-        // Enable spatial metrics so we can inspect active pixels, centroid, bbox
         region.setEnableSpatialMetrics(true);
+
         int inputIndex  = region.addInputLayer2D(height, width, /*gain=*/1.0, /*epsilonFire=*/0.01);
         int outputIndex = region.addOutputLayer2D(height, width, /*smoothing=*/0.0);
 
@@ -42,14 +30,12 @@ public final class TwoDimTickDemo {
         double[][] frame = new double[height][width];
         frame[3][4] = 1.0;   // bright pixel near the center
 
-        // Breakpoint here to step through Region.tick2D → forwardImage → tract delivery → output update
         RegionMetrics m1 = region.tick2D("pixels", frame);
         System.out.printf("tick#1 delivered=%d slots=%d synapses=%d active=%d centroid=(%.3f,%.3f) bbox=(%d,%d,%d,%d)%n",
                 m1.getDeliveredEvents(), m1.getTotalSlots(), m1.getTotalSynapses(),
                 m1.getActivePixels(), m1.getCentroidRow(), m1.getCentroidCol(),
                 m1.getBboxRowMin(), m1.getBboxRowMax(), m1.getBboxColMin(), m1.getBboxColMax());
 
-        // Move the bright pixel; this exercises a different (source → center) mapping
         frame[3][4] = 0.0;
         frame[5][6] = 1.0;
         RegionMetrics m2 = region.tick2D("pixels", frame);
@@ -59,3 +45,4 @@ public final class TwoDimTickDemo {
                 m2.getBboxRowMin(), m2.getBboxRowMax(), m2.getBboxColMin(), m2.getBboxColMax());
     }
 }
+

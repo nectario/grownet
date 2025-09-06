@@ -7,8 +7,6 @@ public final class SlotEngine {
 
     public SlotConfig getConfig() { return cfg; }
 
-    public SlotConfig getConfig() { return cfg; }
-
     public int slotId(double lastInput, double newInput, int slotsLen) {
         double deltaPercent = 0.0;
         if (lastInput != 0.0) {

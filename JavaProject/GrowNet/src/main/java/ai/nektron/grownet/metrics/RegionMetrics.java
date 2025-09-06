@@ -70,7 +70,6 @@ public class RegionMetrics {
         this.bboxRowMin = rowMin; this.bboxRowMax = rowMax; this.bboxColMin = colMin; this.bboxColMax = colMax; return this;
     }
 
-
     @Override public String toString() {
         return "RegionMetrics{" +
                 "deliveredEvents=" + deliveredEvents +
@@ -83,3 +82,4 @@ public class RegionMetrics {
                 '}';
     }
 }
+
