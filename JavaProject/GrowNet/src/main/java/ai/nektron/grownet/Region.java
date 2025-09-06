@@ -482,7 +482,8 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
     public int requestLayerGrowth(Layer saturated) {
         int li = layers.indexOf(saturated); if (li < 0) return -1;
         int newIdx = addLayer(4, 0, 0);
-        connectLayers(li, newIdx, 0.15, false);
+        // Deterministic spillover wiring (contract default): p = 1.0
+        connectLayers(li, newIdx, 1.0, false);
         return newIdx;
     }
 

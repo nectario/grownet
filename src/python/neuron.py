@@ -80,22 +80,13 @@ class Neuron:
     # ---------- core behaviour ----------
     def on_input(self, value):
         """Select/reinforce a slot, update threshold, and optionally fire. May request growth."""
-
-        # Choose (or create) slot, reinforce with current modulation, update θ, decide to fire
-        # Optional one-shot preference: reuse the last selected slot immediately after unfreeze
-        slot = None
+        # Choose (or create) slot via the engine so fallback is marked deterministically.
+        # Optional one-shot preference: reuse the last selected slot immediately after unfreeze.
         if getattr(self, "prefer_last_slot_once", False) and getattr(self, "last_slot", None) is not None:
             slot = self.last_slot
             self.prefer_last_slot_once = False
-        if self.slot_limit >= 0 and len(self.slots) >= self.slot_limit:
-
-            # if saturated, reuse slot 0
-            if 0 not in self.slots:
-                self.slots[0] = Weight()
-            slot = self.slots[0]
         else:
-            if slot is None:
-                slot = self.slot_engine.select_or_create_slot(self, value)
+            slot = self.slot_engine.select_or_create_slot(self, value)
         self.last_slot = slot
 
         # reinforcement scaled by modulation

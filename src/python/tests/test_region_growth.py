@@ -11,11 +11,11 @@ def make_region_for_growth():
 
     # Turn on spatial focus for hidden and cap slots to push pressure
     L = r.get_layers()[hid]
-    for item_count in L.get_neurons():
-        n.slot_cfg.spatial_enabled = True
-        n.slot_cfg.row_bin_width_pct = 10.0
-        n.slot_cfg.col_bin_width_pct = 10.0
-        n.slot_limit = 1
+    for neuron in L.get_neurons():
+        neuron.slot_cfg.spatial_enabled = True
+        neuron.slot_cfg.row_bin_width_pct = 10.0
+        neuron.slot_cfg.col_bin_width_pct = 10.0
+        neuron.slot_limit = 1
     return r, lin, hid
 
 
@@ -39,8 +39,7 @@ def test_region_adds_layer_under_pressure():
         [[0, 0, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
         [[0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
     ]
-    for f_var in frames:
+    for f in frames:
         r.tick_2d("img", f)
 
     assert len(r.get_layers()) > base_layers
-

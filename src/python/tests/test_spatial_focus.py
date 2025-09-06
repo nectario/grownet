@@ -8,10 +8,10 @@ def test_spatial_slotting_first_anchor_and_bins():
 
     # Enable spatial slotting in hidden neurons (coarse 2x2 bins => 50% per axis)
     layer = region.get_layers()[l_hid]
-    for item_count in layer.get_neurons():
-        n.slot_cfg.spatial_enabled = True
-        n.slot_cfg.row_bin_width_pct = 50.0
-        n.slot_cfg.col_bin_width_pct = 50.0
+    for neuron in layer.get_neurons():
+        neuron.slot_cfg.spatial_enabled = True
+        neuron.slot_cfg.row_bin_width_pct = 50.0
+        neuron.slot_cfg.col_bin_width_pct = 50.0
 
     # Deterministic windowing: 2x2 kernel, stride 2 (valid)
     region.connect_layers_windowed(l_in, l_hid, kernel_h=2, kernel_w=2, stride_h=2, stride_w=2, padding="valid")

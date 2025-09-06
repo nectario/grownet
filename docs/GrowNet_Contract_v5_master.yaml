@@ -455,3 +455,113 @@ compliance_checklist:
   - "Growth: neuron growth triggers on fallback_streak with cooldown; layer growth available; region policy honored."
   - "Bus.decay implements step counter increment; cooldown logic uses the step."
   - "Windowed wiring implements center rule; return value = unique source subscriptions."
+
+# ────────────────────────────────────────────────────────────────────────────────
+# GrowNet Contract – v5.1 Addendum (append-only; extends v5 without deletions)
+# ────────────────────────────────────────────────────────────────────────────────
+contract:
+  extends_version: 5
+  addendum_version: 5.1
+  change_type: additive
+  note: >
+    This section clarifies windowed wiring behavior, enforces the one-growth-per-tick
+    invariant at region level, standardizes the unfreeze one-shot flag name, records
+    snake_case metric field names, and defines an optional Topographic preset that
+    wraps existing windowed wiring. No v5 behavior is removed.
+
+tick:
+  clarifications:
+    - "RegionBus.current_step MUST increment during bus decay."
+    - "A Region MUST grow at most one Layer per tick. If growth occurs in a tick,
+       Region.lastLayerGrowthStep MUST equal RegionBus.current_step for that tick."
+
+slots:
+  naming:
+    prefer_last_slot_once:
+      status: normative
+      summary: >
+        After unfreeze_last_slot(), the flag prefer_last_slot_once causes the neuron to
+        prefer the same slot on the next tick exactly once; the flag then clears.
+
+wiring:
+  windowed_connect:
+    destination_cases:
+      output_2d:
+        rule: >
+          For each sliding window over the 2D source, connect ALL source pixels within the
+          (clipped) window to exactly ONE destination neuron: the window's CENTER index
+          (center uses floor semantics and is clamped to destination bounds). When a
+          (source, center) pair arises from overlapping windows, keep a single edge.
+    return_value:
+      definition: "The function returns the number of UNIQUE source pixels that participated in ≥ 1 window."
+    tracts:
+      attach_source_neuron:
+        status: required
+        summary: >
+          When a source-layer neuron grows, Tract.attach_source_neuron(new_source_index)
+          MUST re-attach that neuron according to the recorded window geometry so behavior
+          remains deterministic.
+
+growth:
+  region_growth:
+    triggers_or:
+      - "avgSlotsThreshold (unchanged from v5)."
+      - "percentAtCapFallbackThreshold (unchanged from v5)."
+    invariants:
+      one_growth_per_tick: MUST
+    action:
+      spillover_connectivity: "Use p = 1.0 unless a policy explicitly overrides (unchanged from v5)."
+
+metrics:
+  region_metrics:
+    canonical_fields_snake_case:
+      - delivered_events
+      - total_slots
+      - total_synapses
+      - active_pixels      # optional
+      - centroid_row       # optional
+      - centroid_col       # optional
+      - bbox               # optional (row_min, row_max, col_min, col_max)
+    note: "CamelCase names may exist historically; new code MUST use snake_case."
+
+presets:
+  topographic:
+    status: optional_helper   # non-core; wraps windowed_connect
+    api:
+      name: "connect_layers_topographic(region, src_index, dst_index, cfg) -> int"
+      behavior:
+        - "First call connect_layers_windowed(...) (center-mapped; dedupe kept)."
+        - "Then set each (source→center) synapse weight by distance:"
+        - "Gaussian:  w = exp(-d^2 / (2 * sigma_center^2))"
+        - "DoG:       w = max(0, exp(-d^2 / (2 * sigma_center^2)) - surround_ratio * exp(-d^2 / (2 * sigma_surround^2)))"
+        - "If normalize_incoming is true, scale all incoming weights for each center to sum to 1.0 (epsilon = 1e-12)."
+      return_value: "Exactly the return from connect_layers_windowed: unique source count."
+    config_defaults:
+      kernel_h: 7
+      kernel_w: 7
+      stride_h: 1
+      stride_w: 1
+      padding: "same"         # or "valid"
+      feedback: false
+      weight_mode: "gaussian" # or "dog"
+      sigma_center: 2.0
+      sigma_surround: 4.0
+      surround_ratio: 0.5
+      normalize_incoming: true
+    determinism: "No RNG; weights are pure functions of geometry."
+
+style:
+  identifiers:
+    rule: "No single- or double-character identifiers anywhere, including loop indices."
+  python_mojo:
+    public_naming: "No leading underscores; snake_case for public names."
+  mojo:
+    constructs: "Use struct and fn with typed parameters."
+
+tests:
+  must_pass:
+    - "Windowed wiring: unique-source return, center-mapping, dedupe."
+    - "Tract growth: attach_source_neuron(new_index) re-attaches deterministically."
+    - "Neuron growth: fallback streak + cooldown triggers new neuron; autowiring via mesh rules."
+    - "Region growth: OR-trigger works; cooldown enforced; one growth per tick invariant holds."
+    - "Topographic preset (if used): Gaussian/DoG weight shape; per-target normalization sums to ~1.0."

@@ -44,5 +44,9 @@ Notes
 ## More Docs
 
 - Coding Style (MUST READ): `docs/CODING_STYLE_MUST_READ.md`
+- Read Order (start here): `docs/READ_ORDER.md`
 - Changelog (latest session): `docs/changelog/SESSION_WORKLOG_2025-09-03.md`
 - Changelog (PR‑13 Auto‑Growth Parity Finish): `docs/changelog/CHANGELOG_2025-09-04_PR13.md`
+
+Note
+- Region spillover wiring default is deterministic: saturated → new uses probability p = 1.0 (policies may override explicitly).
