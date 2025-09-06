@@ -17,7 +17,7 @@ fn enumerate_edges_output2d(region: any, src_layer_index: Int, dst_layer_index: 
     while i_source < neuron_list.len:
         var outgoing_list = neuron_list[i_source].outgoing
         var targets: list[Int] = []
-        var oi = 0
+        var origin_index = 0
         while oi < outgoing_list.len:
             targets.append(outgoing_list[oi].target_index)
             oi = oi + 1
@@ -38,7 +38,7 @@ fn test_center_edges_are_deduped() -> None:
         var tlist = edges[source_index]
         var idx = 0
         while idx < tlist.len:
-            var t = tlist[idx]
+            var target_entry = tlist[idx]
             check(not unique.contains(t), "Duplicate center target detected for a source neuron.")
             unique[t] = True
             idx = idx + 1

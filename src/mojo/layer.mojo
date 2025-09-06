@@ -35,9 +35,9 @@ struct Layer:
             neuron_index += 1
 
         # Share the same bus across all neuron cores (Python parity)
-        for e in self.neurons_exc: e.core.bus = self.bus
-        for i in self.neurons_inh: i.core.bus = self.bus
-        for m in self.neurons_mod: m.core.bus = self.bus
+        for excitatory_neuron in self.neurons_exc: excitatory_neuron.core.bus = self.bus
+        for inhibitory_neuron in self.neurons_inh: inhibitory_neuron.core.bus = self.bus
+        for modulatory_neuron in self.neurons_mod: modulatory_neuron.core.bus = self.bus
 
     fn get_neurons(self) -> list[Neuron]:
         var neuron_list = []

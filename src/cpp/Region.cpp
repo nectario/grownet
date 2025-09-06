@@ -171,33 +171,33 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
 
 void Region::autowireNewNeuron(Layer* L, int newIdx) {
     // find layer index
-    int li = -1;
-    for (int i = 0; i < static_cast<int>(layers.size()); ++i) {
-        if (layers[i].get() == L) { li = i; break; }
+    int layer_index = -1;
+    for (int layer_index_iter = 0; layer_index_iter < static_cast<int>(layers.size()); ++layer_index_iter) {
+        if (layers[layer_index_iter].get() == L) { layer_index = layer_index_iter; break; }
     }
-    if (li < 0) return;
+    if (layer_index < 0) return;
 
     std::uniform_real_distribution<double> uni(0.0, 1.0);
     // Outbound mesh
     for (const auto& r : meshRules) {
-        if (r.src != li) continue;
-        auto& src = layers[li]->getNeurons();
-        auto& dst = layers[r.dst]->getNeurons();
-        if (newIdx < 0 || newIdx >= static_cast<int>(src.size())) continue;
-        auto s = src[newIdx].get();
-        for (auto& tn : dst) {
-            if (uni(rng) <= r.prob) s->connect(tn.get(), r.feedback);
+        if (r.src != layer_index) continue;
+        auto& source_neurons = layers[layer_index]->getNeurons();
+        auto& dest_neurons = layers[r.dst]->getNeurons();
+        if (newIdx < 0 || newIdx >= static_cast<int>(source_neurons.size())) continue;
+        auto source_neuron_ptr = source_neurons[newIdx].get();
+        for (auto& target_neuron_ptr : dest_neurons) {
+            if (uni(rng) <= r.prob) source_neuron_ptr->connect(target_neuron_ptr.get(), r.feedback);
         }
     }
     // Inbound mesh
     for (const auto& r : meshRules) {
-        if (r.dst != li) continue;
-        auto& src = layers[r.src]->getNeurons();
-        auto& dst = layers[li]->getNeurons();
-        if (newIdx < 0 || newIdx >= static_cast<int>(dst.size())) continue;
-        auto t = dst[newIdx].get();
-        for (auto& sn : src) {
-            if (uni(rng) <= r.prob) sn->connect(t, r.feedback);
+        if (r.dst != layer_index) continue;
+        auto& source_neurons = layers[r.src]->getNeurons();
+        auto& dest_neurons = layers[layer_index]->getNeurons();
+        if (newIdx < 0 || newIdx >= static_cast<int>(dest_neurons.size())) continue;
+        auto target_neuron = dest_neurons[newIdx].get();
+        for (auto& source_neuron : source_neurons) {
+            if (uni(rng) <= r.prob) source_neuron->connect(target_neuron, r.feedback);
         }
     }
 
@@ -211,25 +211,25 @@ void Region::autowireNewNeuron(Layer* L, int newIdx) {
 }
 
 int Region::requestLayerGrowth(Layer* saturated) {
-    int idx = -1;
-    for (int i = 0; i < static_cast<int>(layers.size()); ++i) {
-        if (layers[i].get() == saturated) { idx = i; break; }
+    int saturated_index = -1;
+    for (int layer_index_iter = 0; layer_index_iter < static_cast<int>(layers.size()); ++layer_index_iter) {
+        if (layers[layer_index_iter].get() == saturated) { saturated_index = layer_index_iter; break; }
     }
-    if (idx < 0) return -1;
-    int newIdx = addLayer(4, 0, 0);
-    connectLayers(idx, newIdx, 1.0, false);
-    return newIdx;
+    if (saturated_index < 0) return -1;
+    int new_layer_index = addLayer(4, 0, 0);
+    connectLayers(saturated_index, new_layer_index, 1.0, false);
+    return new_layer_index;
 }
 
 int Region::requestLayerGrowth(Layer* saturated, double connectionProbability) {
-    int idx = -1;
-    for (int i = 0; i < static_cast<int>(layers.size()); ++i) {
-        if (layers[i].get() == saturated) { idx = i; break; }
+    int saturated_index = -1;
+    for (int layer_index_iter = 0; layer_index_iter < static_cast<int>(layers.size()); ++layer_index_iter) {
+        if (layers[layer_index_iter].get() == saturated) { saturated_index = layer_index_iter; break; }
     }
-    if (idx < 0) return -1;
-    int newIdx = addLayer(4, 0, 0);
-    connectLayers(idx, newIdx, connectionProbability, false);
-    return newIdx;
+    if (saturated_index < 0) return -1;
+    int new_layer_index = addLayer(4, 0, 0);
+    connectLayers(saturated_index, new_layer_index, connectionProbability, false);
+    return new_layer_index;
 }
 
 
