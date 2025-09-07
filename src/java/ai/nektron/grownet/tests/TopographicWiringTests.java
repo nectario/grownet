@@ -1,5 +1,6 @@
-package ai.nektron.grownet;
+package ai.nektron.grownet.tests;
 
+import ai.nektron.grownet.Region;
 import ai.nektron.grownet.preset.TopographicConfig;
 import ai.nektron.grownet.preset.TopographicWiring;
 import org.junit.jupiter.api.Test;
@@ -15,10 +16,10 @@ public class TopographicWiringTests {
         int dst = region.addOutputLayer2D(8, 8, 0.0);
         TopographicConfig cfg = new TopographicConfig().setKernel(3,3).setPadding("same").setWeightMode("gaussian").setNormalizeIncoming(true);
         int unique = TopographicWiring.connectLayersTopographic(region, src, dst, cfg);
-        assertEquals(64, unique);
+        Assertions.assertEquals(64, unique);
         double[] sums = TopographicWiring.incomingSums(region, dst);
         for (double s : sums) {
-            if (s > 0.0) assertTrue(Math.abs(s - 1.0) < 1e-6);
+            if (s > 0.0) Assertions.assertTrue(Math.abs(s - 1.0) < 1e-6);
         }
     }
 }

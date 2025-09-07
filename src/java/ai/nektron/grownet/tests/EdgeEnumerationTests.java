@@ -1,9 +1,10 @@
-package ai.nektron.grownet;
+package ai.nektron.grownet.tests;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import ai.nektron.grownet.Region;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import java.util.*;
 
 public class EdgeEnumerationTests {
 
@@ -18,6 +19,6 @@ public class EdgeEnumerationTests {
     int dstIndex = region.addOutputLayer2D(4, 4, 0.0);
     // SAME padding, 3x3 kernel on 4x4 grid covers all pixels at least once.
     int uniqueSources = region.connectLayersWindowed(srcIndex, dstIndex, 3, 3, 1, 1, "same", false);
-    assertEquals(16, uniqueSources, "Return value must be unique source subscriptions.");
+    Assertions.assertEquals(16, uniqueSources, "Return value must be unique source subscriptions.");
   }
 }
