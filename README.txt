@@ -14,3 +14,11 @@ No changes to Java/Python in this PR.
 More documentation
 - Coding Style (MUST READ): docs/CODING_STYLE_MUST_READ.md
 - Latest changelog: docs/changelog/SESSION_WORKLOG_2025-09-03.md
+
+Benchmarks
+----------
+For coarse performance comparisons across Python, Java, C++, and Mojo on HD 1920×1080 2D ticks (and Retina/Topographic wiring), see docs/BENCHMARKS.md. A one‑shot driver script exists:
+
+  bash scripts/run_stress_bench.sh
+
+It runs HD and Retina stress tests per language (where toolchains are available) and prints a timing summary table. No strict thresholds are enforced; numbers are informational and vary by machine.

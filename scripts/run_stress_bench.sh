@@ -1,6 +1,38 @@
 #!/usr/bin/env bash
+# -----------------------------------------------------------------------------
+# GrowNet — Cross‑Language Stress Benchmark (HD 1920x1080 + Retina)
+# -----------------------------------------------------------------------------
+# What this script does
+# - Runs consistent “one image tick” stress tests across Python, Java, C++, and Mojo
+#   for two cases:
+#   1) HD 1920x1080 input edge only (no downstream wiring)
+#   2) Retina/Topographic wiring (InputLayer2D -> OutputLayer2D, SAME padding, 7x7 kernel)
+# - Extracts coarse timing (milliseconds) when available and prints a summary table.
+#
+# Why this is useful
+# - Provides a quick, deterministic comparison of per‑language baseline performance for
+#   GrowNet’s 2D path at HD resolutions.
+# - Retina/Topographic wiring reveals relative cost of center‑mapped windowed connections
+#   and deterministic weight computation/normalization.
+#
+# Notes & caveats
+# - This is a coarse benchmark. Numbers will vary across hardware, OS, and JVM warmup state.
+# - No strict thresholds are enforced; timings are printed for comparison.
+# - Mojo timing is wall‑clock via /bin/date due to environment limitations.
+# - C++ tests require CMake + GTest (downloaded automatically via FetchContent if missing).
+#
+# Prerequisites
+# - Python: pytest in PATH
+# - Java: Maven (mvn) + JDK 21
+# - C++: cmake, a build tool (make/ninja), and a C++17 compiler
+# - Mojo: mojo tool in PATH
+#
+# Usage
+#   bash scripts/run_stress_bench.sh
+# -----------------------------------------------------------------------------
 set -euo pipefail
 
+# Resolve repo root and run from there
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
@@ -9,10 +41,11 @@ JAVA_HD="N/A"; JAVA_RET="N/A"
 CPP_HD="N/A"; CPP_RET="N/A"
 MOJO_HD="N/A"; MOJO_RET="N/A"
 
+# Pretty logger
 say() { echo -e "\033[1;34m[bench]\033[0m $*"; }
 
 extract_ms() {
-  # Extract the first integer/float before ' ms'
+  # Extract the first integer/float before ' ms' from timing lines
   sed -n 's/.*took ~\([0-9.][0-9.]*\) ms.*/\1/p' | head -n1
 }
 
@@ -86,7 +119,7 @@ run_mojo() {
     return
   fi
   say "Mojo: HD image tick (wall time)"
-  # Warm-up once
+  # Warm-up once to stabilize JIT/alloc state in the toolchain
   mojo run src/mojo/tests/stress_hd_image.mojo >/dev/null 2>&1 || true
   local t0=$(date +%s%3N)
   mojo run src/mojo/tests/stress_hd_image.mojo >/dev/null 2>&1 || true
@@ -116,4 +149,3 @@ printf "%-8s | %10s ms | %10s ms\n" "Mojo" "$MOJO_HD" "$MOJO_RET"
 
 echo
 say "Done. Higher numbers = slower for this coarse benchmark."
-
