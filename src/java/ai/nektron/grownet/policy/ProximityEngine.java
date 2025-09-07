@@ -11,6 +11,7 @@ public final class ProximityEngine {
     private ProximityEngine() { }
 
     private static final Map<String, Map<String, Long>> regionCooldown = new HashMap<>();
+    private static final Map<String, Long> regionApplyStep = new HashMap<>();
 
     private static String keyOf(int layerIndex, int neuronIndex) {
         return layerIndex + ":" + neuronIndex;
@@ -25,6 +26,13 @@ public final class ProximityEngine {
         try { step = region.getBus().getCurrentStep(); } catch (Throwable ignored) { }
         if (step < config.getDevelopmentWindowStart() || step > config.getDevelopmentWindowEnd()) return 0;
 
+        String regionName = region.getName();
+        // Per-step guard: only one proximity application per region step
+        Long lastApply = regionApplyStep.get(regionName);
+        if (lastApply != null && (step - lastApply) == 0L) {
+            return 0;
+        }
+
         List<Layer> layers = region.getLayers();
         Set<Integer> candidates = config.getCandidateLayers();
         List<Integer> candidateIndices = new ArrayList<>();
@@ -36,7 +44,6 @@ public final class ProximityEngine {
         if (candidateIndices.isEmpty()) return 0;
 
         SpatialHash grid = new SpatialHash(config.getRadius());
-        String regionName = region.getName();
         for (int layerIndex : candidateIndices) {
             Layer L = layers.get(layerIndex);
             int h = 0, w = 0;
@@ -98,10 +105,14 @@ public final class ProximityEngine {
                     src.connect(dst, false);
                     last.put(keyOf(neighborLayer, neighborNeuron), step);
                     edgesAdded++;
-                    if (edgesAdded >= Math.max(0, config.getMaxEdgesPerTick())) return edgesAdded;
+                    if (edgesAdded >= Math.max(0, config.getMaxEdgesPerTick())) {
+                        regionApplyStep.put(regionName, step);
+                        return edgesAdded;
+                    }
                 }
             }
         }
+        regionApplyStep.put(regionName, step);
         return edgesAdded;
     }
 }

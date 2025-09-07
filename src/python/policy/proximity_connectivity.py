@@ -79,8 +79,8 @@ class SpatialHash:
 
 
 class ProximityEngine:
-    # Per-region state for cooldown tracking: { region_name: { 'last_attempt_step': {(L,N): step} } }
-    region_state: Dict[str, Dict[str, Dict[Tuple[int, int], int]]] = {}
+    # Per-region state for cooldown tracking: { region_name: { 'last_attempt_step': {(L,N): step}, 'last_apply_step': int } }
+    region_state: Dict[str, Dict[str, Any]] = {}
 
     @staticmethod
     def apply(region: Any, config: ProximityConfig) -> int:
@@ -137,7 +137,10 @@ class ProximityEngine:
             raise RuntimeError("ProximityEngine probabilistic mode requires a seeded Region RNG")
 
         # region-scoped cooldown state
-        state = ProximityEngine.region_state.setdefault(region_name, {"last_attempt_step": {}})
+        state = ProximityEngine.region_state.setdefault(region_name, {"last_attempt_step": {}, "last_apply_step": -10**9})
+        # Per-step guard: apply at most once per region step
+        if int(state.get("last_apply_step", -10**9)) == current_step:
+            return 0
         last_attempt_step = state["last_attempt_step"]
 
         # Helper fallbacks (ADAPT points)
@@ -222,4 +225,5 @@ class ProximityEngine:
                     if edges_added_count >= int(config.proximity_max_edges_per_tick):
                         return edges_added_count
 
+        state["last_apply_step"] = current_step
         return edges_added_count
