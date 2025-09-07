@@ -46,3 +46,40 @@ if(EXISTS "${GROWNET_DEMO}")
 else()
     message(WARNING "Demo not built: ${GROWNET_DEMO} was not found.")
 endif()
+
+# ------------------------ Tests (GTest + CTest) ------------------------
+include(CTest)
+option(GROWNET_BUILD_TESTS "Build C++ tests for GrowNet" ON)
+
+if(GROWNET_BUILD_TESTS)
+    enable_testing()
+
+    # Try to find a system GTest; otherwise fetch a known-good version.
+    find_package(GTest QUIET)
+    if (NOT GTest_FOUND)
+        message(STATUS "GTest not found; fetching via FetchContent")
+        include(FetchContent)
+        FetchContent_Declare(
+            googletest
+            URL https://github.com/google/googletest/archive/refs/tags/v1.13.0.zip
+        )
+        # For MSVC: prevent overriding runtime library selection
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+    endif()
+
+    # Collect test sources
+    file(GLOB GROWNET_TEST_SOURCES "${GROWNET_CPP_ROOT}/tests/*.cpp")
+    if(GROWNET_TEST_SOURCES)
+        add_executable(grownet_tests ${GROWNET_TEST_SOURCES})
+        target_link_libraries(grownet_tests PRIVATE grownet GTest::gtest GTest::gtest_main)
+        target_include_directories(grownet_tests PRIVATE
+            "${GROWNET_CPP_ROOT}"
+            "${GROWNET_CPP_ROOT}/grownet"
+        )
+        target_compile_definitions(grownet_tests PRIVATE GTEST_AVAILABLE)
+        add_test(NAME grownet_tests COMMAND grownet_tests)
+    else()
+        message(WARNING "No C++ test sources found under ${GROWNET_CPP_ROOT}/tests")
+    endif()
+endif()
