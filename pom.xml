@@ -33,7 +33,7 @@
         <!-- Point sources to the repo's src/java (outside this module) so IntelliJ and Maven
              both compile and index the same Java sources tracked in Git. -->
         <sourceDirectory>src/java</sourceDirectory>
-        <testSourceDirectory>src/test/java</testSourceDirectory>
+        <testSourceDirectory>src/java/ai/nektron/grownet/tests</testSourceDirectory>
 
         <plugins>
             <!-- Exclude in-tree tests from main compilation; they live under src/java/.../tests -->

@@ -1,4 +1,4 @@
-package ai.nektron.grownet;
+package ai.nektron.grownet.tests;
 
 import ai.nektron.grownet.growth.GrowthPolicy;
 import org.junit.jupiter.api.Test;
