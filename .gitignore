@@ -7,6 +7,9 @@ CMakeCache.txt
 CMakeFiles/
 JavaProject/
 
+# Maven build output
+/target/
+
 # Python cache files
 __pycache__/
 *.pyc
