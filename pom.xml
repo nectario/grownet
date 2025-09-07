@@ -14,31 +14,19 @@
     </properties>
 
     <dependencies>
-        <!-- Use explicit JUnit 5 API + Engine -->
+        <!-- Single JUnit 5 dependency - includes API and Engine -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
-        <!-- Point sources to the repo's src/java (outside this module) so IntelliJ and Maven
-             both compile and index the same Java sources tracked in Git. -->
+        <!-- Sources and tests in-tree under src/java and src/java/tests -->
         <sourceDirectory>src/java</sourceDirectory>
+        <testSourceDirectory>src/java/tests</testSourceDirectory>
         <!-- Rely on build-helper to add src/java/tests as test sources to avoid IDE nesting issues -->
 
         <plugins>
