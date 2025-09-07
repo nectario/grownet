@@ -1,0 +1,3 @@
+if (proximityConfig != null && proximityConfig.isEnabled()) {
+    ProximityEngine.apply(region, proximityConfig, DeterministicLayout::position);
+}

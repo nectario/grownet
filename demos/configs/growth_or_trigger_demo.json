@@ -1,0 +1,8 @@
+{
+  "growthPolicy": {
+    "averageSlotsThreshold": 1000000000,
+    "percentAtCapFallbackThreshold": 0.25,
+    "layerCooldownTicks": 0,
+    "maxLayers": 8
+  }
+}

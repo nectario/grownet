@@ -1,0 +1,3 @@
+if (proximity_config && proximity_config->proximity_connect_enabled) {
+    ProximityEngine::Apply(*this, *proximity_config);
+}
