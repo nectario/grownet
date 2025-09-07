@@ -1,7 +1,7 @@
-# GrowNet Design Specification — V5 (Merged Master)
+# GrowNet Design Specification — V6 (Merged Master)
 
-Status: Candidate for master (merges V5 + V5_second)
-Date: 2025‑09‑04
+Status: Candidate for master (extends V5 + V5_second)
+Date: 2025‑09‑07
 Scope: Core data plane (Region/Layer/Neuron/Slot), Focus (Temporal + 2D), Frozen Slots, Growth (Slots → Neurons → Layers → Regions), two‑phase ticking, deterministic windowed wiring (tracts), cross‑language parity (Python = C++ = Java = Mojo).
 
 What changed from V4
@@ -117,6 +117,53 @@ Then
 
 Pulses
 - `pulse_inhibition(f)` / `pulse_modulation(f)` are one‑tick nudges applied to the upcoming tick.
+
+---
+
+## 7) Proximity Autowiring (Optional Policy)
+
+Purpose
+- Additive, deterministic policy that forms directed synapses between nearby neurons using a fixed, pure layout.
+
+Timing & Integration
+- Invoked once per tick after Phase‑B propagation and before `end_tick()/bus.decay()`.
+- Implemented as a sidecar policy (no changes to core types). Available in Python/Java/Mojo; C++ scaffolding present.
+
+Layout & Neighbor Search
+- Deterministic 3D layout: `position(region_name, layer_index, neuron_index, layer_height, layer_width)`
+  - Grid spacing = 1.2; layer spacing = 4.0 (consistent across languages)
+- Spatial hash grid with cell size equal to proximity radius; scan 27 buckets (3×3×3) and then filter by Euclidean distance ≤ radius.
+
+Probability & Determinism
+- STEP: connect iff `distance ≤ radius` (no RNG required)
+- LINEAR / LOGISTIC: probability is a function of distance; all draws must come from the Region RNG (no global randomness)
+
+Budget & Cooldowns
+- Per‑tick global edge budget limits edges added in the current tick.
+- Per‑source cooldown applied on attempt (even if zero edges are added).
+- Per‑region per‑step guard: apply at most once per region step (Java/Python implementations).
+
+Directionality & Mesh Rules
+- Edges are directed; reciprocal edges can form across ticks subject to budget/cooldown.
+- When enabled and applicable, cross‑layer proximity edges may record mesh rules for deterministic growth inheritance (Python implementation).
+
+Safety
+- Policy is best‑effort and additive; if RNG or wiring data are unavailable, skip probabilistic modes or default to STEP.
+
+---
+
+## 8) Stress & Benchmarks
+
+HD Image (1920×1080) Single‑Tick
+- Bind a 2D input edge; warm‑up; time a single 2D tick; assert 1 delivered event.
+
+Retina/Topographic HD Single‑Tick
+- InputLayer2D → OutputLayer2D, SAME padding, 7×7 kernel, stride 1; deterministic center mapping and Gaussian weights (optional normalization).
+- Warm‑up; time a single 2D tick; assert 1 delivered event.
+
+Cross‑Language Benchmark Script
+- `scripts/run_stress_bench.sh` runs HD + Retina tests for Python/Java/C++/Mojo and prints a summary table.
+- See `docs/BENCHMARKS.md` for prerequisites, usage, and interpretation guidance.
 
 ---
 
