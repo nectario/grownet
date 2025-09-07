@@ -36,6 +36,38 @@
         <testSourceDirectory>../../src/test/java</testSourceDirectory>
 
         <plugins>
+            <!-- Exclude in-tree tests from main compilation; they live under src/java/.../tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <excludes>
+                        <exclude>ai/nektron/grownet/tests/**</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- Add the unconventional test source directory where tests are located -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>add-extra-test-sources</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>add-test-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>../../src/java/ai/nektron/grownet/tests</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
