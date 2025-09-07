@@ -121,6 +121,8 @@ Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const
         }
     }
     neuron.setLastSlotUsedFallback(useFallback);
+    // Track the last selected slot id for freeze/unfreeze convenience (parity with scalar)
+    neuron.setLastSlotId(it->first);
     return it->second;
 }
 

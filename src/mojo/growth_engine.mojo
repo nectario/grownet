@@ -60,7 +60,7 @@ fn maybe_grow(mut region: any, policy: GrowthPolicy) -> Bool:
             neuron_count = neuron_count + 1
             total_slots = total_slots + Int(neuron_core.slots.size())
             var limit = neuron_core.slot_limit
-            var at_capacity = (limit >= 0) and (Int(n.slots.size()) >= limit)
+            var at_capacity = (limit >= 0) and (Int(neuron_core.slots.size()) >= limit)
             if at_capacity and neuron_core.last_slot_used_fallback:
                 at_cap_and_fallback = at_cap_and_fallback + 1
             neuron_iter = neuron_iter + 1

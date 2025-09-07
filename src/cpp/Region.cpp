@@ -527,6 +527,9 @@ void Region::maybeGrowRegion() {
         if ((currentStep - lastRegionGrowthStep) < growthPolicy.layerCooldownTicks) return;
     }
 
+    // Compute region-level pressure metrics
+    int totalNeuronsRegion = 0;
+    int saturatedWithFallbackRegion = 0;
     int bestLayerIndex = -1;
     double bestScore = -1.0;
     for (int layerIndex = 0; layerIndex < static_cast<int>(layers.size()); ++layerIndex) {
@@ -538,15 +541,20 @@ void Region::maybeGrowRegion() {
         int totalSlots = 0;
         int atCapCount = 0;
         int fallbackCount = 0;
+        int atCapAndFallbackCount = 0;
         for (auto& neuron_ptr : neurons) {
             totalSlots += static_cast<int>(neuron_ptr->getSlots().size());
             const int limit = neuron_ptr->getSlotLimit();
             const bool atCap = (limit >= 0) && (static_cast<int>(neuron_ptr->getSlots().size()) >= limit);
             if (atCap) atCapCount += 1;
-            if (neuron_ptr->getLastSlotUsedFallback()) fallbackCount += 1;
+            const bool usedFallback = neuron_ptr->getLastSlotUsedFallback();
+            if (usedFallback) fallbackCount += 1;
+            if (atCap && usedFallback) atCapAndFallbackCount += 1;
         }
+        totalNeuronsRegion += neuronCount;
+        saturatedWithFallbackRegion += atCapAndFallbackCount;
         const double avgSlots = static_cast<double>(totalSlots) / std::max(1, neuronCount);
-        if (avgSlots < growthPolicy.averageSlotsThreshold) continue;
+        // Layer admission check now deferred to region-wide OR-trigger below
         const double fracCap = static_cast<double>(atCapCount) / std::max(1, neuronCount);
         const double fracFallback = static_cast<double>(fallbackCount) / std::max(1, neuronCount);
         const double score = 0.60 * fracCap
@@ -555,6 +563,28 @@ void Region::maybeGrowRegion() {
         if (score > bestScore) { bestScore = score; bestLayerIndex = layerIndex; }
     }
     if (bestLayerIndex < 0) return;
+
+    // Region-level OR-trigger: avg slots threshold or percent at-cap+fallback threshold
+    bool avgOk = false;
+    {
+        // Approximate region-wide avg slots per neuron
+        long long totalSlotsAll = 0;
+        long long totalNeuronsAll = 0;
+        for (auto& L : layers) {
+            for (auto& n : L->getNeurons()) {
+                totalSlotsAll += static_cast<long long>(n->getSlots().size());
+                totalNeuronsAll += 1;
+            }
+        }
+        const double avgSlotsRegion = (totalNeuronsAll > 0) ? (static_cast<double>(totalSlotsAll) / static_cast<double>(totalNeuronsAll)) : 0.0;
+        avgOk = (avgSlotsRegion >= growthPolicy.averageSlotsThreshold);
+    }
+    bool pctOk = false;
+    if (growthPolicy.percentAtCapFallbackThreshold > 0.0 && totalNeuronsRegion > 0) {
+        const double pct = 100.0 * static_cast<double>(saturatedWithFallbackRegion) / static_cast<double>(totalNeuronsRegion);
+        pctOk = (pct >= growthPolicy.percentAtCapFallbackThreshold);
+    }
+    if (!avgOk && !pctOk) return;
 
     int newIndex = requestLayerGrowth(layers[bestLayerIndex].get(), growthPolicy.connectionProbability);
     if (newIndex >= 0) lastRegionGrowthStep = currentStep;

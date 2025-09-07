@@ -17,7 +17,7 @@ class SlotConfig:
     recenter_lock_ticks = 20              # cooldown on re-anchoring
     anchor_beta = 0.05                    # EMA smoothing for EMA/WINDOW
     outlier_growth_threshold_pct = 60.0   # threshold for neuron growth hooks
-    slot_limit = 16                       # cap slots per neuron (soft)
+    slot_limit = 16                       # cap slots per neuron (strict in v5)
 
     # Spatial focus knobs (Phase B)
     # When enabled on destination neurons/layers, slotting uses 2D anchors/bins.

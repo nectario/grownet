@@ -5,6 +5,7 @@ import ai.nektron.grownet.growth.GrowthPolicy;
 import ai.nektron.grownet.growth.GrowthEngine;
 
 import java.util.*;
+import ai.nektron.grownet.policy.*;
 
 /**
  * Region: groups layers, owns simple wiring helpers and tick/prune orchestration.
@@ -43,6 +44,8 @@ public final class Region {
 
     // [GROWNET:ANCHOR::AFTER_METRICS]
     private GrowthPolicy growthPolicy = null;   // optional, controls best‑effort growth
+    // Optional proximity connectivity policy (sidecar)
+    private ProximityConfig proximityConfig = null;
 
     // --------------------------- construction ----------------------------
     public Region(String name) { this.name = name; }
@@ -257,6 +260,12 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         }
 
         layers.get(edgeIdx).forward(value);
+        // Optional proximity connectivity (post-propagation, pre end_tick/decay)
+        try {
+            if (proximityConfig != null && proximityConfig.isEnabled()) {
+                ProximityEngine.apply(this, proximityConfig);
+            }
+        } catch (Throwable ignored) { }
         regionMetrics.incDeliveredEvents();
 
         // End-of-tick housekeeping
@@ -301,6 +310,12 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
             throw new IllegalArgumentException("InputEdge for '" + port + "' is not ND (expected InputLayerND).");
 
         ((InputLayerND) layer).forwardND(flat, shape);
+        // Optional proximity connectivity (post-propagation, pre end_tick/decay)
+        try {
+            if (proximityConfig != null && proximityConfig.isEnabled()) {
+                ProximityEngine.apply(this, proximityConfig);
+            }
+        } catch (Throwable ignored) { }
         metrics.incDeliveredEvents();
 
         for (Layer l : layers) l.endTick();
@@ -334,6 +349,12 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
             throw new IllegalArgumentException("InputEdge for '" + port + "' is not 2D (expected InputLayer2D).");
 
         ((InputLayer2D) layer).forwardImage(frame);
+        // Optional proximity connectivity (post-propagation, pre end_tick/decay)
+        try {
+            if (proximityConfig != null && proximityConfig.isEnabled()) {
+                ProximityEngine.apply(this, proximityConfig);
+            }
+        } catch (Throwable ignored) { }
         metrics.incDeliveredEvents();
 
         // End-of-tick housekeeping
@@ -594,4 +615,7 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
     // ------------------------------ growth policy ---------------------------
     public GrowthPolicy getGrowthPolicy() { return growthPolicy; }
     public Region setGrowthPolicy(GrowthPolicy gp) { this.growthPolicy = gp; return this; }
+    // Proximity policy helpers
+    public Region setProximityConfig(ProximityConfig pc) { this.proximityConfig = pc; return this; }
+    public ProximityConfig getProximityConfig() { return proximityConfig; }
 }

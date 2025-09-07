@@ -10,6 +10,7 @@ from growth_policy import GrowthPolicy
 from growth_engine import maybe_grow
 from synapse import Synapse
 from tract import Tract
+from policy.proximity_connectivity import ProximityConfig, ProximityEngine
 
 struct MeshRule:
     var src: Int
@@ -33,6 +34,7 @@ struct Region:
     var growth_policy: GrowthPolicy
     var growth_policy_enabled: Bool
     var last_layer_growth_step: Int
+    var proximity_config: ProximityConfig
 
     fn init(mut self, name: String) -> None:
         self.name = name
@@ -50,6 +52,7 @@ struct Region:
         self.growth_policy = GrowthPolicy()
         self.growth_policy_enabled = False
         self.last_layer_growth_step = -1
+        self.proximity_config = ProximityConfig()
 
     fn get_name(self) -> String:
         return self.name
@@ -306,6 +309,10 @@ struct Region:
             raise Error("No InputEdge for port '" + port + "'. Call bind_input(...) first.")
         var edge_idx = self.input_edges[port]
         self.layers[edge_idx].forward(value)
+        # Optional proximity connectivity (post-propagation, pre end_tick/decay)
+        if self.proximity_config.proximity_connect_enabled:
+            var prox = ProximityEngine()
+            _ = prox.apply(self, self.proximity_config)
         metrics.inc_delivered_events(1)
 
         var layer_index_end = 0
@@ -334,6 +341,10 @@ struct Region:
             raise Error("No InputEdge for port '" + port + "'. Call bind_input_2d(...) first.")
         var edge_idx = self.input_edges[port]
         self.layers[edge_idx].forward_image(frame)
+        # Optional proximity connectivity (post-propagation, pre end_tick/decay)
+        if self.proximity_config.proximity_connect_enabled:
+            var prox2 = ProximityEngine()
+            _ = prox2.apply(self, self.proximity_config)
         metrics.inc_delivered_events(1)
 
         var layer_index_tick = 0

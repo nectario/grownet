@@ -9,11 +9,11 @@ bool Neuron::onInput(double value) {
     bool fired = weight.updateThreshold(value);
     setFiredLast(fired);
     setLastInputValue(value);
-    // Best-effort growth trigger: at-capacity + fallback streak with cooldown
+    // Best-effort growth trigger: at-capacity + fallback streak with config-driven cooldown
     try {
         const SlotConfig& C = slotEngine.getConfig();
-        const bool growthEnabled = true; // default-on parity
-        const bool neuronGrowthEnabled = true; // default-on parity
+        const bool growthEnabled = C.growthEnabled;
+        const bool neuronGrowthEnabled = C.neuronGrowthEnabled;
         if (growthEnabled && neuronGrowthEnabled) {
             const int limit = getSlotLimit();
             const bool atCap = (limit >= 0) && (static_cast<int>(getSlots().size()) >= limit);
@@ -22,10 +22,10 @@ bool Neuron::onInput(double value) {
             } else {
                 fallbackStreak = 0;
             }
-            const int threshold = 3; // conservative default if not modeled in cfg
+            const int threshold = (C.fallbackGrowthThreshold < 1 ? 1 : C.fallbackGrowthThreshold);
             if (owner != nullptr && fallbackStreak >= threshold) {
                 const long long now = getBus().getCurrentStep();
-                const int cooldown = 0; // default demo-friendly cooldown
+                const int cooldown = (C.neuronGrowthCooldownTicks < 0 ? 0 : C.neuronGrowthCooldownTicks);
                 if (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown) {
                     // Call back into owner layer to add a neuron of same kind
                     auto* L = reinterpret_cast<Layer*>(owner);

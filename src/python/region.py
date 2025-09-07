@@ -39,6 +39,8 @@ class Region:
         self.rng = random.Random(1234)
         # Optional flag to compute spatial metrics in tick_2d (also gated by env var)
         self.enable_spatial_metrics = False
+        # Optional proximity policy (sidecar) configuration
+        self.proximity_config = None
         # Growth + wiring bookkeeping
         self.mesh_rules: List[Dict[str, Any]] = []   # [{'src':i,'dst':j,'prob':p,'feedback':bool}]
         self.tracts: List[Any] = []                 # Tract instances
@@ -444,6 +446,14 @@ class Region:
         except Exception:
             pass
 
+        # Optional proximity connectivity (post-propagation, pre end_tick/decay)
+        try:
+            if getattr(self, "proximity_config", None) is not None and getattr(self.proximity_config, "proximity_connect_enabled", False):
+                from policy.proximity_connectivity import ProximityEngine
+                ProximityEngine.apply(self, self.proximity_config)
+        except Exception:
+            pass
+
         # Default accounting: one event per port
         metrics.inc_delivered_events(1)
 
@@ -492,6 +502,14 @@ class Region:
             layer.forward_image(frame)
         else:
             raise ValueError(f"InputEdge for '{port}' is not 2D (expected InputLayer2D).")
+        # Optional proximity connectivity (post-propagation, pre end_tick/decay)
+        try:
+            if getattr(self, "proximity_config", None) is not None and getattr(self.proximity_config, "proximity_connect_enabled", False):
+                from policy.proximity_connectivity import ProximityEngine
+                ProximityEngine.apply(self, self.proximity_config)
+        except Exception:
+            pass
+
         metrics.inc_delivered_events(1)
 
         # Optional compatibility shim for tests that count bound layers
