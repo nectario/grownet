@@ -188,6 +188,8 @@ class ProximityEngine:
                 last_step = int(last_attempt_step.get((candidate_layer_index, neuron_index), -10**9))
                 if (current_step - last_step) < cooldown_ticks:
                     continue
+                # Mark an attempt time even if no edges are added for this source
+                last_attempt_step[(candidate_layer_index, neuron_index)] = current_step
                 origin_position = DeterministicLayout.position(region_name, candidate_layer_index, neuron_index, layer_height, layer_width)
                 for neighbor_layer_index, neighbor_neuron_index in spatial_grid.near(origin_position):
                     if neighbor_layer_index == candidate_layer_index and neighbor_neuron_index == neuron_index:
@@ -215,11 +217,9 @@ class ProximityEngine:
                             continue
                     connect_neurons(candidate_layer_index, neuron_index, neighbor_layer_index, neighbor_neuron_index)
                     record_mesh_rule_if_needed(candidate_layer_index, neighbor_layer_index)
-                    last_attempt_step[(candidate_layer_index, neuron_index)] = current_step
                     last_attempt_step[(neighbor_layer_index, neighbor_neuron_index)] = current_step
                     edges_added_count += 1
                     if edges_added_count >= int(config.proximity_max_edges_per_tick):
                         return edges_added_count
 
         return edges_added_count
-

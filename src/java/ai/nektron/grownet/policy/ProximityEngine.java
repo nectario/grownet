@@ -62,6 +62,9 @@ public final class ProximityEngine {
                 String key = keyOf(layerIndex, neuronIndex);
                 long prev = last.getOrDefault(key, Long.MIN_VALUE / 4);
                 if ((step - prev) < cooldownTicks) continue;
+                // Mark an attempt time even if we end up adding no edges for this source this tick,
+                // so cooldown applies across consecutive applications.
+                last.put(key, step);
                 double[] origin = DeterministicLayout.position(regionName, layerIndex, neuronIndex, h, w);
                 for (int[] pair : grid.near(origin)) {
                     int neighborLayer = pair[0];
@@ -93,7 +96,6 @@ public final class ProximityEngine {
                     }
                     if (already) continue;
                     src.connect(dst, false);
-                    last.put(keyOf(layerIndex, neuronIndex), step);
                     last.put(keyOf(neighborLayer, neighborNeuron), step);
                     edgesAdded++;
                     if (edgesAdded >= Math.max(0, config.getMaxEdgesPerTick())) return edgesAdded;
@@ -103,4 +105,3 @@ public final class ProximityEngine {
         return edgesAdded;
     }
 }
-

@@ -13,12 +13,12 @@ fn test_proximity_step_budget_cooldown():
     cfg.proximity_radius = 1.25
     cfg.proximity_max_edges_per_tick = 5
     cfg.proximity_cooldown_ticks = 100
-    var added = ProximityEngine().apply(region, cfg)
+    var engine = ProximityEngine()
+    var added = engine.apply(region, cfg)
     check(added >= 0 and added <= 5, "added within budget")
-    var second = ProximityEngine().apply(region, cfg)
+    var second = engine.apply(region, cfg)
     check(second == 0, "cooldown prevents repeat")
 
 fn main():
     test_proximity_step_budget_cooldown()
     print("[MOJO] proximity_step passed.")
-
