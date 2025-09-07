@@ -1,4 +1,4 @@
-package tests.ai.nektron.grownet.tests;
+package ai.nektron.grownet.tests;
 
 import ai.nektron.grownet.Region;
 import ai.nektron.grownet.growth.GrowthPolicy;

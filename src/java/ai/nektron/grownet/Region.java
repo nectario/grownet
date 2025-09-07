@@ -147,6 +147,22 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         Objects.requireNonNull(layerIndices, "layerIndices");
         inputPorts.put(port, List.copyOf(layerIndices)); // for introspection only
 
+        // Convenience: if any bound layer is an InputLayer2D, treat it as the edge
+        Integer existing = inputEdges.get(port);
+        Integer imageEdge = null;
+        for (int layerIndex : layerIndices) {
+            Layer maybe = layers.get(layerIndex);
+            if (maybe instanceof InputLayer2D) { imageEdge = layerIndex; break; }
+        }
+        if (imageEdge != null) {
+            inputEdges.put(port, imageEdge);
+            // Wire that edge to any other bound layers (excluding itself)
+            for (int layerIndex : layerIndices) if (layerIndex != imageEdge) {
+                connectLayers(imageEdge, layerIndex, /*probability=*/1.0, /*feedback=*/false);
+            }
+            return;
+        }
+
         int edge = ensureInputEdge(port);
         for (int layerIndex : layerIndices) {
             connectLayers(edge, layerIndex, /*probability=*/1.0, /*feedback=*/false);

@@ -42,7 +42,10 @@ public class Neuron {
     public boolean lastSlotUsedFallback = false;
     public int     fallbackStreak = 0;
     public long    lastGrowthTick = -1L;
-    public boolean preferLastSlotOnce = false; // one-shot reuse after unfreeze
+    public boolean preferLastSlotOnce = false; // one-shot reuse (legacy)
+    // Track the specific slot frozen and a one-shot preference for that slot on unfreeze
+    private Integer frozenSlotId = null;
+    private Integer preferSlotIdOnce = null;
     public Layer   owner = null;               // backref set by Layer
     // Spatial (2D) FIRST anchor
     public int anchorRow = -1;
@@ -72,9 +75,16 @@ public class Neuron {
      */
     public boolean onInput(double value) {
         // V4 Temporal Focus (FIRST anchor): choose/create slot with strict capacity
-        final int slotId = preferLastSlotOnce && lastSlotId != null
-                ? lastSlotId
-                : slotEngine.selectOrCreateSlot(this, value, /*cfg*/ null);
+        final int slotId;
+        if (preferSlotIdOnce != null) {
+            slotId = preferSlotIdOnce;
+        } else if (preferLastSlotOnce && lastSlotId != null) {
+            slotId = lastSlotId;
+        } else {
+            slotId = slotEngine.selectOrCreateSlot(this, value, /*cfg*/ null);
+        }
+        // Clear one-shot hints after use
+        preferSlotIdOnce = null;
         preferLastSlotOnce = false;
         lastSlotId = slotId;
         Weight slot = slots.get(slotId); // existence ensured by SlotEngine
@@ -117,9 +127,15 @@ public class Neuron {
      * Mirrors the scalar path, but uses the 2D selector and spatial anchors.
      */
     public boolean onInput2D(double value, int row, int col) {
-        final int slotId = (preferLastSlotOnce && lastSlotId != null)
-                ? lastSlotId
-                : slotEngine.selectOrCreateSlot2D(this, row, col, /*cfg*/ null);
+        final int slotId;
+        if (preferSlotIdOnce != null) {
+            slotId = preferSlotIdOnce;
+        } else if (preferLastSlotOnce && lastSlotId != null) {
+            slotId = lastSlotId;
+        } else {
+            slotId = slotEngine.selectOrCreateSlot2D(this, row, col, /*cfg*/ null);
+        }
+        preferSlotIdOnce = null;
         preferLastSlotOnce = false;
         lastSlotId = slotId;
 
@@ -161,15 +177,19 @@ public class Neuron {
         Weight w = slots.get(lastSlotId);
         if (w == null) return false;
         w.freeze();
+        frozenSlotId = lastSlotId;
         return true;
     }
 
     public boolean unfreezeLastSlot() {
-        if (lastSlotId == null) return false;
-        Weight w = slots.get(lastSlotId);
+        Integer targetId = (frozenSlotId != null) ? frozenSlotId : lastSlotId;
+        if (targetId == null) return false;
+        Weight w = slots.get(targetId);
         if (w == null) return false;
         w.unfreeze();
-        preferLastSlotOnce = true;
+        // Prefer the originally frozen slot once on the next selection
+        preferSlotIdOnce = targetId;
+        frozenSlotId = null;
         return true;
     }
 
