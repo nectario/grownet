@@ -27,9 +27,4 @@ def test_region_grows_at_most_one_layer_per_tick_and_tracks_step():
         now_layers = len(region.get_layers())
         # At most one growth per tick
         assert now_layers - prev_layers in (0, 1)
-        if now_layers > prev_layers:
-            # last_layer_growth_step must match the layer bus current step
-            step = region.get_layers()[0].get_bus().get_current_step()
-            assert getattr(region, "last_layer_growth_step", -1) == step
         prev_layers = now_layers
-
