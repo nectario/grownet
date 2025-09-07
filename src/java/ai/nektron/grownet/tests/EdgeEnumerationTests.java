@@ -19,6 +19,6 @@ public class EdgeEnumerationTests {
     int dstIndex = region.addOutputLayer2D(4, 4, 0.0);
     // SAME padding, 3x3 kernel on 4x4 grid covers all pixels at least once.
     int uniqueSources = region.connectLayersWindowed(srcIndex, dstIndex, 3, 3, 1, 1, "same", false);
-    Assertions.assertEquals(16, uniqueSources, "Return value must be unique source subscriptions.");
+    assertEquals(16, uniqueSources, "Return value must be unique source subscriptions.");
   }
 }

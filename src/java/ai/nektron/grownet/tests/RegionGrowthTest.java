@@ -1,5 +1,6 @@
 package ai.nektron.grownet.tests;
 
+import ai.nektron.grownet.Region;
 import ai.nektron.grownet.growth.GrowthPolicy;
 import org.junit.jupiter.api.Test;
 
@@ -39,4 +40,3 @@ public class RegionGrowthTest {
         assertTrue(after > before, "expected layer count to increase");
     }
 }
-
