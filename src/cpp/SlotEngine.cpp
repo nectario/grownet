@@ -57,6 +57,14 @@ Weight& SlotEngine::selectOrCreateSlot(Neuron& neuron, double inputValue) const 
     }
     neuron.setLastSlotId(iter->first);
     neuron.setLastSlotUsedFallback(useFallback);
+    if (useFallback) {
+        neuron.setLastMissingSlotId(sidDesired);
+        neuron.setLastMaxAxisDeltaPct(deltaPct);
+    } else {
+        neuron.setFallbackStreak(0);
+        neuron.setPrevMissingSlotId(-1);
+        neuron.setLastMissingSlotId(-1);
+    }
     return iter->second;
 }
 
@@ -94,6 +102,8 @@ Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const
     auto rowColPair = slotId2D(neuron.anchorRow, neuron.anchorCol, row, col);
     int rBin = rowColPair.first;
     int cBin = rowColPair.second;
+    const double rowDeltaPct = std::abs(row - neuron.anchorRow) / std::max(std::abs(static_cast<double>(neuron.anchorRow)), cfg.epsilonScale) * 100.0;
+    const double colDeltaPct = std::abs(col - neuron.anchorCol) / std::max(std::abs(static_cast<double>(neuron.anchorCol)), cfg.epsilonScale) * 100.0;
     const int limit = (neuron.getSlotLimit() >= 0 ? neuron.getSlotLimit() : cfg.slotLimit);
     auto& slots = neuron.getSlots();
     const bool atCapacity = (limit > 0 && static_cast<int>(slots.size()) >= limit);
@@ -121,8 +131,15 @@ Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const
         }
     }
     neuron.setLastSlotUsedFallback(useFallback);
-    // Track the last selected slot id for freeze/unfreeze convenience (parity with scalar)
     neuron.setLastSlotId(it->first);
+    if (useFallback) {
+        neuron.setLastMissingSlotId(desiredKey);
+        neuron.setLastMaxAxisDeltaPct(std::max(rowDeltaPct, colDeltaPct));
+    } else {
+        neuron.setFallbackStreak(0);
+        neuron.setPrevMissingSlotId(-1);
+        neuron.setLastMissingSlotId(-1);
+    }
     return it->second;
 }
 

@@ -31,3 +31,5 @@ struct SlotConfig:
     var neuron_growth_cooldown_ticks: Int = 0
     var fallback_growth_threshold: Int    = 3
     var layer_neuron_limit_default: Int   = -1
+    var fallback_growth_requires_same_missing_slot: Bool = False
+    var min_delta_pct_for_growth: F64 = 0.0

@@ -28,6 +28,8 @@ struct SlotConfig {
     bool layerGrowthEnabled { false }; // reserved for future region policy in C++
     int  fallbackGrowthThreshold { 3 }; // consecutive fallback uses before growth
     int  neuronGrowthCooldownTicks { 0 }; // ticks between neuron growth events
+    bool   fallbackGrowthRequiresSameMissingSlot { false };
+    double minDeltaPctForGrowth { 0.0 };
 
     static SlotConfig fixed(double binPercent, int limit = -1) {
         SlotConfig cfg;
@@ -43,6 +45,8 @@ struct SlotConfig {
     SlotConfig& setLayerGrowthEnabled(bool v)            { layerGrowthEnabled = v; return *this; }
     SlotConfig& setFallbackGrowthThreshold(int v)        { fallbackGrowthThreshold = (v < 1 ? 1 : v); return *this; }
     SlotConfig& setNeuronGrowthCooldownTicks(int ticks)  { neuronGrowthCooldownTicks = (ticks < 0 ? 0 : ticks); return *this; }
+    SlotConfig& setFallbackGrowthRequiresSameMissingSlot(bool v) { fallbackGrowthRequiresSameMissingSlot = v; return *this; }
+    SlotConfig& setMinDeltaPctForGrowth(double v) { minDeltaPctForGrowth = v; return *this; }
 };
 
 } // namespace grownet
