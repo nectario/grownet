@@ -83,6 +83,13 @@ struct SlotEngine:
 
         neuron.last_slot_used_fallback = use_fallback
         neuron.last_slot_id = selected_slot_id
+        if use_fallback:
+            neuron.last_missing_slot_id = sid_desired
+            neuron.last_max_axis_delta_pct = delta_pct
+        else:
+            neuron.fallback_streak = 0
+            neuron.prev_missing_slot_id = -1
+            neuron.last_missing_slot_id = -1
         return selected_slot_id
 
     # Python-parity: spatial 2D variant with strict capacity + fallback.
@@ -98,6 +105,8 @@ struct SlotEngine:
                                    cfg.row_bin_width_pct, cfg.col_bin_width_pct,
                                    (if cfg.epsilon_scale > 1.0 then cfg.epsilon_scale else 1.0))
         var rbin = pair[0]; var cbin = pair[1]
+        var row_delta_pct = (abs(Float64(row) - Float64(neuron.anchor_row)) / max(abs(Float64(neuron.anchor_row)), (if cfg.epsilon_scale > 1.0 then cfg.epsilon_scale else 1.0))) * 100.0
+        var col_delta_pct = (abs(Float64(col) - Float64(neuron.anchor_col)) / max(abs(Float64(neuron.anchor_col)), (if cfg.epsilon_scale > 1.0 then cfg.epsilon_scale else 1.0))) * 100.0
         var limit = (neuron.slot_limit if neuron.slot_limit >= 0 else cfg.slot_limit)
         var at_capacity = (limit > 0) and (Int(neuron.slots.size()) >= limit)
         var out_of_domain = (limit > 0) and ((rbin >= limit) or (cbin >= limit))
@@ -123,4 +132,11 @@ struct SlotEngine:
                 neuron.slots[selected_key] = Weight()
         neuron.last_slot_used_fallback = use_fallback
         neuron.last_slot_id = selected_key
+        if use_fallback:
+            neuron.last_missing_slot_id = desired_key
+            neuron.last_max_axis_delta_pct = max(row_delta_pct, col_delta_pct)
+        else:
+            neuron.fallback_streak = 0
+            neuron.prev_missing_slot_id = -1
+            neuron.last_missing_slot_id = -1
         return selected_key

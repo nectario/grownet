@@ -108,6 +108,14 @@ public:
     bool getLastSlotUsedFallback() const { return lastSlotUsedFallback; }
     void setLastSlotUsedFallback(bool v) { lastSlotUsedFallback = v; }
     int  getSlotLimit() const { return slotLimit; }
+    int  getFallbackStreak() const { return fallbackStreak; }
+    void setFallbackStreak(int v) { fallbackStreak = v; }
+    int  getPrevMissingSlotId() const { return prevMissingSlotId; }
+    void setPrevMissingSlotId(int v) { prevMissingSlotId = v; }
+    int  getLastMissingSlotId() const { return lastMissingSlotId; }
+    void setLastMissingSlotId(int v) { lastMissingSlotId = v; }
+    double getLastMaxAxisDeltaPct() const { return lastMaxAxisDeltaPct; }
+    void setLastMaxAxisDeltaPct(double v) { lastMaxAxisDeltaPct = v; }
 
     // Owner layer backref (set by Layer)
     void setOwner(void* layerPtr) { owner = layerPtr; }
@@ -118,6 +126,9 @@ protected:
     bool lastSlotUsedFallback { false };
     int  fallbackStreak { 0 };
     long long lastGrowthTick { -1 };
+    int  prevMissingSlotId { -1 };
+    int  lastMissingSlotId { -1 };
+    double lastMaxAxisDeltaPct { 0.0 };
     void* owner { nullptr };
 };
 

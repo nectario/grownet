@@ -24,6 +24,9 @@ struct Neuron:
     var last_slot_used_fallback: Bool = False
     var fallback_streak: Int = 0
     var last_growth_tick: Int64 = -1
+    var prev_missing_slot_id: Int = -1
+    var last_missing_slot_id: Int = -1
+    var last_max_axis_delta_pct: Float64 = 0.0
 
     # spatial focus anchors (Phase B)
     var anchor_row: Int = -1
@@ -55,15 +58,9 @@ struct Neuron:
         self.prefer_last_slot_once = False
         self.last_slot_id = slot_identifier
 
-        var at_capacity: Bool = (self.slot_limit >= 0) and (Int(self.slots.size()) >= self.slot_limit)
-        var out_of_domain: Bool = (self.slot_limit >= 0) and (slot_identifier >= self.slot_limit)
-        var want_new: Bool = not self.slots.contains(slot_identifier)
-        self.last_slot_used_fallback = out_of_domain or (at_capacity and want_new)
-
         if not self.slots.contains(slot_identifier):
-            if at_capacity:
+            if self.slot_limit >= 0 and Int(self.slots.size()) >= self.slot_limit:
                 if slot_identifier >= 0 and slot_identifier < self.slot_limit and not self.slots.contains(slot_identifier):
-                    # reuse clamped id if empty set (defensive)
                     self.slots[slot_identifier] = Weight()
             else:
                 self.slots[slot_identifier] = Weight()
@@ -74,11 +71,6 @@ struct Neuron:
         self.last_fired = fired
         self.slots[slot_identifier] = selected_weight
 
-        # Growth bookkeeping (fallback streak when at capacity and fallback used)
-        if at_capacity and self.last_slot_used_fallback:
-            self.fallback_streak = self.fallback_streak + 1
-        else:
-            self.fallback_streak = 0
         return fired
 
     fn on_output(mut self, amplitude: Float64) -> None:
@@ -100,12 +92,6 @@ struct Neuron:
         self.last_fired = fired
         self.have_last_input = True
         self.last_input_value = value
-        # Growth bookkeeping for 2D
-        var limit_ok: Bool = (self.slot_limit >= 0) and (Int(self.slots.size()) >= self.slot_limit)
-        if limit_ok and self.last_slot_used_fallback:
-            self.fallback_streak = self.fallback_streak + 1
-        else:
-            self.fallback_streak = 0
         return fired
 
     fn freeze_last_slot(mut self) -> Bool:

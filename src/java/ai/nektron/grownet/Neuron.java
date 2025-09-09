@@ -42,6 +42,9 @@ public class Neuron {
     public boolean lastSlotUsedFallback = false;
     public int     fallbackStreak = 0;
     public long    lastGrowthTick = -1L;
+    public int     prevMissingSlotId = -1;
+    public int     lastMissingSlotId = -1;
+    public double  lastMaxAxisDeltaPct = 0.0;
     public boolean preferLastSlotOnce = false; // one-shot reuse (legacy)
     // Track the specific slot frozen and a one-shot preference for that slot on unfreeze
     private Integer frozenSlotId = null;
@@ -106,7 +109,29 @@ public class Neuron {
             final SlotConfig C = slotEngine == null ? null : slotEngine.getConfig();
             if (C != null && C.isGrowthEnabled() && C.isNeuronGrowthEnabled()) {
                 final boolean atCap = (slotLimit >= 0 && slots.size() >= slotLimit);
-                if (atCap && lastSlotUsedFallback) fallbackStreak++; else fallbackStreak = 0;
+                if (!(atCap && lastSlotUsedFallback)) {
+                    fallbackStreak = 0;
+                    prevMissingSlotId = -1;
+                    lastMissingSlotId = -1;
+                    return fired;
+                }
+                if (C.getMinDeltaPctForGrowth() > 0.0) {
+                    if (lastMaxAxisDeltaPct < C.getMinDeltaPctForGrowth()) {
+                        fallbackStreak = 0;
+                        prevMissingSlotId = -1;
+                        return fired;
+                    }
+                }
+                if (C.isFallbackGrowthRequiresSameMissingSlot()) {
+                    if (prevMissingSlotId == lastMissingSlotId) {
+                        fallbackStreak++;
+                    } else {
+                        fallbackStreak = 1;
+                        prevMissingSlotId = lastMissingSlotId;
+                    }
+                } else {
+                    fallbackStreak++;
+                }
                 final int threshold = Math.max(1, C.getFallbackGrowthThreshold());
                 if (owner != null && fallbackStreak >= threshold) {
                     final long now = bus.getCurrentStep();
@@ -116,6 +141,8 @@ public class Neuron {
                         lastGrowthTick = now;
                     }
                     fallbackStreak = 0;
+                    prevMissingSlotId = -1;
+                    lastMissingSlotId = -1;
                 }
             }
         } catch (Throwable ignored) { }
@@ -155,7 +182,29 @@ public class Neuron {
             final SlotConfig C = slotEngine == null ? null : slotEngine.getConfig();
             if (C != null && C.isGrowthEnabled() && C.isNeuronGrowthEnabled()) {
                 final boolean atCap = (slotLimit >= 0 && slots.size() >= slotLimit);
-                if (atCap && lastSlotUsedFallback) fallbackStreak++; else fallbackStreak = 0;
+                if (!(atCap && lastSlotUsedFallback)) {
+                    fallbackStreak = 0;
+                    prevMissingSlotId = -1;
+                    lastMissingSlotId = -1;
+                    return fired;
+                }
+                if (C.getMinDeltaPctForGrowth() > 0.0) {
+                    if (lastMaxAxisDeltaPct < C.getMinDeltaPctForGrowth()) {
+                        fallbackStreak = 0;
+                        prevMissingSlotId = -1;
+                        return fired;
+                    }
+                }
+                if (C.isFallbackGrowthRequiresSameMissingSlot()) {
+                    if (prevMissingSlotId == lastMissingSlotId) {
+                        fallbackStreak++;
+                    } else {
+                        fallbackStreak = 1;
+                        prevMissingSlotId = lastMissingSlotId;
+                    }
+                } else {
+                    fallbackStreak++;
+                }
                 final int threshold = Math.max(1, C.getFallbackGrowthThreshold());
                 if (owner != null && fallbackStreak >= threshold) {
                     final long now = bus.getCurrentStep();
@@ -165,6 +214,8 @@ public class Neuron {
                         lastGrowthTick = now;
                     }
                     fallbackStreak = 0;
+                    prevMissingSlotId = -1;
+                    lastMissingSlotId = -1;
                 }
             }
         } catch (Throwable ignored) { }
