@@ -27,6 +27,9 @@ public final class SlotConfig {
     private boolean neuronGrowthEnabled = true;
     private int     neuronGrowthCooldownTicks = 0;
     private int     fallbackGrowthThreshold = 3;
+    // Optional stricter guards (defaults preserve existing behaviour)
+    private boolean fallbackGrowthRequiresSameMissingSlot = false;
+    private double  minDeltaPctForGrowth = 0.0;
 
     public SlotConfig() {}
     public static SlotConfig fixed(double widthPercent) {
@@ -92,6 +95,10 @@ public final class SlotConfig {
     public SlotConfig setNeuronGrowthCooldownTicks(int t) { this.neuronGrowthCooldownTicks = Math.max(0, t); return this; }
     public int getFallbackGrowthThreshold() { return Math.max(1, fallbackGrowthThreshold); }
     public SlotConfig setFallbackGrowthThreshold(int t) { this.fallbackGrowthThreshold = Math.max(1, t); return this; }
+    public boolean isFallbackGrowthRequiresSameMissingSlot() { return fallbackGrowthRequiresSameMissingSlot; }
+    public SlotConfig setFallbackGrowthRequiresSameMissingSlot(boolean v) { this.fallbackGrowthRequiresSameMissingSlot = v; return this; }
+    public double getMinDeltaPctForGrowth() { return minDeltaPctForGrowth; }
+    public SlotConfig setMinDeltaPctForGrowth(double v) { this.minDeltaPctForGrowth = v; return this; }
 
     private static double clampPct(double value, double lowerBound, double upperBound) {
         if (Double.isNaN(value) || Double.isInfinite(value)) return lowerBound;

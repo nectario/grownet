@@ -75,6 +75,14 @@ public final class SlotEngine {
             }
         }
         neuron.lastSlotUsedFallback = useFallback;
+        if (useFallback) {
+            neuron.lastMissingSlotId = sidDesired;
+            neuron.lastMaxAxisDeltaPct = deltaPct;
+        } else {
+            neuron.fallbackStreak = 0;
+            neuron.prevMissingSlotId = -1;
+            neuron.lastMissingSlotId = -1;
+        }
         return sid;
     }
 
@@ -95,6 +103,8 @@ public final class SlotEngine {
         // Simple absolute-bin model aligned with V5 parity (row/col bins by absolute delta)
         int rowBin = Math.abs(row - neuron.anchorRow);
         int colBin = Math.abs(col - neuron.anchorCol);
+        double rowDeltaPct = Math.abs(row - neuron.anchorRow) / Math.max(Math.abs(neuron.anchorRow), cfg.getEpsilonScale()) * 100.0;
+        double colDeltaPct = Math.abs(col - neuron.anchorCol) / Math.max(Math.abs(neuron.anchorCol), cfg.getEpsilonScale()) * 100.0;
 
         int effectiveLimit = (neuron.slotLimit >= 0 ? neuron.slotLimit : cfg.getSlotLimit());
         boolean atCapacity = (effectiveLimit > 0 && neuron.getSlots().size() >= effectiveLimit);
@@ -118,6 +128,14 @@ public final class SlotEngine {
             }
         }
         neuron.lastSlotUsedFallback = useFallback;
+        if (useFallback) {
+            neuron.lastMissingSlotId = desiredKey;
+            neuron.lastMaxAxisDeltaPct = Math.max(rowDeltaPct, colDeltaPct);
+        } else {
+            neuron.fallbackStreak = 0;
+            neuron.prevMissingSlotId = -1;
+            neuron.lastMissingSlotId = -1;
+        }
         return key;
     }
 }

@@ -75,15 +75,31 @@ struct Layer:
             var neuron_core = neuron_list[neuron_list_index]
             var slot_config = neuron_core.slot_cfg
             if slot_config.growth_enabled and slot_config.neuron_growth_enabled:
-                var at_capacity: Bool = (neuron_core.slot_limit >= 0) and (Int(neuron_core.slots.size()) >= neuron_core.slot_limit)
-                if at_capacity and neuron_core.last_slot_used_fallback:
-                    if neuron_core.fallback_streak >= (if slot_config.fallback_growth_threshold > 0 then slot_config.fallback_growth_threshold else 1):
-                        var cooldown = if slot_config.neuron_growth_cooldown_ticks > 0 then slot_config.neuron_growth_cooldown_ticks else 0
-                        if (neuron_core.last_growth_tick < 0) or (now - neuron_core.last_growth_tick >= cooldown):
-                            # Grow same kind via helper (includes autowiring)
-                            var new_unified_index = self.try_grow_neuron(neuron_core)
-                            neuron_core.last_growth_tick = now
-                            neuron_core.fallback_streak = 0
+                if not neuron_core.last_slot_used_fallback:
+                    neuron_core.fallback_streak = 0
+                    neuron_core.prev_missing_slot_id = -1
+                    neuron_core.last_missing_slot_id = -1
+                else:
+                    if slot_config.min_delta_pct_for_growth > 0.0 and neuron_core.last_max_axis_delta_pct < slot_config.min_delta_pct_for_growth:
+                        neuron_core.fallback_streak = 0
+                        neuron_core.prev_missing_slot_id = -1
+                    else:
+                        if slot_config.fallback_growth_requires_same_missing_slot:
+                            if neuron_core.prev_missing_slot_id == neuron_core.last_missing_slot_id:
+                                neuron_core.fallback_streak = neuron_core.fallback_streak + 1
+                            else:
+                                neuron_core.fallback_streak = 1
+                                neuron_core.prev_missing_slot_id = neuron_core.last_missing_slot_id
+                        else:
+                            neuron_core.fallback_streak = neuron_core.fallback_streak + 1
+                        if neuron_core.fallback_streak >= (if slot_config.fallback_growth_threshold > 0 then slot_config.fallback_growth_threshold else 1):
+                            var cooldown = if slot_config.neuron_growth_cooldown_ticks > 0 then slot_config.neuron_growth_cooldown_ticks else 0
+                            if (neuron_core.last_growth_tick < 0) or (now - neuron_core.last_growth_tick >= cooldown):
+                                var new_unified_index = self.try_grow_neuron(neuron_core)
+                                neuron_core.last_growth_tick = now
+                                neuron_core.fallback_streak = 0
+                                neuron_core.prev_missing_slot_id = -1
+                                neuron_core.last_missing_slot_id = -1
             neuron_list_index = neuron_list_index + 1
         # Bus decay increments current_step
         self.bus.decay()

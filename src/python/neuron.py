@@ -31,7 +31,10 @@ class Neuron:
         # growth bookkeeping
         self.owner = None  # set by Layer when neuron is added to a layer
         self.last_slot_used_fallback = False
+        self.prev_missing_slot_id = None
+        self.last_missing_slot_id = None
         self.fallback_streak = 0
+        self.last_max_axis_delta_pct = 0.0
         self.last_growth_tick = -1
 
     # ---------- infrastructure ----------
@@ -215,13 +218,31 @@ class Neuron:
             return
         # Only escalate when capacity clamp is active and fallback was used
         at_capacity = (self.slot_limit >= 0 and len(self.slots) >= self.slot_limit)
-        if at_capacity and bool(getattr(self, "last_slot_used_fallback", False)):
-            self.fallback_streak += 1
-        else:
+        if not (at_capacity and bool(getattr(self, "last_slot_used_fallback", False))):
             self.fallback_streak = 0
+            self.prev_missing_slot_id = None
+            self.last_missing_slot_id = None
+            return
+
+        # Guard: min delta magnitude
+        min_delta = float(getattr(cfg, "min_delta_pct_for_growth", 0.0))
+        if min_delta > 0.0 and self.last_max_axis_delta_pct < min_delta:
+            self.fallback_streak = 0
+            self.prev_missing_slot_id = None
+            return
+
+        # Guard: require same missing slot id on consecutive ticks
+        if bool(getattr(cfg, "fallback_growth_requires_same_missing_slot", False)):
+            if self.prev_missing_slot_id == self.last_missing_slot_id:
+                self.fallback_streak += 1
+            else:
+                self.fallback_streak = 1
+                self.prev_missing_slot_id = self.last_missing_slot_id
+        else:
+            self.fallback_streak += 1
+
         threshold = int(getattr(cfg, "fallback_growth_threshold", 3))
         if self.fallback_streak >= max(1, threshold) and self.owner is not None:
-            # cooldown
             now = 0
             try:
                 if self.bus is not None and hasattr(self.bus, "get_current_step"):
@@ -238,3 +259,5 @@ class Neuron:
                 except Exception:
                     pass
             self.fallback_streak = 0
+            self.prev_missing_slot_id = None
+            self.last_missing_slot_id = None

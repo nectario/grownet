@@ -36,6 +36,9 @@ class SlotConfig:
     fallback_growth_threshold = 3
     # Cooldown (ticks) to avoid thrash between growth events
     neuron_growth_cooldown_ticks = 0
+    # Optional stricter guards (opt-in; defaults preserve existing behaviour)
+    fallback_growth_requires_same_missing_slot = False
+    min_delta_pct_for_growth = 0.0
     # Layer-level default max neurons (-1 = unlimited). A Layer may override.
     layer_neuron_limit_default = -1
 

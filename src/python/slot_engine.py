@@ -60,10 +60,8 @@ class SlotEngine:
         # Choose actual sid
         if use_fallback and limit > 0:
             sid = (limit - 1)
-            if sid not in slots:
-                # Reuse any existing slot (no allocation at capacity). If none exist, create the first.
-                if slots:
-                    sid = next(iter(slots.keys()))
+            if sid not in slots and slots:
+                sid = next(iter(slots.keys()))
         else:
             sid = sid_desired
 
@@ -77,6 +75,13 @@ class SlotEngine:
 
         try:
             neuron.last_slot_used_fallback = bool(use_fallback)
+            if use_fallback:
+                neuron.last_missing_slot_id = sid_desired
+                neuron.last_max_axis_delta_pct = float(delta_pct)
+            else:
+                neuron.fallback_streak = 0
+                neuron.prev_missing_slot_id = None
+                neuron.last_missing_slot_id = None
         except Exception:
             pass
         return slots[sid]
@@ -156,6 +161,16 @@ class SlotEngine:
                 slots[key] = Weight()
         try:
             neuron.last_slot_used_fallback = bool(use_fallback)
+            if use_fallback:
+                eps = max(1.0, float(getattr(cfg, "epsilon_scale", 1.0)))
+                row_delta_pct = abs(int(row) - anchor_row) / max(abs(anchor_row), eps) * 100.0
+                col_delta_pct = abs(int(col) - anchor_col) / max(abs(anchor_col), eps) * 100.0
+                neuron.last_max_axis_delta_pct = max(row_delta_pct, col_delta_pct)
+                neuron.last_missing_slot_id = key_desired
+            else:
+                neuron.fallback_streak = 0
+                neuron.prev_missing_slot_id = None
+                neuron.last_missing_slot_id = None
         except Exception:
             pass
         return slots[key]

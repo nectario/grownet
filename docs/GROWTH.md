@@ -16,6 +16,18 @@ layer will add a new neuron.
 - Toggles: `growth_enabled=True`, `neuron_growth_enabled=True` (defaults).
 - Limits: `Layer.neuron_limit` (or `SlotConfig.layer_neuron_limit_default`) can cap the layer’s size.
 
+### Optional stricter neuron-growth guards
+
+Two opt-in knobs provide additional control without changing defaults:
+
+- `fallback_growth_requires_same_missing_slot` (bool, default `False`)
+  - Only count toward the growth streak when the same missing slot id is requested on consecutive ticks.
+- `min_delta_pct_for_growth` (float, default `0.0`)
+  - Gate growth by novelty magnitude; only fallback events with a delta percentage at or above this threshold contribute to the streak.
+  - For 2D slots the gate uses `max(row_delta_pct, col_delta_pct)`.
+
+These guards reset the fallback streak whenever the conditions are not met. Ordinary mid-range slots (like 10–20%) never trigger growth on their own; capacity and fallback streak are still required.
+
 ## Wiring the new neuron
 
 - For random mesh connections created via `Region.connect_layers(...)`, the region stores a rule.
