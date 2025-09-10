@@ -66,6 +66,17 @@ if(EXISTS "${GROWNET_DEMO_WINDOWED}")
     )
 endif()
 
+# Windowed unique sources demo
+set(GROWNET_DEMO_WINDOWED_UNIQ "${GROWNET_CPP_ROOT}/demo/demo_windowed_unique_sources.cpp")
+if(EXISTS "${GROWNET_DEMO_WINDOWED_UNIQ}")
+    add_executable(demo_windowed_unique_sources "${GROWNET_DEMO_WINDOWED_UNIQ}")
+    target_link_libraries(demo_windowed_unique_sources PRIVATE grownet)
+    target_include_directories(demo_windowed_unique_sources PRIVATE
+            "${GROWNET_CPP_ROOT}"
+            "${GROWNET_CPP_ROOT}/grownet"
+    )
+endif()
+
 # ------------------------ Tests (GTest + CTest) ------------------------
 include(CTest)
 option(GROWNET_BUILD_TESTS "Build C++ tests for GrowNet" ON)

@@ -87,6 +87,8 @@ public:
     // Convenience overload: pass shape as {H,W}
     void bindInput2D(const std::string& port, const std::vector<int>& shape, double gain, double epsilonFire, const std::vector<int>& attachLayers);
     int addInputLayer2D(int height, int width, double gain, double epsilonFire);
+    // Convenience alias used by some tests/demos
+    int addInput2DLayer(int height, int width) { return addInputLayer2D(height, width, 1.0, 0.01); }
     int addOutputLayer2D(int height, int width, double smoothing);
     void bindOutput(const std::string& port, const std::vector<int>& layerIndices);
 
