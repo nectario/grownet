@@ -41,9 +41,11 @@ static void test_pulse_checks() {
     assert(std::abs(bus.getInhibitionFactor() - 0.7 * 0.9) < 1e-9);
 }
 
+#ifndef GTEST_AVAILABLE
 int main() {
     test_multi_layer_input_binding();
     test_pulse_checks();
     std::cout << "[C++] RegionPulseAndBindingTests passed." << std::endl;
     return 0;
 }
+#endif

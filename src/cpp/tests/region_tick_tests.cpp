@@ -40,6 +40,7 @@ static void test_image_input_event_count() {
     assert(m.deliveredEvents == 1);
 }
 
+#ifndef GTEST_AVAILABLE
 int main() {
     test_single_tick_no_tracts();
     test_connect_layers_full_mesh();
@@ -47,3 +48,4 @@ int main() {
     std::cout << "[C++] All RegionTick tests passed." << std::endl;
     return 0;
 }
+#endif
