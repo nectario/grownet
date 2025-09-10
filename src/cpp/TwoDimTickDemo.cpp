@@ -37,9 +37,9 @@ int main() {
     frame[3][4] = 1.0;
 
     auto m1 = region.tick2D("pixels", frame);
-    std::cout << "tick#1 delivered=" << m1.delivered_events
-              << " slots=" << m1.total_slots
-              << " synapses=" << m1.total_synapses
+    std::cout << "tick#1 delivered=" << m1.deliveredEvents
+              << " slots=" << m1.totalSlots
+              << " synapses=" << m1.totalSynapses
               << " active=" << m1.activePixels
               << " centroid=(" << m1.centroidRow << "," << m1.centroidCol << ")"
               << " bbox=(" << m1.bboxRowMin << "," << m1.bboxRowMax << ","
@@ -48,9 +48,9 @@ int main() {
     frame[3][4] = 0.0;
     frame[5][6] = 1.0;
     auto m2 = region.tick2D("pixels", frame);
-    std::cout << "tick#2 delivered=" << m2.delivered_events
-              << " slots=" << m2.total_slots
-              << " synapses=" << m2.total_synapses
+    std::cout << "tick#2 delivered=" << m2.deliveredEvents
+              << " slots=" << m2.totalSlots
+              << " synapses=" << m2.totalSynapses
               << " active=" << m2.activePixels
               << " centroid=(" << m2.centroidRow << "," << m2.centroidCol << ")"
               << " bbox=(" << m2.bboxRowMin << "," << m2.bboxRowMax << ","
