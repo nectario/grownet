@@ -18,14 +18,15 @@ set(GROWNET_CPP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp")
 file(GLOB_RECURSE GROWNET_ALL_CPP "${GROWNET_CPP_ROOT}/*.cpp")
 set(GROWNET_LIB_SOURCES ${GROWNET_ALL_CPP})
 foreach(_src IN LISTS GROWNET_ALL_CPP)
-    # Exclude demo programs and tests from the core library target
-    if(_src MATCHES "/demo/")
+    # Exclude demo programs and tests from the core library target (Windows or POSIX paths)
+    if(_src MATCHES "[/\\]demo[/\\]")
         list(REMOVE_ITEM GROWNET_LIB_SOURCES "${_src}")
-    elseif(_src MATCHES "/tests/")
+    elseif(_src MATCHES "[/\\]tests[/\\]")
         list(REMOVE_ITEM GROWNET_LIB_SOURCES "${_src}")
-    elseif(_src MATCHES "[/\\]Demo.*\\.cpp$")
+    # Any filename containing 'Demo' or 'demo_' should not go into the library
+    elseif(_src MATCHES ".*[dD]emo.*\\.cpp$")
         list(REMOVE_ITEM GROWNET_LIB_SOURCES "${_src}")
-    elseif(_src MATCHES "[/\\]demo_.*\\.cpp$")
+    elseif(_src MATCHES ".*demo_.*\\.cpp$")
         list(REMOVE_ITEM GROWNET_LIB_SOURCES "${_src}")
     endif()
 endforeach()
@@ -56,22 +57,22 @@ else()
 endif()
 
 # Windowed parity demo
-set(GROWNET_DEMO_WINDOWED "${GROWNET_CPP_ROOT}/demo/demo_windowed_parity.cpp")
+set(GROWNET_DEMO_WINDOWED "${GROWNET_CPP_ROOT}/demo/DemoWindowedParity.cpp")
 if(EXISTS "${GROWNET_DEMO_WINDOWED}")
-    add_executable(demo_windowed_parity "${GROWNET_DEMO_WINDOWED}")
-    target_link_libraries(demo_windowed_parity PRIVATE grownet)
-    target_include_directories(demo_windowed_parity PRIVATE
+    add_executable(DemoWindowedParity "${GROWNET_DEMO_WINDOWED}")
+    target_link_libraries(DemoWindowedParity PRIVATE grownet)
+    target_include_directories(DemoWindowedParity PRIVATE
             "${GROWNET_CPP_ROOT}"
             "${GROWNET_CPP_ROOT}/grownet"
     )
 endif()
 
 # Windowed unique sources demo
-set(GROWNET_DEMO_WINDOWED_UNIQ "${GROWNET_CPP_ROOT}/demo/demo_windowed_unique_sources.cpp")
+set(GROWNET_DEMO_WINDOWED_UNIQ "${GROWNET_CPP_ROOT}/demo/DemoWindowedUniqueSources.cpp")
 if(EXISTS "${GROWNET_DEMO_WINDOWED_UNIQ}")
-    add_executable(demo_windowed_unique_sources "${GROWNET_DEMO_WINDOWED_UNIQ}")
-    target_link_libraries(demo_windowed_unique_sources PRIVATE grownet)
-    target_include_directories(demo_windowed_unique_sources PRIVATE
+    add_executable(DemoWindowedUniqueSources "${GROWNET_DEMO_WINDOWED_UNIQ}")
+    target_link_libraries(DemoWindowedUniqueSources PRIVATE grownet)
+    target_include_directories(DemoWindowedUniqueSources PRIVATE
             "${GROWNET_CPP_ROOT}"
             "${GROWNET_CPP_ROOT}/grownet"
     )
