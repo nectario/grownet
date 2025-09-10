@@ -84,6 +84,8 @@ public:
 
     void bindInput(const std::string& port, const std::vector<int>& layerIndices);
     void bindInput2D(const std::string& port, int height, int width, double gain, double epsilonFire, const std::vector<int>& attachLayers);
+    // Convenience overload: pass shape as {H,W}
+    void bindInput2D(const std::string& port, const std::vector<int>& shape, double gain, double epsilonFire, const std::vector<int>& attachLayers);
     int addInputLayer2D(int height, int width, double gain, double epsilonFire);
     int addOutputLayer2D(int height, int width, double smoothing);
     void bindOutput(const std::string& port, const std::vector<int>& layerIndices);

@@ -47,6 +47,7 @@ struct SlotConfig {
     SlotConfig& setNeuronGrowthCooldownTicks(int ticks)  { neuronGrowthCooldownTicks = (ticks < 0 ? 0 : ticks); return *this; }
     SlotConfig& setFallbackGrowthRequiresSameMissingSlot(bool v) { fallbackGrowthRequiresSameMissingSlot = v; return *this; }
     SlotConfig& setMinDeltaPctForGrowth(double v) { minDeltaPctForGrowth = v; return *this; }
+    SlotConfig& setSlotLimit(int v) { slotLimit = v; return *this; }
 };
 
 } // namespace grownet

@@ -23,7 +23,7 @@ public:
   void attachSourceNeuron(int /*newSourceIndex*/) {}
 
   // Accessors used by Region:
-  bool destinationIsOutput2D() const { return destIsOutput2D_; }
+  bool destinationIsOutput2D() const { return destIsOutput2D; }
   const std::vector<std::pair<int,int>>& sourceToCenterEdges() const { return sourceCenterEdges_; }
   const std::unordered_set<int>& allowedSourceIndices() const { return allowedSources_; }
 
@@ -50,4 +50,3 @@ private:
 };
 
 } // namespace grownet
-

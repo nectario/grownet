@@ -74,12 +74,24 @@ autowiring:
     - when a source-layer neuron grows, re-attach it via `tract.attach_source_neuron(new_idx)`
     - for `OutputLayer2D`, map each sliding window to its **center** target index
 
+  proximity_autowiring (optional policy, sidecar module):
+    - purpose: deterministic adjacency wiring based on geometric proximity in a fixed layout
+    - timing: invoked once per tick after Phase‑B propagation and before `end_tick()/bus.decay()`
+    - layout: pure function `position(region_name, layer_index, neuron_index, h, w)`; grid spacing=1.2, layer spacing=4.0
+    - search: 3×3×3 spatial hash buckets; verify true Euclidean distance ≤ radius
+    - probability: STEP (p∈{0,1}), LINEAR, LOGISTIC; probabilistic modes must use Region RNG (no global randomness)
+    - budget & cooldown: per‑tick max edges; per‑source cooldown is applied even if zero edges are added; per‑region per‑step guard (apply at most once per step)
+    - directionality: edges are directed; reciprocal edges may be formed over multiple ticks
+    - mesh rules: if a new edge is cross‑layer and enabled, record a mesh rule (Python implementation)
+    - safety: policy is additive; no core objects are modified beyond invoking existing connect APIs
+
 language_parity:
   python:
     - strict capacity (scalar & 2D), fallback marking, prefer-last-slot-once, owner backrefs
     - neuron growth via per-neuron escalation; region growth policy supports OR-trigger and cooldown
     - windowed tracts implemented; `attach_source_neuron` present
     - `request_layer_growth` uses p=1.0 wiring
+    - proximity policy available (`policy/proximity_connectivity.py`); per‑source cooldown and per‑step guard implemented
   cxx:
     - SlotEngine strict capacity (scalar & 2D) + fallback marking
     - `preferLastSlotOnce` honored in selectors; bus `currentStep` increments in `decay()`
@@ -87,19 +99,25 @@ language_parity:
       fallbackGrowthThreshold, neuronGrowthCooldownTicks
     - Neuron triggers growth via config-driven fallback-streak + cooldown; Layer grows same kind
     - Region records mesh rules; `requestLayerGrowth` uses p=1.0
+    - proximity policy scaffolding present (headers + stub); not integrated into Region tick yet
   java:
     - SlotEngine strict capacity (scalar & 2D) + fallback marking; one-shot reuse after unfreeze
     - GrowthPolicy: avg-slots threshold, max layers, cooldown, **percent-at-cap-fallback** OR-trigger
     - Region growth deterministic; mesh rules recorded; windowed wiring + `Tract.attachSourceNeuron`
     - owner backrefs on Input/Output 2D and ND inputs
+    - `Region.bindInput(...)` accepts an `InputLayer2D` as the edge (2D convenience parity)
+    - unfreeze prefers the originally frozen slot exactly once (tracks a specific slot id)
+    - proximity policy available (`policy` package); per‑source cooldown + per‑region per‑step guard
   mojo:
     - `struct` + `fn` with typed params (no leading underscores)
     - strict capacity (scalar & 2D) + fallback marking
     - `prefer_last_slot_once` implemented; bus decay parity (mult. inhibition, modulation=1.0, step++)
     - `connect_layers_windowed` implemented (unique sources + center rule for OutputLayer2D)
     - `try_grow_neuron(seed)` grows same kind and calls `region.autowire_new_neuron_by_ref(...)`
+    - proximity policy available (STEP mode focus); benchmarked via tests; timing via wall‑clock in scripts
 
 style_and_conventions:
+
   - Python & Mojo: **no names starting with `_`** (no leading-underscore identifiers)
   - Mojo: use `struct`, `fn`, and **typed** parameters
   - No single/double-character variable names in any language
@@ -121,15 +139,33 @@ switches_and_defaults:
     - percentAtCapFallbackThreshold: 0.0 (off) → set >0 to enable OR-trigger
 
 tests_and_demos:
-  - python: growth tests exist (fallback → neuron growth; autowiring smoke)
-  - java: growth smoke; windowed wiring present; add tests for OR-trigger if desired
-  - cxx/mojo: consider adding focused tests for unfreeze preference and windowed return semantics
+
+  - python:
+    - growth tests (fallback → neuron growth; autowiring smoke)
+    - bus decay parity; one‑growth‑per‑tick invariant
+    - stress: HD 1920×1080 + Retina/Topographic single‑tick timing
+  - java:
+    - growth smoke; windowed wiring; OR‑trigger tests
+    - bus decay parity; frozen slots; one‑growth‑per‑tick invariant
+    - proximity STEP (budget + cooldown) test
+    - stress: HD 1920×1080 + Retina/Topographic single‑tick timing
+  - cxx:
+    - bus decay test; one‑growth‑per‑tick test; edge/windowed wiring smoke
+    - stress: HD 1920×1080 + Retina/Topographic single‑tick timing (gtest)
+    - proximity STEP placeholder test (disabled) until integrated into Region
+  - mojo:
+    - bus decay test; frozen slots test; one‑growth‑per‑tick test
+    - stress: HD 1920×1080 + Retina/Topographic single‑tick execution (timing observed via wall‑clock in script)
+  - benchmarking:
+    - `scripts/run_stress_bench.sh` runs HD + Retina stress across languages and prints a timing table; docs in `docs/BENCHMARKS.md`
 
 open_items_to_watch:
+
   - Keep windowed-tract re-attach verified across Java/Mojo as code evolves
   - Maintain “one growth per tick” invariant at region level
   - Ensure `owner` backrefs are set for any new layer types
-
+  - Integrate proximity policy in C++ Region tick; enable STEP tests and parity with Python/Java/Mojo
+  - Consider CI matrix for stress script on a fixed runner to track regressions
 
 ---END PROJECT MEMORY---
 

@@ -2,6 +2,7 @@
 #pragma once
 #include <cmath>
 #include <tuple>
+#include <string>
 
 namespace grownet {
 
@@ -32,4 +33,3 @@ struct DeterministicLayout {
 };
 
 } // namespace grownet
-

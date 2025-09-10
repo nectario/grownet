@@ -357,6 +357,12 @@ RegionMetrics Region::tickImage(const std::string& port, const std::vector<std::
     return tick2D(port, frame);
 }
 
+void Region::bindInput2D(const std::string& port, const std::vector<int>& shape, double gain, double epsilonFire, const std::vector<int>& attachLayers) {
+    int h = (shape.size() > 0 ? shape[0] : 0);
+    int w = (shape.size() > 1 ? shape[1] : 0);
+    bindInput2D(port, h, w, gain, epsilonFire, attachLayers);
+}
+
 // General 2D tick (preferred)
 RegionMetrics Region::tick2D(const std::string& port, const std::vector<std::vector<double>>& frame) {
     RegionMetrics metrics;
