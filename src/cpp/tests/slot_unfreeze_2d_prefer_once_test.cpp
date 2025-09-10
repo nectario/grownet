@@ -5,11 +5,13 @@
 #include <gtest/gtest.h>
 #include <vector>
 
-#include "Region.h"          // ADAPT
-#include "Layer.h"           // ADAPT
-#include "SlotConfig.h"      // ADAPT
-#include "InputLayer2D.h"    // ADAPT
-#include "OutputLayer2D.h"   // ADAPT
+#include "Region.h"
+#include "Layer.h"
+#include "SlotConfig.h"
+#include "InputLayer2D.h"
+#include "OutputLayer2D.h"
+
+using namespace grownet;
 
 // Helper to drive one tick with a 2D frame.
 // ADAPT: If your API uses different names (tickImage, tick2D, setInputFrame), change here.

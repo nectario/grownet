@@ -14,22 +14,17 @@ endif()
 # Adjust if your sources live elsewhere
 set(GROWNET_CPP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/src/cpp")
 
-# Collect .cpp sources for the library, but exclude demo
-file(GLOB_RECURSE GROWNET_ALL_CPP "${GROWNET_CPP_ROOT}/*.cpp")
+# Collect .cpp sources for the library, then exclude tests and demos robustly
+file(GLOB_RECURSE GROWNET_ALL_CPP CONFIGURE_DEPENDS "${GROWNET_CPP_ROOT}/*.cpp")
 set(GROWNET_LIB_SOURCES ${GROWNET_ALL_CPP})
-foreach(_src IN LISTS GROWNET_ALL_CPP)
-    # Exclude demo programs and tests from the core library target (Windows or POSIX paths)
-    if(_src MATCHES "[/\\]demo[/\\]")
-        list(REMOVE_ITEM GROWNET_LIB_SOURCES "${_src}")
-    elseif(_src MATCHES "[/\\]tests[/\\]")
-        list(REMOVE_ITEM GROWNET_LIB_SOURCES "${_src}")
-    # Any filename containing 'Demo' or 'demo_' should not go into the library
-    elseif(_src MATCHES ".*[dD]emo.*\\.cpp$")
-        list(REMOVE_ITEM GROWNET_LIB_SOURCES "${_src}")
-    elseif(_src MATCHES ".*demo_.*\\.cpp$")
-        list(REMOVE_ITEM GROWNET_LIB_SOURCES "${_src}")
-    endif()
-endforeach()
+
+# Exclude tests/ and demo/ folders from the core library
+list(FILTER GROWNET_LIB_SOURCES EXCLUDE REGEX ".*[/\\]tests[/\\].*")
+list(FILTER GROWNET_LIB_SOURCES EXCLUDE REGEX ".*[/\\]demo[/\\].*")
+
+# Exclude any top-level demo sources under src/cpp (TwoDimTickDemo.cpp, RegionDemo.cpp, ImageIODemo.cpp, etc.)
+list(FILTER GROWNET_LIB_SOURCES EXCLUDE REGEX ".*[/\\](Demo.*|demo_.*|.*Demo.*|.*demo.*)\\.cpp$")
+list(FILTER GROWNET_LIB_SOURCES EXCLUDE REGEX ".*[/\\](TwoDimTickDemo|RegionDemo|ImageIODemo|DemoMain)\\.cpp$")
 
 if(NOT GROWNET_LIB_SOURCES)
     message(FATAL_ERROR "No library sources found under ${GROWNET_CPP_ROOT}. \

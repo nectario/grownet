@@ -5,10 +5,12 @@
 #include <vector>
 #include <cmath>
 
-#include "Region.h"         // ADAPT
-#include "GrowthPolicy.h"   // ADAPT
-#include "SlotConfig.h"     // ADAPT
-#include "InputLayer2D.h"   // ADAPT
+#include "Region.h"
+#include "GrowthPolicy.h"
+#include "SlotConfig.h"
+#include "InputLayer2D.h"
+
+using namespace grownet;
 
 static void drive_tick_with_uniform_frame(Region& region,
                                           int input_layer_index,
