@@ -1,5 +1,8 @@
 #include "Region.h"
 #include "InputLayerND.h"
+#include "ProximityConfig.h"
+#include "ProximityEngine.h"
+#include "TractWindowed.h"
 #include <random>
 #include <cstdlib>
 #include <stdexcept>
@@ -67,113 +70,70 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
     if (destIndex < 0 || destIndex >= static_cast<int>(layers.size()))
         throw std::out_of_range("destIndex out of range");
 
-    auto* src = dynamic_cast<InputLayer2D*>(layers[sourceIndex].get());
-    if (!src) throw std::invalid_argument("connectLayersWindowed requires src to be InputLayer2D");
-    auto* dstOut = dynamic_cast<OutputLayer2D*>(layers[destIndex].get());
+    auto* src2d = dynamic_cast<InputLayer2D*>(layers[sourceIndex].get());
+    if (!src2d) throw std::invalid_argument("connectLayersWindowed requires src to be InputLayer2D");
+    auto* dstOut2d = dynamic_cast<OutputLayer2D*>(layers[destIndex].get());
     // (no local 'dstAny' needed; branches use 'dstNeurons' or OutputLayer2D directly)
 
     // Use explicit accessors on InputLayer2D
-    const int height = src->getHeight();
-    const int width  = src->getWidth();
+    const int sourceHeight = src2d->getHeight();
+    const int sourceWidth  = src2d->getWidth();
 
     const int kernelHeight = kernelH;
     const int kernelWidth  = kernelW;
     const int strideHeight = std::max(1, strideH);
     const int strideWidth  = std::max(1, strideW);
-    const bool same = (padding == "same" || padding == "SAME");
+    const bool samePadding = (padding == "same" || padding == "SAME");
 
-    std::vector<std::pair<int,int>> origins; origins.reserve(128);
-    if (same) {
-        const int padRows = std::max(0, (kernelHeight - 1) / 2);
-        const int padCols = std::max(0, (kernelWidth - 1) / 2);
-        for (int row = -padRows; row + kernelHeight <= height + padRows + padRows; row += strideHeight) {
-            for (int col = -padCols; col + kernelWidth <= width + padCols + padCols; col += strideWidth) {
-                origins.emplace_back(row, col);
-            }
-        }
-    } else {
-        for (int row = 0; row + kernelHeight <= height; row += strideHeight) {
-            for (int col = 0; col + kernelWidth <= width; col += strideWidth) {
-                origins.emplace_back(row, col);
-            }
-        }
-    }
+    const int destH = dstOut2d ? dstOut2d->getHeight() : 0;
+    const int destW = dstOut2d ? dstOut2d->getWidth()  : 0;
 
-    // Build allowed source set; if dest is OutputLayer2D, connect (src -> center) with dedupe.
-    std::vector<char> allowedMask(static_cast<size_t>(height) * static_cast<size_t>(width), 0);
-    auto& srcNeurons = src->getNeurons();
+    auto windowedPtr = std::make_unique<TractWindowed>(
+        sourceIndex, destIndex,
+        kernelHeight, kernelWidth,
+        strideHeight, strideWidth,
+        samePadding, (dstOut2d != nullptr), destH, destW);
+    windowedPtr->buildFromSourceGrid(sourceHeight, sourceWidth);
+
+    int uniqueSources = 0;
+    auto& srcNeurons = src2d->getNeurons();
     auto& dstNeurons = layers[destIndex]->getNeurons();
 
-    if (dstOut) {
-        std::unordered_set<unsigned long long> made; // dedup (srcIdx, centerIdx)
-        for (auto [originRow, originCol] : origins) {
-            const int rowStart = std::max(0, originRow), colStart = std::max(0, originCol);
-            const int rowEnd = std::min(height, originRow + kernelHeight), colEnd = std::min(width, originCol + kernelWidth);
-            if (rowStart >= rowEnd || colStart >= colEnd) continue;
-
-            // Compute center in source coordinates (floor midpoint), then clamp to DEST shape.
-            const int srcCenterRow = std::min(height - 1, std::max(0, originRow + kernelHeight / 2));
-            const int srcCenterCol = std::min(width  - 1, std::max(0, originCol + kernelWidth / 2));
-            const int destHeight = dstOut->getHeight();
-            const int destWidth  = dstOut->getWidth();
-            const int centerRow = std::min(destHeight - 1, std::max(0, srcCenterRow));
-            const int centerCol = std::min(destWidth  - 1, std::max(0, srcCenterCol));
-            const int centerIdx = centerRow * destWidth + centerCol;
-
-            for (int rowIdx = rowStart; rowIdx < rowEnd; ++rowIdx) {
-                for (int colIdx = colStart; colIdx < colEnd; ++colIdx) {
-                    const int srcIdx = rowIdx * width + colIdx;
-                    allowedMask[srcIdx] = 1;
-
-                    const unsigned long long key = pack_u32_pair(srcIdx, centerIdx);
-                    if (!made.insert(key).second) continue;
-
-                    if (srcIdx >= 0 && srcIdx < static_cast<int>(srcNeurons.size()) &&
-                        centerIdx >= 0 && centerIdx < static_cast<int>(dstNeurons.size())) {
-                        auto sourceNeuron = srcNeurons[srcIdx];
-                        auto targetNeuron = dstNeurons[centerIdx];
-                        if (sourceNeuron && targetNeuron) sourceNeuron->connect(targetNeuron.get(), feedback);
-                    }
-                }
+    if (dstOut2d) {
+        std::unordered_set<int> seenSources;
+        for (const auto& edge : windowedPtr->sourceToCenterEdges()) {
+            const int srcIdx = edge.first;
+            const int centerIdx = edge.second;
+            if (seenSources.insert(srcIdx).second) uniqueSources += 1;
+            if (srcIdx >= 0 && srcIdx < static_cast<int>(srcNeurons.size()) &&
+                centerIdx >= 0 && centerIdx < static_cast<int>(dstNeurons.size())) {
+                auto sourceNeuron = srcNeurons[srcIdx];
+                auto targetNeuron = dstNeurons[centerIdx];
+                if (sourceNeuron && targetNeuron) sourceNeuron->connect(targetNeuron.get(), feedback);
             }
         }
     } else {
-        // Generic destination: connect each participating source pixel to ALL destination neurons.
-        for (auto [originRow, originCol] : origins) {
-            const int rowStart = std::max(0, originRow), colStart = std::max(0, originCol);
-            const int rowEnd = std::min(height, originRow + kernelHeight), colEnd = std::min(width, originCol + kernelWidth);
-            if (rowStart >= rowEnd || colStart >= colEnd) continue;
-            for (int rowIdx = rowStart; rowIdx < rowEnd; ++rowIdx) {
-                for (int colIdx = colStart; colIdx < colEnd; ++colIdx) {
-                    const int srcIdx = rowIdx * width + colIdx;
-                    if (!allowedMask[srcIdx]) {
-                        // first time we see this source: connect to all destinations
-                        allowedMask[srcIdx] = 1;
-                        if (srcIdx >= 0 && srcIdx < static_cast<int>(srcNeurons.size())) {
-                            auto sourceNeuron = srcNeurons[srcIdx];
-                            if (sourceNeuron) {
-                                for (auto& targetNeuron : dstNeurons) {
-                                    if (targetNeuron) sourceNeuron->connect(targetNeuron.get(), feedback);
-                                }
-                            }
-                        }
-                    }
-                }
+        const auto& allowed = windowedPtr->allowedSourceIndices();
+        uniqueSources = static_cast<int>(allowed.size());
+        for (int srcIdx : allowed) {
+            if (srcIdx < 0 || srcIdx >= static_cast<int>(srcNeurons.size())) continue;
+            auto sourceNeuron = srcNeurons[srcIdx];
+            if (!sourceNeuron) continue;
+            for (auto& targetNeuron : dstNeurons) {
+                if (targetNeuron) sourceNeuron->connect(targetNeuron.get(), feedback);
             }
         }
     }
 
-    // Count unique source subscriptions
-    int wireCount = 0;
-    for (char maskValue : allowedMask) if (maskValue) ++wireCount;
-    return wireCount;
+    windowedTracts.push_back(std::move(windowedPtr));
+    return uniqueSources;
 }
 
-void Region::autowireNewNeuron(Layer* L, int newIdx) {
+void Region::autowireNewNeuron(Layer* sourceLayerPtr, int newNeuronIndex) {
     // find layer index
     int layer_index = -1;
     for (int layer_index_iter = 0; layer_index_iter < static_cast<int>(layers.size()); ++layer_index_iter) {
-        if (layers[layer_index_iter].get() == L) { layer_index = layer_index_iter; break; }
+        if (layers[layer_index_iter].get() == sourceLayerPtr) { layer_index = layer_index_iter; break; }
     }
     if (layer_index < 0) return;
 
@@ -183,8 +143,8 @@ void Region::autowireNewNeuron(Layer* L, int newIdx) {
         if (r.src != layer_index) continue;
         auto& source_neurons = layers[layer_index]->getNeurons();
         auto& dest_neurons = layers[r.dst]->getNeurons();
-        if (newIdx < 0 || newIdx >= static_cast<int>(source_neurons.size())) continue;
-        auto source_neuron_ptr = source_neurons[newIdx].get();
+        if (newNeuronIndex < 0 || newNeuronIndex >= static_cast<int>(source_neurons.size())) continue;
+        auto source_neuron_ptr = source_neurons[newNeuronIndex].get();
         for (auto& target_neuron_ptr : dest_neurons) {
             if (uni(rng) <= r.prob) source_neuron_ptr->connect(target_neuron_ptr.get(), r.feedback);
         }
@@ -194,8 +154,8 @@ void Region::autowireNewNeuron(Layer* L, int newIdx) {
         if (r.dst != layer_index) continue;
         auto& source_neurons = layers[r.src]->getNeurons();
         auto& dest_neurons = layers[layer_index]->getNeurons();
-        if (newIdx < 0 || newIdx >= static_cast<int>(dest_neurons.size())) continue;
-        auto target_neuron = dest_neurons[newIdx].get();
+        if (newNeuronIndex < 0 || newNeuronIndex >= static_cast<int>(dest_neurons.size())) continue;
+        auto target_neuron = dest_neurons[newNeuronIndex].get();
         for (auto& source_neuron : source_neurons) {
             if (uni(rng) <= r.prob) source_neuron->connect(target_neuron, r.feedback);
         }
@@ -204,8 +164,40 @@ void Region::autowireNewNeuron(Layer* L, int newIdx) {
     // 3) Tracts where this layer is the source: subscribe the new source neuron.
     for (auto& tractPtr : tracts) {
         if (!tractPtr) continue;
-        if (tractPtr->getSourceLayer() == L) {
-            tractPtr->attachSourceNeuron(newIdx);
+        if (tractPtr->getSourceLayer() == sourceLayerPtr) {
+            tractPtr->attachSourceNeuron(newNeuronIndex);
+        }
+    }
+
+    // Re‑attach for windowed geometry
+    for (auto& win : windowedTracts) {
+        if (!win) continue;
+        if (win->sourceLayerIndex != layer_index) continue;
+
+        auto& source_neurons = layers[layer_index]->getNeurons();
+        if (newNeuronIndex < 0 || newNeuronIndex >= static_cast<int>(source_neurons.size())) continue;
+        auto source_neuron_ptr = source_neurons[newNeuronIndex];
+        if (!source_neuron_ptr) continue;
+
+        auto& dest_neurons = layers[win->destLayerIndex]->getNeurons();
+        if (win->destinationIsOutput2D()) {
+            auto lower = std::lower_bound(
+                win->sourceToCenterEdges().begin(), win->sourceToCenterEdges().end(), std::make_pair(newNeuronIndex, 0),
+                [](const std::pair<int,int>& a, const std::pair<int,int>& b){ if (a.first != b.first) return a.first < b.first; return a.second < b.second; });
+            for (auto it = lower; it != win->sourceToCenterEdges().end() && it->first == newNeuronIndex; ++it) {
+                const int centerIdx = it->second;
+                if (centerIdx >= 0 && centerIdx < static_cast<int>(dest_neurons.size())) {
+                    auto target_neuron_ptr = dest_neurons[centerIdx];
+                    if (target_neuron_ptr) source_neuron_ptr->connect(target_neuron_ptr.get(), /*feedback*/ false);
+                }
+            }
+        } else {
+            // Generic destination: if allowed, connect to all target neurons
+            if (win->allowedSourceIndices().count(newNeuronIndex) > 0) {
+                for (auto& target_neuron_ptr : dest_neurons) {
+                    if (target_neuron_ptr) source_neuron_ptr->connect(target_neuron_ptr.get(), /*feedback*/ false);
+                }
+            }
         }
     }
 }
@@ -318,6 +310,17 @@ RegionMetrics Region::tick(const std::string& port, double value) {
     layers[edgeIndex]->forward(value);
     metrics.incDeliveredEvents(1);
 
+    // Proximity pass (policy-layer), after Phase-B and before endTick/decay
+    try {
+        if (hasProximityConfig && proximityConfig.proximityConnectEnabled) {
+            const long long currentStep = bus.getCurrentStep();
+            if (currentStep != lastProximityTickStep) {
+                (void)ProximityEngine::Apply(*this, proximityConfig);
+                lastProximityTickStep = currentStep;
+            }
+        }
+    } catch (...) { /* best-effort */ }
+
     for (auto& layer : layers) layer->endTick();
     bus.decay();
 
@@ -371,6 +374,17 @@ RegionMetrics Region::tick2D(const std::string& port, const std::vector<std::vec
         throw std::invalid_argument("InputEdge for '" + port + "' is not 2D (expected InputLayer2D).");
     }
 
+    // Proximity sidecar: apply once per tick before endTick/decay
+    try {
+        if (hasProximityConfig && proximityConfig.proximityConnectEnabled) {
+            const long long currentStep = bus.getCurrentStep();
+            if (currentStep != lastProximityTickStep) {
+                (void)ProximityEngine::Apply(*this, proximityConfig);
+                lastProximityTickStep = currentStep;
+            }
+        }
+    } catch (...) { /* best-effort */ }
+
     for (auto& layer : layers) layer->endTick();
     bus.decay();
 
@@ -381,70 +395,6 @@ RegionMetrics Region::tick2D(const std::string& port, const std::vector<std::vec
         }
     }
 
-    // Optional spatial metrics (env: GROWNET_ENABLE_SPATIAL_METRICS=1 or Region flag)
-    try {
-        const char* env = std::getenv("GROWNET_ENABLE_SPATIAL_METRICS");
-        bool doSpatial = enableSpatialMetrics || (env && std::string(env) == "1");
-        if (doSpatial) {
-            // Prefer furthest downstream OutputLayer2D
-            const std::vector<std::vector<double>>* chosen = nullptr;
-            for (auto layerIter = layers.rbegin(); layerIter != layers.rend(); ++layerIter) {
-                auto out2d = dynamic_cast<OutputLayer2D*>((*layerIter).get());
-                if (out2d) { chosen = &out2d->getFrame(); break; }
-            }
-            auto isAllZero = [](const std::vector<std::vector<double>>& img) {
-                for (const auto& row : img) {
-                    for (double value : row) {
-                        if (value != 0.0) return false;
-                    }
-                }
-                return true;
-            };
-            if (!chosen) chosen = &frame;
-            else if (isAllZero(*chosen) && !isAllZero(frame)) chosen = &frame;
-
-            const auto& img = *chosen;
-            const int imageHeight = static_cast<int>(img.size());
-            const int imageWidth = imageHeight > 0 ? static_cast<int>(img[0].size()) : 0;
-            long long active = 0;
-            double total = 0.0, sumR = 0.0, sumC = 0.0;
-            int rmin = 1e9, rmax = -1, cmin = 1e9, cmax = -1;
-            for (int rowIndex = 0; rowIndex < imageHeight; ++rowIndex) {
-                const auto& rowVec = img[rowIndex];
-                const int columnLimit = std::min(imageWidth, static_cast<int>(rowVec.size()));
-                for (int colIndex = 0; colIndex < columnLimit; ++colIndex) {
-                    double pixelValue = rowVec[colIndex];
-                    if (pixelValue > 0.0) {
-                        ++active;
-                        total += pixelValue;
-                        sumR += rowIndex * pixelValue;
-                        sumC += colIndex * pixelValue;
-                        if (rowIndex < rmin) rmin = rowIndex;
-                        if (rowIndex > rmax) rmax = rowIndex;
-                        if (colIndex < cmin) cmin = colIndex;
-                        if (colIndex > cmax) cmax = colIndex;
-                    }
-                }
-            }
-            metrics.activePixels = active;
-            if (total > 0.0) {
-                metrics.centroidRow = sumR / total;
-                metrics.centroidCol = sumC / total;
-            } else {
-                metrics.centroidRow = 0.0;
-                metrics.centroidCol = 0.0;
-            }
-            if (rmax >= rmin && cmax >= cmin) {
-                metrics.bboxRowMin = rmin; metrics.bboxRowMax = rmax;
-                metrics.bboxColMin = cmin; metrics.bboxColMax = cmax;
-            } else {
-                metrics.bboxRowMin = 0; metrics.bboxRowMax = -1;
-                metrics.bboxColMin = 0; metrics.bboxColMax = -1;
-            }
-        }
-    } catch (...) {
-        // swallow any computation errors; metrics remain defaults
-    }
     // Optional spatial metrics (env: GROWNET_ENABLE_SPATIAL_METRICS=1 or Region flag)
     try {
         const char* env = std::getenv("GROWNET_ENABLE_SPATIAL_METRICS");
@@ -634,6 +584,17 @@ RegionMetrics Region::tickND(const std::string& port, const std::vector<double>&
 
     inputNd->forwardND(flat, shape);
     metrics.incDeliveredEvents(1);
+
+    // Proximity pass (policy-layer), after Phase-B and before endTick/decay
+    try {
+        if (hasProximityConfig && proximityConfig.proximityConnectEnabled) {
+            const long long currentStep = bus.getCurrentStep();
+            if (currentStep != lastProximityTickStep) {
+                (void)ProximityEngine::Apply(*this, proximityConfig);
+                lastProximityTickStep = currentStep;
+            }
+        }
+    } catch (...) { /* best-effort */ }
 
     for (auto& layer : layers) layer->endTick();
     bus.decay();

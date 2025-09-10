@@ -21,6 +21,8 @@
 #include "OutputLayer2D.h"
 #include "InputLayerND.h"
 #include "GrowthPolicy.h"
+#include "ProximityConfig.h"
+#include "TractWindowed.h"
 
 namespace grownet {
 
@@ -119,6 +121,7 @@ private:
     std::string name;
     std::vector<std::shared_ptr<Layer>> layers;      // shared_ptr keeps addresses stable
     std::vector<std::unique_ptr<Tract>> tracts;
+    std::vector<std::unique_ptr<TractWindowed>> windowedTracts; // recorded geometry for windowed wiring
     RegionBus bus;
     bool enableSpatialMetrics { false };
     struct MeshRule { int src; int dst; double prob; bool feedback; };
@@ -132,7 +135,7 @@ private:
     std::unordered_map<std::string, int> outputEdges;
 public:
     // Growth auto-wiring helpers
-    void autowireNewNeuron(Layer* layer, int newIdx);
+    void autowireNewNeuron(Layer* sourceLayerPtr, int newNeuronIndex);
     int requestLayerGrowth(Layer* saturated);
     int requestLayerGrowth(Layer* saturated, double connectionProbability);
 
@@ -141,10 +144,17 @@ public:
     const GrowthPolicy* getGrowthPolicy() const { return hasGrowthPolicy ? &growthPolicy : nullptr; }
     void maybeGrowRegion();
 
+    // Proximity policy helpers
+    void setProximityConfig(const ProximityConfig& cfg) { proximityConfig = cfg; hasProximityConfig = true; }
+    const ProximityConfig* getProximityConfig() const { return hasProximityConfig ? &proximityConfig : nullptr; }
+
 private:
     GrowthPolicy growthPolicy{};
     bool hasGrowthPolicy { false };
     long long lastRegionGrowthStep { -1 };
+    ProximityConfig proximityConfig{};
+    bool hasProximityConfig { false };
+    long long lastProximityTickStep { -1 };
 };
 
 } // namespace grownet

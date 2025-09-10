@@ -1,7 +1,8 @@
-// Optional proximity connectivity engine (sidecar). Not integrated by default.
+// Optional proximity connectivity engine (sidecar). Best-effort; no-ops by default.
 #include "DeterministicLayout.h"
 #include "SpatialHash.h"
 #include "ProximityConfig.h"
+#include "ProximityEngine.h"
 #include "Region.h"
 
 namespace grownet {
@@ -11,14 +12,10 @@ static inline double euclidean(double ax, double ay, double az, double bx, doubl
     return std::sqrt(dx*dx + dy*dy + dz*dz);
 }
 
-struct ProximityEngine {
-    // Apply proximity policy. Returns added edge count.
-    static int Apply(Region& /*region*/, const ProximityConfig& /*cfg*/) {
-        // Intentionally left unintegrated to avoid altering core Region tick.
-        // Provide a future hook to call this from Region when enabled.
-        return 0;
-    }
-};
+int ProximityEngine::Apply(Region& /*region*/, const ProximityConfig& /*cfg*/) {
+    // Intentionally a stub for now; hook is integrated into Region ticks.
+    // Implement STEP/LINEAR/LOGISTIC here as needed.
+    return 0;
+}
 
 } // namespace grownet
-

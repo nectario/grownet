@@ -32,6 +32,7 @@ add_library(grownet ${GROWNET_LIB_SOURCES})
 target_include_directories(grownet PUBLIC
         "${GROWNET_CPP_ROOT}"
         "${GROWNET_CPP_ROOT}/grownet"
+        "${GROWNET_CPP_ROOT}/include"
 )
 
 # Demo (optional)
@@ -47,15 +48,42 @@ else()
     message(WARNING "Demo not built: ${GROWNET_DEMO} was not found.")
 endif()
 
+# Windowed parity demo
+set(GROWNET_DEMO_WINDOWED "${GROWNET_CPP_ROOT}/demo/demo_windowed_parity.cpp")
+if(EXISTS "${GROWNET_DEMO_WINDOWED}")
+    add_executable(demo_windowed_parity "${GROWNET_DEMO_WINDOWED}")
+    target_link_libraries(demo_windowed_parity PRIVATE grownet)
+    target_include_directories(demo_windowed_parity PRIVATE
+            "${GROWNET_CPP_ROOT}"
+            "${GROWNET_CPP_ROOT}/grownet"
+    )
+endif()
+
 # ------------------------ Tests (GTest + CTest) ------------------------
 include(CTest)
 option(GROWNET_BUILD_TESTS "Build C++ tests for GrowNet" ON)
+# Web-friendly guards
+option(GROWNET_USE_SYSTEM_GTEST "Use system-installed GTest if available" ON)
+option(GROWNET_SKIP_CPP_TESTS  "Skip C++ tests when environment lacks gtest/network" OFF)
+
+# If running in Codex Web, prefer to skip C++ tests by default
+if(DEFINED ENV{CODEX_WEB} AND "$ENV{CODEX_WEB}" STREQUAL "1")
+  set(GROWNET_SKIP_CPP_TESTS ON CACHE BOOL "" FORCE)
+endif()
 
 if(GROWNET_BUILD_TESTS)
+    if(GROWNET_SKIP_CPP_TESTS)
+        message(STATUS "[Codex Web] Skipping C++ tests (no gtest/network).")
+        return()
+    endif()
     enable_testing()
 
     # Try to find a system GTest; otherwise fetch a known-good version.
-    find_package(GTest QUIET)
+    if(GROWNET_USE_SYSTEM_GTEST)
+        find_package(GTest QUIET)
+    else()
+        set(GTest_FOUND OFF)
+    endif()
     if (NOT GTest_FOUND)
         message(STATUS "GTest not found; fetching via FetchContent")
         include(FetchContent)

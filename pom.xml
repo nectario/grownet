@@ -100,5 +100,13 @@
                 </plugins>
             </build>
         </profile>
+
+        <!-- Codex Web: skip tests to avoid plugin/dependency resolution in network-restricted sandboxes -->
+        <profile>
+            <id>codex-web</id>
+            <properties>
+                <maven.test.skip>true</maven.test.skip>
+            </properties>
+        </profile>
     </profiles>
 </project>
