@@ -1,2 +1,0 @@
-if self.proximity_config.proximity_connect_enabled:
-    ProximityEngine.apply(self, self.proximity_config)
