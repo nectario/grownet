@@ -12,7 +12,7 @@ def smooth_clamp(
     lo: float,
     hi: float,
     soft: float | None = None,
-    smoothness: str = "cubic",
+    smoothness: str = "quintic",
 ) -> float:
     """
     Smoothly clamp x into [lo, hi] using cubic Hermite easing bands of width `soft`

@@ -17,7 +17,7 @@ struct MathUtils:
     If `soft <= 0` we pick a default soft band = 10% of the range (capped to half-range).
     If 2*soft > (hi - lo) we reduce soft to half the range, leaving no linear core.
     """
-    fn smooth_clamp(x: Float64, lo: Float64, hi: Float64, soft: Float64 = -1.0, smoothness: String = "cubic") -> Float64:
+    fn smooth_clamp(x: Float64, lo: Float64, hi: Float64, soft: Float64 = -1.0, smoothness: String = "quintic") -> Float64:
         if hi <= lo:
             return lo
 
