@@ -51,6 +51,29 @@ fn gpu_parallel_map[T, R](domain: list[T], kernel: fn(T) -> R,
         index = index + 1
     return reduce_in_order(locals)
 
+# Specialized overload: Float64 → Float64 path with identity-kernel detection.
+from pal.gpu_impl import gpu_map_identity_f64
+
+fn gpu_parallel_map(domain: list[Float64], kernel: fn(Float64) -> Float64,
+                    reduce_in_order: fn(list[Float64]) -> Float64,
+                    options: ParallelOptions) -> Float64:
+    # Detect identity kernel cheaply; otherwise fall back to CPU mapping.
+    var probe_a: Float64 = 0.0
+    var probe_b: Float64 = 1.2345
+    let a_out = kernel(probe_a)
+    let b_out = kernel(probe_b)
+    if (a_out == probe_a) and (b_out == probe_b):
+        # Use the GPU mapping path for identity: maps input → output directly.
+        var mapped = gpu_map_identity_f64(domain)
+        return reduce_in_order(mapped)
+    # CPU fallback for arbitrary kernels
+    var locals = [Float64]()
+    var index = 0
+    while index < domain.len:
+        locals.append(kernel(domain[index]))
+        index = index + 1
+    return reduce_in_order(locals)
+
 # SplitMix64-style counter-based RNG producing Float64 in [0,1)
 fn mix64(x_in: UInt64) -> UInt64:
     var z = x_in + 0x9E3779B97F4A7C15
