@@ -1,19 +1,23 @@
 # Simple utilities used across the project.
 struct MathUtils:
     """
-    Smoothly clamp x into [lo, hi] using cubic Hermite easing in a soft band
-    of width `soft` near each edge. The function is C¹ at band boundaries:
+    Smoothly clamp x into [lo, hi] using easing bands of width `soft`
+    near each edge. Choose easing via `smoothness`:
+      - "cubic"   → h(t) = t² (3 − 2t)          (C¹ continuous)
+      - "quintic" → h(t) = t³ (10 − 15t + 6t²)  (C² continuous)
+
+    The function is:
       - x <= lo                  → lo
-      - lo < x < lo+soft         → lo + soft * h(t),   t = (x - lo)/soft
+      - lo < x < lo+soft         → lo + soft * h((x - lo)/soft)
       - lo+soft <= x <= hi-soft  → x  (pass-through)
-      - hi-soft < x < hi         → hi - soft * h(t),   t = (hi - x)/soft
+      - hi-soft < x < hi         → hi - soft * h((hi - x)/soft)
       - x >= hi                  → hi
-    where h(t) = t² (3 - 2t) is the smoothstep cubic.
+    h is cubic or quintic per 'smoothness' (case-insensitive).
 
     If `soft <= 0` we pick a default soft band = 10% of the range (capped to half-range).
     If 2*soft > (hi - lo) we reduce soft to half the range, leaving no linear core.
     """
-    fn smooth_clamp(x: Float64, lo: Float64, hi: Float64, soft: Float64 = -1.0) -> Float64:
+    fn smooth_clamp(x: Float64, lo: Float64, hi: Float64, soft: Float64 = -1.0, smoothness: String = "cubic") -> Float64:
         if hi <= lo:
             return lo
 
@@ -30,15 +34,21 @@ struct MathUtils:
         if s <= 0.0:
             return x
 
+        # choose easing function h(t)
+        fn h_cubic(t: Float64) -> Float64:
+            return t * t * (3.0 - 2.0 * t)
+        fn h_quintic(t: Float64) -> Float64:
+            # t^3*(10 - 15t + 6t^2) == 6t^5 - 15t^4 + 10t^3
+            return t * t * t * (10.0 - 15.0 * t + 6.0 * t * t)
+        var is_quintic = (smoothness == "quintic") or (smoothness == "Quintic") or (smoothness == "QUINTIC")
+
         if x < (lo + s):
             let t = (x - lo) / s
-            let h = t * t * (3.0 - 2.0 * t)
-            return lo + s * h
+            return lo + s * (if is_quintic { h_quintic(t) } else { h_cubic(t) })
 
         if x > (hi - s):
             let t = (hi - x) / s
-            let h = t * t * (3.0 - 2.0 * t)
-            return hi - s * h
+            return hi - s * (if is_quintic { h_quintic(t) } else { h_cubic(t) })
 
         return x
 

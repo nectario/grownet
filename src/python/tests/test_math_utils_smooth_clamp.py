@@ -16,3 +16,9 @@ def test_smooth_clamp_default_soft():
     y = smooth_clamp(1.0, lo, hi, None)  # near lo; should be > lo and < 1.0
     assert lo < y < 1.0
 
+def test_smooth_clamp_quintic_vs_cubic():
+    lo, hi, s = 0.0, 10.0, 2.0
+    x = lo + 0.25 * s  # t=0.25 in lower band
+    yc = smooth_clamp(x, lo, hi, s, smoothness="cubic")
+    yq = smooth_clamp(x, lo, hi, s, smoothness="quintic")
+    assert yq < yc
