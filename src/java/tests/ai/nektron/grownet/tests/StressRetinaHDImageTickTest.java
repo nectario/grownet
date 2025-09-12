@@ -29,10 +29,10 @@ public class StressRetinaHDImageTickTest {
                 .setPadding("same")
                 .setWeightMode("gaussian")
                 .setNormalizeIncoming(true);
-        int unique = TopographicWiring.connectLayersTopographic(region, in, out, cfg);
+        int unique = TopographicWiring.connectLayersTopographic(region, inputLayerIndex, out, cfg);
         assertTrue(unique > 0);
 
-        region.bindInput2D("img", height, width, 1.0, 0.01, java.util.List.of(in));
+        region.bindInput2D("img", height, width, 1.0, 0.01, java.util.List.of(inputLayerIndex));
 
         // Build frame with a diagonal
         double[][] frame = new double[height][width];

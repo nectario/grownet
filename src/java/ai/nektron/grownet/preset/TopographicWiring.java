@@ -102,7 +102,7 @@ public final class TopographicWiring {
 
         // Stored weights are not applied to runtime edges in this Java variant (tract-based delivery);
         // callers can use helper to inspect incoming sums deterministically.
-        _Registry.put(region, srcIndex, dstIndex, weights);
+        Registry.put(region, srcIndex, dstIndex, weights);
         return uniqueSources;
     }
 

@@ -535,9 +535,9 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 int centerIndex = centerRow * gridWidth + centerCol;
                 for (int rowIndex = clippedRowStart; rowIndex < clippedRowEnd; ++rowIndex) {
                     for (int colIndex = clippedColStart; colIndex < clippedColEnd; ++colIndex) {
-                        int sourceIndex = rowIndex * gridWidth + colIndex;
-                        allowed.add(sourceIndex);
-                        ((java.util.Map<Integer,Integer>)centerMap).putIfAbsent(sourceIndex, centerIndex);
+                        int srcFlatIndex = rowIndex * gridWidth + colIndex;
+                        allowed.add(srcFlatIndex);
+                        ((java.util.Map<Integer,Integer>)centerMap).putIfAbsent(srcFlatIndex, centerIndex);
                     }
                 }
             }
@@ -552,8 +552,8 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 if (clippedRowStart >= clippedRowEnd || clippedColStart >= clippedColEnd) continue;
                 for (int rowIndex = clippedRowStart; rowIndex < clippedRowEnd; ++rowIndex) {
                     for (int colIndex = clippedColStart; colIndex < clippedColEnd; ++colIndex) {
-                        int sourceIndex = rowIndex * gridWidth + colIndex;
-                        if (seen.add(sourceIndex)) allowed.add(sourceIndex);
+                        int srcFlatIndex = rowIndex * gridWidth + colIndex;
+                        if (seen.add(srcFlatIndex)) allowed.add(srcFlatIndex);
                     }
                 }
             }

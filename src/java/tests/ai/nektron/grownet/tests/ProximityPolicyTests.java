@@ -32,7 +32,7 @@ public class ProximityPolicyTests {
         assertEquals(0, addedSecond);
 
         // Sanity: at least some neurons should now have outgoing edges
-        Layer layer = region.getLayers().get(l);
+        Layer layer = region.getLayers().get(layerIndex);
         boolean any = false;
         for (Neuron n : layer.getNeurons()) {
             if (!n.getOutgoing().isEmpty()) { any = true; break; }

@@ -8,7 +8,7 @@ public final class PalDemo {
     opts.tileSize = 2048;
     IndexDomain domain = new IndexDomain(10_000);
 
-    var sum = PAL.parallelMap(domain,
+    double sum = PAL.parallelMap(domain,
         (Integer i) -> {
           double v = i.doubleValue();
           return v * v;
@@ -20,4 +20,3 @@ public final class PalDemo {
     System.out.println("[PAL Demo] sum of squares 0..9999 = " + (long)sum);
   }
 }
-
