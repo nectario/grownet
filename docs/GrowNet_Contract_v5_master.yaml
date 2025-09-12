@@ -142,6 +142,8 @@ types:
                               stride_h: int, stride_w: int, padding: "valid"|"same") -> int
       bind_input(port: string, layer_indices: list<int>) -> void
       bind_output(port: string, layer_indices: list<int>) -> void
+      ensure_input_edge(port: string) -> int         # v5.1 addendum (C++/Java parity)
+      ensure_output_edge(port: string) -> int        # v5.1 addendum (C++/Java parity)
       tick(port: string, value: float) -> RegionMetrics
       tick_2d(port: string, frame: list[list[float]]) -> RegionMetrics  # tickImage alias
       tick_nd(port: string, flat: list<float>, shape: list<int>) -> RegionMetrics
@@ -149,6 +151,7 @@ types:
       request_layer_growth(saturated_layer: Layer) -> int|None
       set_growth_policy(policy: GrowthPolicy) -> void
       get_growth_policy() -> GrowthPolicy|None
+      maybe_grow_region() -> void                    # v5.1 addendum
   Buses:
     LateralBus:
       fields: { inhibition_factor: float, modulation_factor: float, current_step: int }
@@ -158,6 +161,12 @@ types:
         decay() -> void   # inhibition *= decay_rate; modulation = 1.0; current_step += 1
         get_current_step() -> int
         get_step() -> int # alias
+        get_inhibition_factor() -> float
+        set_inhibition_factor(factor: float) -> void
+        get_modulation_factor() -> float
+        set_modulation_factor(factor: float) -> void
+        get_inhibition_decay() -> float               # v5.1 addendum (configurability)
+        set_inhibition_decay(factor: float) -> void   # v5.1 addendum
     RegionBus:
       same_as: LateralBus
   MeshRule:

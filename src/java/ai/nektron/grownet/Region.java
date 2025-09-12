@@ -85,7 +85,7 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
     
     // ------------------------------ edge helpers ---------------------------
     /** Ensure there is an Input edge layer for this port; create lazily if missing. */
-    private int ensureInputEdge(String port) {
+    public int ensureInputEdge(String port) {
         Integer idx = inputEdges.get(port);
         if (idx != null) return idx;
         // Minimal scalar input edge: a 1-neuron layer that forwards into the graph.
@@ -95,7 +95,7 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
     }
 
     /** Ensure there is an Output edge layer for this port; create lazily if missing. */
-    private int ensureOutputEdge(String port) {
+    public int ensureOutputEdge(String port) {
         Integer idx = outputEdges.get(port);
         if (idx != null) return idx;
         // Minimal scalar output edge: a 1-neuron layer acting as a sink (placeholder).
@@ -450,6 +450,15 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
 
     public RegionMetrics tickImage(String port, double[][] frame) {
         return tick2D(port, frame);
+    }
+
+    /** Expose region-growth step as a public helper (add one spillover layer if policy triggers). */
+    public void maybeGrowRegion() {
+        try {
+            if (growthPolicy != null) {
+                GrowthEngine.maybeGrow(this, growthPolicy);
+            }
+        } catch (Throwable ignored) { }
     }
 
     /**

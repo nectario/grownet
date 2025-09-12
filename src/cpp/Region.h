@@ -49,6 +49,18 @@ struct RegionMetrics {
     }
     inline void addSlots(long long n) { totalSlots += n; }
     inline void addSynapses(long long n) { totalSynapses += n; }
+
+    // Read accessors (parity with Java getters)
+    inline long long getDeliveredEvents() const { return deliveredEvents; }
+    inline long long getTotalSlots() const { return totalSlots; }
+    inline long long getTotalSynapses() const { return totalSynapses; }
+    inline long long getActivePixels() const { return activePixels; }
+    inline int getBboxRowMin() const { return bboxRowMin; }
+    inline int getBboxRowMax() const { return bboxRowMax; }
+    inline int getBboxColMin() const { return bboxColMin; }
+    inline int getBboxColMax() const { return bboxColMax; }
+    inline double getCentroidRow() const { return centroidRow; }
+    inline double getCentroidCol() const { return centroidCol; }
 };
 
 // Minimal summary for prune operations (currently a no-op).

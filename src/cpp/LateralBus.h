@@ -4,16 +4,23 @@ namespace grownet {
 class LateralBus {
     double inhibitionFactor { 0.0 };
     double modulationFactor { 1.0 };
-    long long currentStep    { 0 };  // increments each tick for cooldowns/metrics
+    double inhibitionDecay  { 0.90 };  // configurable decay rate (default 0.90)
+    long long currentStep   { 0 };     // increments each tick for cooldowns/metrics
 public:
+    // Setters
     void setInhibitionFactor(double factor) { inhibitionFactor = factor; }
     void setModulationFactor(double factor) { modulationFactor = factor; }
+    void setInhibitionDecay(double decay)   { inhibitionDecay = decay; }
+
+    // Getters
     double getInhibitionFactor() const { return inhibitionFactor; }
     double getModulationFactor() const { return modulationFactor; }
+    double getInhibitionDecay()  const { return inhibitionDecay; }
+
     void decay() {
-        // Simple decay toward neutral values.
-        inhibitionFactor *= 0.9;   // decays to 0
-        modulationFactor  = 1.0;   // resets to neutral each tick
+        // Multiplicative inhibition decay; modulation resets; step++
+        inhibitionFactor *= inhibitionDecay;
+        modulationFactor  = 1.0;
         ++currentStep;
     }
     long long getCurrentStep() const { return currentStep; }
