@@ -11,6 +11,5 @@ fn main() -> None:
     cfg.weight_mode = "gaussian"
     cfg.sigma_center = 2.0
     cfg.normalize_incoming = True
-    let unique_sources = connect_layers_topographic(region, src, dst, cfg)
+    var unique_sources = connect_layers_topographic(region, src, dst, cfg)
     print("unique_sources=", unique_sources)
-

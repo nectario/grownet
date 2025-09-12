@@ -25,12 +25,12 @@ fn drive_tick_with_uniform_frame(region: any, input_layer_index: Int, height: In
     region.tick_2d(height, width)                                     # ADAPT: tick_image / tick2d
 
 fn test_region_growth_or_trigger_single_growth():
-    let t = TestRunner()
+    var t = TestRunner()
 
     var region = Region(name: "mojo_or_trigger")   # ADAPT ctor
-    let height = 4
-    let width = 4
-    let input_layer_index = region.add_input_2d_layer(height, width)  # ADAPT
+    var height = 4
+    var width = 4
+    var input_layer_index = region.add_input_2d_layer(height, width)  # ADAPT
 
     # Slot config: capacity 1 (strict)
     var slot_cfg = SlotConfig()                                       # ADAPT
@@ -47,14 +47,14 @@ fn test_region_growth_or_trigger_single_growth():
     policy.max_layers = 32
     region.set_growth_policy(policy)                                  # ADAPT
 
-    let layer_count_before = region.layer_count()                     # ADAPT
+    var layer_count_before = region.layer_count()                     # ADAPT
 
     drive_tick_with_uniform_frame(region, input_layer_index, height, width, 1.0)
     drive_tick_with_uniform_frame(region, input_layer_index, height, width, 0.2)
 
-    let layer_count_after = region.layer_count()
+    var layer_count_after = region.layer_count()
     t.expect_eq(layer_count_after, layer_count_before + 1, "Exactly one layer must be added in the tick where OR‑trigger holds")
 
-    let current_step = region.bus.get_current_step()                  # ADAPT accessor
-    let last_growth_step = region.get_last_layer_growth_step()        # ADAPT
+    var current_step = region.bus.get_current_step()                  # ADAPT accessor
+    var last_growth_step = region.get_last_layer_growth_step()        # ADAPT
     t.expect_eq(last_growth_step, current_step, "last_layer_growth_step must equal bus current_step")

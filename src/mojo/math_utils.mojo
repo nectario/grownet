@@ -21,7 +21,7 @@ struct MathUtils:
         if hi <= lo:
             return lo
 
-        let range_span = hi - lo
+        var range_span = hi - lo
         var soft_band = soft
         if soft_band <= 0.0:
             soft_band = 0.1 * range_span
@@ -43,11 +43,11 @@ struct MathUtils:
         var is_quintic = (smoothness == "quintic") or (smoothness == "Quintic") or (smoothness == "QUINTIC")
 
         if x < (lo + soft_band):
-            let normalized_position = (x - lo) / soft_band
+            var normalized_position = (x - lo) / soft_band
             return lo + soft_band * (if is_quintic { h_quintic(normalized_position) } else { h_cubic(normalized_position) })
 
         if x > (hi - soft_band):
-            let normalized_position_upper = (hi - x) / soft_band
+            var normalized_position_upper = (hi - x) / soft_band
             return hi - soft_band * (if is_quintic { h_quintic(normalized_position_upper) } else { h_cubic(normalized_position_upper) })
 
         return x
