@@ -25,9 +25,9 @@ public class StressHDImageTickTest {
 
         // Construct a simple frame with a diagonal pattern.
         double[][] frame = new double[height][width];
-        for (int r = 0; r < height; ++r) {
-            int c = r % width;
-            frame[r][c] = 1.0;
+        for (int rowIndex = 0; rowIndex < height; ++rowIndex) {
+            int colIndex = rowIndex % width;
+            frame[rowIndex][colIndex] = 1.0;
         }
 
         // Warm-up tick to stabilize JIT/allocs
@@ -42,4 +42,3 @@ public class StressHDImageTickTest {
         assertEquals(1, metrics.getDeliveredEvents(), "A single 2D tick should count as one delivered event");
     }
 }
-

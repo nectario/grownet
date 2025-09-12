@@ -29,9 +29,9 @@ public class GrowthGuardsTests {
         cfg.setFallbackGrowthRequiresSameMissingSlot(true);
         Neuron n = makeNeuron(cfg);
         n.onInput(1.0);
-        double[] seq = {2.0, 1.8, 2.0, 1.8, 2.0, 1.8};
-        for (double v : seq) {
-            n.onInput(v);
+        double[] sequence = {2.0, 1.8, 2.0, 1.8, 2.0, 1.8};
+        for (double value : sequence) {
+            n.onInput(value);
         }
         assertTrue(n.fallbackStreak <= 1);
     }

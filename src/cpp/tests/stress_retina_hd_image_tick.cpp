@@ -11,9 +11,9 @@
 #ifdef GTEST_AVAILABLE
 TEST(StressRetinaHDImageTick, One2DTickTiming) {
     grownet::Region region("stress-retina-hd");
-    const int H = 1080;
-    const int W = 1920;
-    int in  = region.addInputLayer2D(H, W, 1.0, 0.01);
+    const int imageHeight = 1080;
+    const int imageWidth = 1920;
+    int inputLayerIndex  = region.addInputLayer2D(imageHeight, imageWidth, 1.0, 0.01);
     int out = region.addOutputLayer2D(H, W, 0.0);
 
     grownet::TopographicConfig cfg;
@@ -27,8 +27,8 @@ TEST(StressRetinaHDImageTick, One2DTickTiming) {
 
     region.bindInput2D("img", H, W, 1.0, 0.01, std::vector<int>{in});
 
-    std::vector<std::vector<double>> frame(H, std::vector<double>(W, 0.0));
-    for (int r = 0; r < H; ++r) frame[r][r % W] = 1.0;
+    std::vector<std::vector<double>> frame(imageHeight, std::vector<double>(imageWidth, 0.0));
+    for (int rowIndex = 0; rowIndex < imageHeight; ++rowIndex) frame[rowIndex][rowIndex % imageWidth] = 1.0;
 
     region.tick2D("img", frame);
 
@@ -40,4 +40,3 @@ TEST(StressRetinaHDImageTick, One2DTickTiming) {
     EXPECT_EQ(metrics.deliveredEvents, 1);
 }
 #endif
-

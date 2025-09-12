@@ -15,7 +15,7 @@ public class ProximityPolicyTests {
     @Test
     public void stepModeBudgetAndCooldown() {
         Region region = new Region("prox-step");
-        int l = region.addLayer(9, 0, 0);
+        int layerIndex = region.addLayer(9, 0, 0);
 
         ProximityConfig cfg = new ProximityConfig()
                 .setEnabled(true)
@@ -40,4 +40,3 @@ public class ProximityPolicyTests {
         assertTrue(any, "expected some proximity edges after STEP application");
     }
 }
-

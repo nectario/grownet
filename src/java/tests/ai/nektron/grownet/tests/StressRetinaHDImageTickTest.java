@@ -20,7 +20,7 @@ public class StressRetinaHDImageTickTest {
         final int width  = 1920;
 
         Region region = new Region("stress-retina-hd");
-        int in  = region.addInputLayer2D(height, width, 1.0, 0.01);
+        int inputLayerIndex  = region.addInputLayer2D(height, width, 1.0, 0.01);
         int out = region.addOutputLayer2D(height, width, 0.0);
 
         TopographicConfig cfg = new TopographicConfig()
@@ -50,4 +50,3 @@ public class StressRetinaHDImageTickTest {
         assertEquals(1, metrics.getDeliveredEvents());
     }
 }
-

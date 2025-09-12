@@ -405,35 +405,35 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
                 }
 
                 long active = 0L;
-                double total = 0.0, sumR = 0.0, sumC = 0.0;
-                int rmin = Integer.MAX_VALUE, rmax = -1, cmin = Integer.MAX_VALUE, cmax = -1;
-                int H = chosen.length;
-                int W = (H > 0 ? chosen[0].length : 0);
-                for (int r = 0; r < H; ++r) {
-                    double[] rowVec = chosen[r];
-                    int colLim = Math.min(W, rowVec.length);
-                    for (int c = 0; c < colLim; ++c) {
-                        double value = rowVec[c];
+                double total = 0.0, sumRow = 0.0, sumCol = 0.0;
+                int rowMin = Integer.MAX_VALUE, rowMax = -1, colMin = Integer.MAX_VALUE, colMax = -1;
+                int imageHeight = chosen.length;
+                int imageWidth = (imageHeight > 0 ? chosen[0].length : 0);
+                for (int rowIndex = 0; rowIndex < imageHeight; ++rowIndex) {
+                    double[] rowVec = chosen[rowIndex];
+                    int columnLimit = Math.min(imageWidth, rowVec.length);
+                    for (int colIndex = 0; colIndex < columnLimit; ++colIndex) {
+                        double value = rowVec[colIndex];
                         if (value > 0.0) {
                             active += 1;
                             total  += value;
-                            sumR   += r * value;
-                            sumC   += c * value;
-                            if (r < rmin) rmin = r;
-                            if (r > rmax) rmax = r;
-                            if (c < cmin) cmin = c;
-                            if (c > cmax) cmax = c;
+                            sumRow += rowIndex * value;
+                            sumCol += colIndex * value;
+                            if (rowIndex < rowMin) rowMin = rowIndex;
+                            if (rowIndex > rowMax) rowMax = rowIndex;
+                            if (colIndex < colMin) colMin = colIndex;
+                            if (colIndex > colMax) colMax = colIndex;
                         }
                     }
                 }
                 metrics.setActivePixels(active);
                 if (total > 0.0) {
-                    metrics.setCentroid(sumR / total, sumC / total);
+                    metrics.setCentroid(sumRow / total, sumCol / total);
                 } else {
                     metrics.setCentroid(0.0, 0.0);
                 }
-                if (rmax >= rmin && cmax >= cmin) {
-                    metrics.setBBox(rmin, rmax, cmin, cmax);
+                if (rowMax >= rowMin && colMax >= colMin) {
+                    metrics.setBBox(rowMin, rowMax, colMin, colMax);
                 } else {
                     metrics.setBBox(0, -1, 0, -1);
                 }

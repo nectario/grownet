@@ -51,9 +51,9 @@ public final class TestSingleTick {
         // 3) Fire hook (log without pausing); set a breakpoint inside this
         // ------------------------------------------------------------
         // We'll capture the layer index when registering so the log shows layer info
-        for (int li : Arrays.asList(l0, l1)) {
-            final int layerIdx = li;
-            List<Neuron> neurons = region.getLayers().get(li).getNeurons();
+        for (int layerIndex : Arrays.asList(l0, l1)) {
+            final int layerIdx = layerIndex;
+            List<Neuron> neurons = region.getLayers().get(layerIndex).getNeurons();
             for (Neuron neuron : neurons) {
                 java.util.function.BiConsumer<Double, Neuron> hook = (value, who) -> {
                     // ---- BREAKPOINT: hook (fires on each neuron emission) ----

@@ -20,8 +20,8 @@ def run_demo():
         m = region.tick_image("pixels", frame)
 
         if (step + 1) % 5 == 0:
-            out = region.get_layers()[l_out]
-            if isinstance(out, OutputLayer2D):
-                img = out.get_frame()
-                s = sum(sum(row) for row in img)
-                print(f"[{step+1:02d}] delivered={m.delivered_events} out_mean={s / (h * w):.3f}")
+            out_layer = region.get_layers()[l_out]
+            if isinstance(out_layer, OutputLayer2D):
+                image = out_layer.get_frame()
+                sum_value = sum(sum(row) for row in image)
+                print(f"[{step+1:02d}] delivered={m.delivered_events} out_mean={sum_value / (h * w):.3f}")

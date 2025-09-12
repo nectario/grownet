@@ -11,7 +11,7 @@ def run_demo() -> None:
     l_out = region.add_output_layer_2d(h, w, smoothing=0.10)
 
     # Enable spatial slotting in the hidden layer
-    for item_count in region.get_layers()[l_hid].get_neurons():
+    for n in region.get_layers()[l_hid].get_neurons():
         n.slot_cfg.spatial_enabled = True
         n.slot_cfg.row_bin_width_pct = 50.0
         n.slot_cfg.col_bin_width_pct = 50.0
@@ -26,9 +26,9 @@ def run_demo() -> None:
     # Moving dot
     for step in range(10):
         frame = [[0.0 for _ in range(w)] for _ in range(h)]
-        r = (step * 2) % h
-        c = (step * 3) % w
-        frame[r][c] = 1.0
+        row_index = (step * 2) % h
+        col_index = (step * 3) % w
+        frame[row_index][col_index] = 1.0
         m = region.tick_image("pixels", frame)
         if (step + 1) % 2 == 0:
             print(f"[{step+1:02d}] delivered={m.delivered_events} "
@@ -38,4 +38,3 @@ def run_demo() -> None:
 
 if __name__ == "__main__":
     run_demo()
-
