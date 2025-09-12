@@ -16,10 +16,10 @@ public class PalDeterminismTest {
         final int N = 10_000;
         IndexDomain domain = new IndexDomain(N);
 
-        var kernel = (Integer i) -> PAL.counterRng(/*seed*/1234L, /*step*/0L,
+        java.util.function.Function<Integer, Double> kernel = (Integer i) -> PAL.counterRng(/*seed*/1234L, /*step*/0L,
                 /*drawKind*/1, /*layerIndex*/0, /*unitIndex*/i, /*drawIndex*/0);
 
-        var reduceInOrder = (List<Double> locals) -> {
+        java.util.function.Function<List<Double>, Double> reduceInOrder = (List<Double> locals) -> {
             double s = 0.0;
             for (double x : locals) s += x;
             return s;
@@ -39,4 +39,3 @@ public class PalDeterminismTest {
         assertEquals(a, b, 0.0, "PAL.parallelMap must be deterministic across worker counts");
     }
 }
-
