@@ -82,6 +82,7 @@ language_parity:
     - windowed tracts implemented; `attach_source_neuron` present
     - `request_layer_growth` uses p=1.0 wiring
     - proximity policy available (`policy/proximity_connectivity.py`); per‑source cooldown and per‑step guard implemented
+    - PAL v2: ThreadPool-backed `parallel_for/map` with deterministic submission-order reduction; honors `ParallelOptions.max_workers`, `tile_size`, and env `GROWNET_PAL_MAX_WORKERS`
   cxx:
     - SlotEngine strict capacity (scalar & 2D) + fallback marking
     - `preferLastSlotOnce` honored in selectors; bus `currentStep` increments in `decay()`
@@ -90,6 +91,7 @@ language_parity:
     - Neuron triggers growth via config-driven fallback-streak + cooldown; Layer grows same kind
     - Region records mesh rules; `requestLayerGrowth` uses p=1.0
     - proximity policy scaffolding present (headers + stub); not integrated into Region tick yet
+    - PAL v2: OpenMP backend with ordered reduction; runtime-bound via `ParallelOptions.max_workers` (or `OMP_NUM_THREADS`)
   java:
     - SlotEngine strict capacity (scalar & 2D) + fallback marking; one-shot reuse after unfreeze
     - GrowthPolicy: avg-slots threshold, max layers, cooldown, **percent-at-cap-fallback** OR-trigger
@@ -98,6 +100,7 @@ language_parity:
     - `Region.bindInput(...)` accepts an `InputLayer2D` as the edge (2D convenience parity)
     - unfreeze prefers the originally frozen slot exactly once (tracks a specific slot id)
     - proximity policy available (`policy` package); per‑source cooldown + per‑region per‑step guard
+    - PAL v2: Virtual Threads (JDK 21) with a `Semaphore(maxWorkers)` bound; deterministic submission-order join; env `GROWNET_PAL_MAX_WORKERS` respected
   mojo:
     - `struct` + `fn` with typed params (no leading underscores)
     - strict capacity (scalar & 2D) + fallback marking
@@ -105,6 +108,7 @@ language_parity:
     - `connect_layers_windowed` implemented (unique sources + center rule for OutputLayer2D)
     - `try_grow_neuron(seed)` grows same kind and calls `region.autowire_new_neuron_by_ref(...)`
     - proximity policy available (STEP mode focus); benchmarked via tests; timing via wall‑clock in scripts
+    - PAL v2: device knob (`device = "cpu" | "gpu" | "auto"`); GPU path scaffolded for Float64 identity/add/scale maps (CPU fallback today); ordered reduction preserved
 
 style_and_conventions:
   - Python & Mojo: **no names starting with `_`** (no leading-underscore identifiers)
@@ -126,6 +130,11 @@ switches_and_defaults:
     - maxLayers: project-specific
     - layerCooldownTicks: 500 (example)
     - percentAtCapFallbackThreshold: 0.0 (off) → set >0 to enable OR-trigger
+  pal.runtime:
+    - python: `GROWNET_PAL_MAX_WORKERS` sets default worker count when `ParallelOptions.max_workers` is None
+    - java: `GROWNET_PAL_MAX_WORKERS` sets default when `ParallelOptions.maxWorkers` is null (JDK 21 required for Virtual Threads)
+    - cxx: build with `-DGROWNET_WITH_OPENMP=ON`; bound at runtime via `ParallelOptions.max_workers` or `OMP_NUM_THREADS`
+    - mojo: `ParallelOptions.device` defaults to `"cpu"`; GPU detection is guarded; CPU fallback preserves determinism
 
 tests_and_demos:
   - python:
@@ -137,6 +146,7 @@ tests_and_demos:
     - bus decay parity; frozen slots; one‑growth‑per‑tick invariant
     - proximity STEP (budget + cooldown) test
     - stress: HD 1920×1080 + Retina/Topographic single‑tick timing
+    - PAL determinism: `PalDeterminismTest` validates ordered reduction across worker counts
   - cxx:
     - bus decay test; one‑growth‑per‑tick test; edge/windowed wiring smoke
     - stress: HD 1920×1080 + Retina/Topographic single‑tick timing (gtest)
@@ -144,6 +154,7 @@ tests_and_demos:
   - mojo:
     - bus decay test; frozen slots test; one‑growth‑per‑tick test
     - stress: HD 1920×1080 + Retina/Topographic single‑tick execution (timing observed via wall‑clock in script)
+    - PAL GPU demo: `src/mojo/tests/pal_gpu_map_demo.mojo` exercises identity/add/scale mappings with device knob
   - benchmarking:
     - `scripts/run_stress_bench.sh` runs HD + Retina stress across languages and prints a timing table; docs in `docs/BENCHMARKS.md`
 
@@ -153,3 +164,5 @@ open_items_to_watch:
   - Ensure `owner` backrefs are set for any new layer types
   - Integrate proximity policy in C++ Region tick; enable STEP tests and parity with Python/Java/Mojo
   - Consider CI matrix for stress script on a fixed runner to track regressions
+  - Mojo GPU path: wire real kernels using DeviceContext + host/device buffers for identity/add/scale maps; enable guarded detection in `gpu_available()`
+  - Ensure PAL paths remain deterministic (stable tiling + submission-order reduction) as we expand coverage
