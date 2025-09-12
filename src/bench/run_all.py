@@ -7,7 +7,7 @@ try:
 except Exception:
     yaml = None
 
-def _load_config(path: str) -> dict:
+def load_config(path: str) -> dict:
     text = Path(path).read_text(encoding="utf-8")
     if path.endswith(".json"):
         return json.loads(text)
@@ -15,15 +15,15 @@ def _load_config(path: str) -> dict:
         raise RuntimeError("Install PyYAML or provide a .json config")
     return yaml.safe_load(text)
 
-def _now_ns() -> int:
+def now_ns() -> int:
     return time.perf_counter_ns()
 
-def _run_cmd(command: str, cwd: str | None) -> tuple[int, str, str]:
+def run_cmd(command: str, cwd: str | None) -> tuple[int, str, str]:
     proc = subprocess.Popen(command, cwd=cwd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     out, err = proc.communicate()
     return proc.returncode, out.strip(), err.strip()
 
-def _fmt_ms(ns: int) -> float:
+def fmt_ms(ns: int) -> float:
     return ns / 1_000_000.0
 
 def main():
@@ -32,7 +32,7 @@ def main():
     ap.add_argument("--outdir", default="bench/results")
     args = ap.parse_args()
 
-    cfg = _load_config(args.config)
+    cfg = load_config(args.config)
     runs = int(cfg.get("runs", 3))
     warmup = int(cfg.get("warmup", 1))
 
@@ -56,15 +56,15 @@ def main():
             # Warmup (optional)
             for loop_index in range(warmup):
                 cmd = command_tpl.format(scenario=scenario_name, runs=1, warmup=1, params_json=params_json)
-                rc, out, err = _run_cmd(cmd, cwd)
+                rc, out, err = run_cmd(cmd, cwd)
                 # ignore output
 
             # Measured runs
             for loop_index in range(runs):
                 cmd = command_tpl.format(scenario=scenario_name, runs=1, warmup=0, params_json=params_json)
-                t0 = _now_ns()
-                rc, out, err = _run_cmd(cmd, cwd)
-                t1 = _now_ns()
+                t0 = now_ns()
+                rc, out, err = run_cmd(cmd, cwd)
+                t1 = now_ns()
 
                 row = {
                     "session_id": session_id,

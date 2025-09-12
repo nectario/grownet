@@ -120,10 +120,10 @@ struct Tract:
         # If destination is OutputLayer2D, this tract wires source→center edges explicitly.
         # For generic destinations, forward to all destination neurons.
         var dest_layer = region.layers[self.dst_layer_index]
-        var dest_is_output_2d = hasattr(dest_layer, "height") and hasattr(dest_layer, "width")
-        if dest_is_output_2d:
+        var destination_is_output_2d = hasattr(dest_layer, "height") and hasattr(dest_layer, "width")
+        if destination_is_output_2d:
             # Compute all centers for windows that include this source, and stimulate those outputs.
-            var origins = self._origin_list()
+            var origins = self.origin_list()
             var row_index = source_index / self.source_width
             var col_index = source_index % self.source_width
             var seen_center = dict[Int, Bool]()
@@ -131,12 +131,12 @@ struct Tract:
             while it < origins.len:
                 var orow = origins[it][0]
                 var ocol = origins[it][1]
-                var rs = if orow > 0 then orow else 0
-                var cs = if ocol > 0 then ocol else 0
-                var re = if (orow + self.kernel_height) < self.source_height then (orow + self.kernel_height) else self.source_height
-                var ce = if (ocol + self.kernel_width) < self.source_width then (ocol + self.kernel_width) else self.source_width
-                if row_index >= rs and row_index < re and col_index >= cs and col_index < ce:
-                    var center = self._center_for_origin(orow, ocol)
+                var window_row_start = if orow > 0 then orow else 0
+                var window_col_start = if ocol > 0 then ocol else 0
+                var window_row_end = if (orow + self.kernel_height) < self.source_height then (orow + self.kernel_height) else self.source_height
+                var window_col_end = if (ocol + self.kernel_width) < self.source_width then (ocol + self.kernel_width) else self.source_width
+                if row_index >= window_row_start and row_index < window_row_end and col_index >= window_col_start and col_index < window_col_end:
+                    var center = self.center_for_origin(orow, ocol)
                     if not seen_center.contains(center):
                         region.layers[self.dst_layer_index].propagate_from(center, amplitude)
                         seen_center[center] = True

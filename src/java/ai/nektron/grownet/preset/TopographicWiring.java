@@ -113,7 +113,7 @@ public final class TopographicWiring {
             Hd = out.getHeight(); Wd = out.getWidth();
         }
         double[] sums = new double[Math.max(1, Hd * Wd)];
-        Map<Long, Double> weights = _Registry.getAll(region);
+        Map<Long, Double> weights = Registry.getAll(region);
         if (weights != null) {
             for (Map.Entry<Long, Double> e : weights.entrySet()) {
                 int centerIndex = (int) (e.getKey() & 0xffffffffL);
@@ -140,7 +140,7 @@ public final class TopographicWiring {
     }
 
     // lightweight per-region registry for demo/tests (no core changes)
-    private static final class _Registry {
+    private static final class Registry {
         private static final Map<Integer, Map<Long, Double>> map = new HashMap<>();
         static void put(Region region, int src, int dst, Map<Long, Double> weights) {
             int key = Objects.hash(System.identityHashCode(region), src, dst);

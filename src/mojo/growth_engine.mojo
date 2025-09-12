@@ -1,6 +1,6 @@
 from growth_policy import GrowthPolicy
 
-fn _is_output_layer_index(region: any, index: Int) -> Bool:
+fn is_output_layer_index(region: any, index: Int) -> Bool:
     if region.output_layer_indices is None:
         return False
     var output_index_iter = 0
@@ -10,7 +10,7 @@ fn _is_output_layer_index(region: any, index: Int) -> Bool:
         output_index_iter = output_index_iter + 1
     return False
 
-fn _is_input_edge_index(region: any, index: Int) -> Bool:
+fn is_input_edge_index(region: any, index: Int) -> Bool:
     # crude check: does any input_edges value match this index?
     var input_map = region.input_edges
     for key in input_map.keys():

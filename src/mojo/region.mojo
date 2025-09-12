@@ -156,7 +156,7 @@ struct Region:
                 if hasattr(self.layers[pick], "get_frame"):
                     var out = (self.layers[pick] as OutputLayer2D).get_frame()
                     # prefer out if non-zero; else use input
-                    if _has_non_zero(out):
+                    if has_non_zero(out):
                         chosen = out
         var active: Int64 = 0
         var total: Float64 = 0.0
@@ -199,7 +199,7 @@ struct Region:
             metrics.set_bbox(0, -1, 0, -1)
         return metrics
 
-    fn _has_non_zero(img: list[list[Float64]]) -> Bool:
+    fn has_non_zero(img: list[list[Float64]]) -> Bool:
         var i = 0
         while i < img.len:
             var row = img[i]

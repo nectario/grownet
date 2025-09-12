@@ -24,7 +24,7 @@ class TopographicConfig:
 _TOPO_REGISTRY: Dict[Tuple[int, int, int], Dict[Tuple[int, int], float]] = {}
 
 
-def _validate_config(cfg: TopographicConfig) -> None:
+def validate_config(cfg: TopographicConfig) -> None:
     if cfg.kernel_h < 1 or cfg.kernel_w < 1:
         raise ValueError("kernel_h and kernel_w must be >= 1")
     if cfg.stride_h < 1 or cfg.stride_w < 1:
@@ -46,7 +46,7 @@ def connect_layers_topographic(region, source_layer_index: int, destination_laye
     Returns the unique source count from the underlying connect_layers_windowed call.
     Computed weights are stored in a local registry for inspection by demos/tests.
     """
-    _validate_config(config)
+    validate_config(config)
 
     # Step 1: build topology using existing helper (center-mapped where applicable)
     unique_sources = region.connect_layers_windowed(

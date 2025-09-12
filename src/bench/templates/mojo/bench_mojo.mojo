@@ -7,7 +7,7 @@ from time import now as time_now
 from math import sin
 from random import Xoroshiro128Plus
 
-fn _ns() -> Int64:
+fn ns() -> Int64:
     # Mojo's `now()` returns seconds as Float64 in most builds; scale to ns.
     return Int64(time_now() * 1_000_000_000.0)
 
@@ -31,7 +31,7 @@ fn main() -> None:
     var w: Int64 = 64
 
     var rng = Xoroshiro128Plus(1234)
-    var t0 = _ns()
+    var t0 = ns()
     var f: Int64 = 0
     while f < frames:
         # Simulate a frame worth of work
@@ -43,7 +43,7 @@ fn main() -> None:
                 x += 1
             y += 1
         f += 1
-    var t1 = _ns()
+    var t1 = ns()
     var ms_var = (t1 - t0).float64() / 1_000_000.0
 
     if emit_json:

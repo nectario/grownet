@@ -13,13 +13,13 @@ py_src = os.path.join(repo_root, "src", "python")
 if os.path.isdir(py_src) and py_src not in sys.path:
     sys.path.insert(0, py_src)
 
-def _ns() -> int:
+def ns() -> int:
     return perf_counter_ns()
 
-def _ms(ns: int) -> float:
+def ms(ns: int) -> float:
     return ns / 1_000_000.0
 
-def _try_imports():
+def try_imports():
     mods = {}
     def opt(name):
         try:
@@ -47,11 +47,11 @@ def bench_micro(mods) -> dict:
     try:
         W = mods["weight"].Weight  # type: ignore
         w = W()
-        t0 = _ns()
+        t0 = ns()
         n = 200_000
         for _ in range(n):
             w._reinforce(1.0) if hasattr(w, "_reinforce") else w.reinforce(1.0)  # old name fallback
-        t1 = _ns()
+        t1 = ns()
         res["weight_reinforce_ns"] = (t1 - t0) / n
     except Exception:
         pass
@@ -61,7 +61,7 @@ def bench_micro(mods) -> dict:
         mu = mods["math_utils"]
         # Simulate percent-delta path
         last = 1.0
-        t0 = _ns()
+        t0 = ns()
         n = 300_000
         for loop_index in range(n):
             x = math.sin(i * 0.01) + 1.01
@@ -69,7 +69,7 @@ def bench_micro(mods) -> dict:
             delta_percent = abs(x - last) / (abs(last) + 1e-9) * 100.0
             _ = int(delta_percent // 10.0)
             last = x
-        t1 = _ns()
+        t1 = ns()
         res["slot_engine_slot_id_ns"] = (t1 - t0) / n
     except Exception:
         pass
@@ -82,11 +82,11 @@ def bench_micro(mods) -> dict:
         n = exc.ExcitatoryNeuron("E0") if hasattr(exc, "ExicitatoryNeuron") else exc.ExcitatoryNeuron("E0")
         # prime
         n._on_input(0.1) if hasattr(n, "_on_input") else n.on_input(0.1)
-        t0 = _ns()
+        t0 = ns()
         iters = 100_000
         for _ in range(iters):
             (n._on_input(0.2) if hasattr(n, "_on_input") else n.on_input(0.2))
-        t1 = _ns()
+        t1 = ns()
         res["neuron_on_input_ns"] = (t1 - t0) / iters
     except Exception:
         pass
@@ -146,7 +146,7 @@ def bench_e2e(mods, scenario: str, params: dict) -> dict:
 
     # Ticking
     rng = random.Random(123)
-    t0 = _ns()
+    t0 = ns()
     delivered = 0
     for _ in range(frames):
         frame = [[rng.random() for _ in range(w)] for _ in range(h)]
@@ -156,7 +156,7 @@ def bench_e2e(mods, scenario: str, params: dict) -> dict:
         except Exception:
             m = r.tick_image("pixels", frame)  # type: ignore
         delivered += (m.delivered_events if hasattr(m, "delivered_events") else getattr(m, "deliveredEvents", 0))
-    t1 = _ns()
+    t1 = ns()
 
     return {
         "e2e_wall_ms": _ms(t1 - t0),
@@ -174,7 +174,7 @@ def main():
 
     params = json.loads(args.params)
 
-    mods, present = _try_imports()
+    mods, present = try_imports()
     micro = bench_micro(mods)
     metrics = {}
 
@@ -189,12 +189,12 @@ def main():
         except Exception:
             exc = mods["neuron_exc"].ExcitatoryNeuron
         neurons = [exc(f"E{i}") for loop_index in range(excit)]
-        t0 = _ns()
+        t0 = ns()
         for loop_index in range(ticks):
             x = 0.42
             for item_count in neurons:
                 (n._on_input(x) if hasattr(n, "_on_input") else n.on_input(x))
-        t1 = _ns()
+        t1 = ns()
         metrics = {
             "e2e_wall_ms": (t1 - t0) / 1_000_000.0,
             "ticks": ticks,
