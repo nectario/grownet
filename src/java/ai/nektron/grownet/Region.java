@@ -452,6 +452,50 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         return tick2D(port, frame);
     }
 
+    /** Compute spatial metrics from a 2D image (optionally prefer downstream output). */
+    public RegionMetrics computeSpatialMetrics(double[][] image2d, boolean preferOutput) {
+        RegionMetrics metrics = new RegionMetrics();
+        try {
+            double[][] chosen = image2d;
+            if (preferOutput) {
+                // Prefer furthest downstream OutputLayer2D if any
+                for (int i = layers.size() - 1; i >= 0; --i) {
+                    Layer candidateLayer = layers.get(i);
+                    if (candidateLayer instanceof OutputLayer2D) {
+                        try {
+                            double[][] out = ((OutputLayer2D) candidateLayer).getFrame();
+                            chosen = out;
+                            break;
+                        } catch (Throwable ignored) {}
+                    }
+                }
+                if (chosen != image2d && isAllZero(chosen) && !isAllZero(image2d)) {
+                    chosen = image2d;
+                }
+            }
+            long active = 0; double total = 0.0, sumRow = 0.0, sumCol = 0.0;
+            int rowMin = Integer.MAX_VALUE, rowMax = -1, colMin = Integer.MAX_VALUE, colMax = -1;
+            int H = (chosen == null ? 0 : chosen.length);
+            int W = (H > 0 ? chosen[0].length : 0);
+            for (int r = 0; r < H; ++r) {
+                double[] row = chosen[r];
+                int limit = Math.min(W, row.length);
+                for (int c = 0; c < limit; ++c) {
+                    double v = row[c];
+                    if (v > 0.0) {
+                        active += 1; total += v; sumRow += r * v; sumCol += c * v;
+                        if (r < rowMin) rowMin = r; if (r > rowMax) rowMax = r;
+                        if (c < colMin) colMin = c; if (c > colMax) colMax = c;
+                    }
+                }
+            }
+            metrics.setActivePixels((int) active);
+            if (total > 0.0) metrics.setCentroid(sumRow / total, sumCol / total); else metrics.setCentroid(0.0, 0.0);
+            if (rowMax >= rowMin && colMax >= colMin) metrics.setBBox(rowMin, rowMax, colMin, colMax); else metrics.setBBox(0, -1, 0, -1);
+        } catch (Throwable ignored) { }
+        return metrics;
+    }
+
     /** Expose region-growth step as a public helper (add one spillover layer if policy triggers). */
     public void maybeGrowRegion() {
         try {

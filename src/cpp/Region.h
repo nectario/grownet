@@ -105,6 +105,7 @@ public:
     RegionMetrics tick(const std::string& port, double value);
     RegionMetrics tick2D(const std::string& port, const std::vector<std::vector<double>>& frame);
     RegionMetrics tickImage(const std::string& port, const std::vector<std::vector<double>>& frame);
+    RegionMetrics computeSpatialMetrics(const std::vector<std::vector<double>>& image2d, bool preferOutput);
 
     // --- No-op prune stubs to keep demos/tests compiling ---
     PruneSummary prune(long long synapseStaleWindow, double synapseMinStrength);

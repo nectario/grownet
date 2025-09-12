@@ -582,7 +582,7 @@ class Region:
         try:
             import os
             if self.enable_spatial_metrics or os.environ.get("GROWNET_ENABLE_SPATIAL_METRICS") == "1":
-                self.compute_spatial_metrics(metrics, frame)
+                self.compute_spatial_metrics_internal(metrics, frame)
         except Exception:
             pass
         # After end_tick/decay, consider automatic region growth
@@ -596,6 +596,46 @@ class Region:
 
     def tick_image(self, port: str, frame) -> RegionMetrics:
         return self.tick_2d(port, frame)
+
+    def tick_nd(self, port: str, flat, shape) -> RegionMetrics:
+        """Deliver a row-major flat tensor + explicit shape into an InputLayerND edge."""
+        metrics = RegionMetrics()
+        edge_idx = self.input_edges.get(port)
+        if edge_idx is None:
+            raise ValueError(f"No InputEdge for port '{port}'. Call bind_input_nd(...) first.")
+        layer = self.layers[edge_idx]
+        if not hasattr(layer, "forward_nd"):
+            raise ValueError(f"InputEdge for '{port}' is not ND (expected InputLayerND).")
+        layer.forward_nd(flat, shape)
+
+        # Optional proximity connectivity (post-propagation, pre end_tick/decay)
+        try:
+            if getattr(self, "proximity_config", None) is not None and getattr(self.proximity_config, "proximity_connect_enabled", False):
+                from policy.proximity_connectivity import ProximityEngine
+                ProximityEngine.apply(self, self.proximity_config)
+        except Exception:
+            pass
+
+        metrics.inc_delivered_events(1)
+
+        for layer_obj in self.layers:
+            layer_obj.end_tick()
+        if self.bus is not None and hasattr(self.bus, "decay"):
+            self.bus.decay()
+
+        for layer_obj in self.layers:
+            for neuron in getattr(layer_obj, "get_neurons")():
+                slots_map = getattr(neuron, "slots", None)
+                metrics.add_slots(len(slots_map) if isinstance(slots_map, dict) else 0)
+                outgoing_list = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+                metrics.add_synapses(len(outgoing_list))
+
+        try:
+            if self.growth_policy:
+                maybe_grow(self, self.growth_policy)
+        except Exception:
+            pass
+        return metrics
 
     # ---- mojo-parity thin alias ----
     def autowire_new_neuron_by_ref(self, layer_obj, new_idx: int) -> None:
@@ -650,7 +690,7 @@ class Region:
         return self.growth_policy
 
     # ---------------- internal helpers ----------------
-    def compute_spatial_metrics(self, metrics: RegionMetrics, input_frame) -> None:
+    def compute_spatial_metrics_internal(self, metrics: RegionMetrics, input_frame) -> None:
         """Compute activePixels, centroid, and bbox from the best available 2D layer.
 
         Prefer the furthest downstream OutputLayer2D frame this tick; if no non-zero
@@ -722,3 +762,45 @@ class Region:
 
         bbox = (0, -1, 0, -1) if rmax < rmin or cmax < cmin else (rmin, rmax, cmin, cmax)
         metrics.bbox = bbox
+
+    def compute_spatial_metrics(self, image_2d, prefer_output: bool = True) -> RegionMetrics:
+        """Public wrapper returning RegionMetrics computed from a 2D image.
+
+        If prefer_output is True, and a downstream OutputLayer2D has non-zero output,
+        metrics are computed from that output; otherwise metrics derive from image_2d.
+        """
+        metrics = RegionMetrics()
+        try:
+            if prefer_output:
+                self.compute_spatial_metrics_internal(metrics, image_2d)
+            else:
+                # compute directly from provided image
+                total = 0.0
+                sum_r = 0.0
+                sum_c = 0.0
+                rmin, rmax, cmin, cmax = 10**9, -1, 10**9, -1
+                height = len(image_2d) if image_2d is not None else 0
+                width = len(image_2d[0]) if height > 0 else 0
+                for row_index in range(height):
+                    row_values = image_2d[row_index]
+                    for col_index in range(min(width, len(row_values))):
+                        pixel_value = float(row_values[col_index])
+                        if pixel_value > 0.0:
+                            total += pixel_value
+                            sum_r += row_index * pixel_value
+                            sum_c += col_index * pixel_value
+                            if row_index < rmin: rmin = row_index
+                            if row_index > rmax: rmax = row_index
+                            if col_index < cmin: cmin = col_index
+                            if col_index > cmax: cmax = col_index
+                if total > 0.0:
+                    metrics.centroid_row = sum_r / total
+                    metrics.centroid_col = sum_c / total
+                else:
+                    metrics.centroid_row = 0.0
+                    metrics.centroid_col = 0.0
+                bbox = (0, -1, 0, -1) if rmax < rmin or cmax < cmin else (rmin, rmax, cmin, cmax)
+                metrics.bbox = bbox
+        except Exception:
+            pass
+        return metrics
