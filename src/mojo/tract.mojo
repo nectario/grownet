@@ -114,3 +114,33 @@ struct Tract:
             dest_index = dest_index + 1
             created_edges = created_edges + 1
         return created_edges
+
+    # Parity adapter: deliver from a given source index to destination layer.
+    fn on_source_fired(self, region: any, source_index: Int, amplitude: Float64) -> None:
+        # If destination is OutputLayer2D, this tract wires source→center edges explicitly.
+        # For generic destinations, forward to all destination neurons.
+        var dest_layer = region.layers[self.dst_layer_index]
+        var dest_is_output_2d = hasattr(dest_layer, "height") and hasattr(dest_layer, "width")
+        if dest_is_output_2d:
+            # Compute all centers for windows that include this source, and stimulate those outputs.
+            var origins = self._origin_list()
+            var row_index = source_index / self.source_width
+            var col_index = source_index % self.source_width
+            var seen_center = dict[Int, Bool]()
+            var it = 0
+            while it < origins.len:
+                var orow = origins[it][0]
+                var ocol = origins[it][1]
+                var rs = if orow > 0 then orow else 0
+                var cs = if ocol > 0 then ocol else 0
+                var re = if (orow + self.kernel_height) < self.source_height then (orow + self.kernel_height) else self.source_height
+                var ce = if (ocol + self.kernel_width) < self.source_width then (ocol + self.kernel_width) else self.source_width
+                if row_index >= rs and row_index < re and col_index >= cs and col_index < ce:
+                    var center = self._center_for_origin(orow, ocol)
+                    if not seen_center.contains(center):
+                        region.layers[self.dst_layer_index].propagate_from(center, amplitude)
+                        seen_center[center] = True
+                it = it + 1
+            return
+        # Generic destination: route using layer helper
+        region.layers[self.dst_layer_index].propagate_from(source_index, amplitude)

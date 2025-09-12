@@ -554,6 +554,10 @@ class Region:
     def tick_image(self, port: str, frame) -> RegionMetrics:
         return self.tick_2d(port, frame)
 
+    # ---- mojo-parity thin alias ----
+    def autowire_new_neuron_by_ref(self, layer_obj, new_idx: int) -> None:
+        return self.autowire_new_neuron(layer_obj, new_idx)
+
     
     def prune(
         self,

@@ -36,7 +36,26 @@ class LateralBus:
     def get_step(self) -> int:
         return self.get_current_step()
 
-    def decay(self):
+    # Mojo‑parity getters (aliases)
+    def get_inhibition_factor(self) -> float:
+        return float(self.inhibition_factor)
+
+    def get_modulation_factor(self) -> float:
+        return float(self.modulation_factor)
+
+    def get_inhibition_decay(self) -> float:
+        return float(self.inhibition_decay)
+
+    # Mojo‑parity setters (aliases)
+    def set_inhibition(self, factor: float) -> None:
+        self.inhibition_factor = float(factor)
+
+    def set_modulation(self, factor: float) -> None:
+        self.modulation_factor = float(factor)
+
+    def decay(self, dt: float = 1.0):
+        # Optional dt param ignored; preserves behavior; parity shim only
+        _ = dt
         # Inhibition decays multiplicatively; modulation resets each tick
         self.inhibition_factor *= self.inhibition_decay
         self.modulation_factor = 1.0

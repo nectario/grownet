@@ -151,6 +151,10 @@ types:
       request_layer_growth(saturated_layer: Layer) -> int|None
       set_growth_policy(policy: GrowthPolicy) -> void
       get_growth_policy() -> GrowthPolicy|None
+      pulse_inhibition(factor: float) -> void           # v5.1 addendum (Python/Mojo parity)
+      pulse_modulation(factor: float) -> void           # v5.1 addendum (Python/Mojo parity)
+      compute_spatial_metrics(image_2d: list[list[float]], prefer_output: bool=True) -> RegionMetrics  # v5.1 addendum
+      prune(synapse_stale_window: int, synapse_min_strength: float) -> PruneSummary                    # v5.1 addendum
       maybe_grow_region() -> void                    # v5.1 addendum
   Buses:
     LateralBus:

@@ -33,3 +33,21 @@ struct SlotConfig:
     var layer_neuron_limit_default: Int   = -1
     var fallback_growth_requires_same_missing_slot: Bool = False
     var min_delta_pct_for_growth: F64 = 0.0
+
+# --------- Simple factories (parity helpers) ---------
+fn fixed(percent: F64) -> SlotConfig:
+    var cfg = SlotConfig()
+    cfg.slot_policy = SlotConfig.SLOT_FIXED
+    cfg.bin_width_pct = percent
+    return cfg
+
+fn adaptive() -> SlotConfig:
+    var cfg = SlotConfig()
+    cfg.slot_policy = SlotConfig.SLOT_ADAPTIVE
+    return cfg
+
+fn nonuniform(breakpoints: List[F64]) -> SlotConfig:
+    var cfg = SlotConfig()
+    cfg.slot_policy = SlotConfig.SLOT_NONUNIFORM
+    cfg.nonuniform_edges = breakpoints
+    return cfg

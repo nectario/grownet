@@ -105,6 +105,111 @@ struct Region:
         var mixed_bits: UInt64 = random_state * 0x2545F4914F6CDD1D
         return Float64(mixed_bits & 0xFFFFFFFFFFFF) / Float64(0x1000000000000)
 
+    # ---------------- pulses (parity with Python/Java) ----------------
+    fn pulse_inhibition(mut self, factor: Float64) -> None:
+        self.bus.set_inhibition_factor(factor)
+        var li = 0
+        while li < self.layers.len:
+            self.layers[li].bus.set_inhibition_factor(factor)
+            li = li + 1
+
+    fn pulse_modulation(mut self, factor: Float64) -> None:
+        self.bus.set_modulation_factor(factor)
+        var lj = 0
+        while lj < self.layers.len:
+            self.layers[lj].bus.set_modulation_factor(factor)
+            lj = lj + 1
+
+    # ---------------- ensure edge helpers (public) ----------------
+    fn ensure_input_edge(mut self, port: String, neurons: Int = 1) -> Int:
+        if self.input_edges.contains(port):
+            return self.input_edges[port]
+        _ = neurons  # reserved; scalar edge is 1-neuron layer
+        var edge_index = self.add_layer(1, 0, 0)
+        self.input_edges[port] = edge_index
+        return edge_index
+
+    fn ensure_output_edge(mut self, port: String, neurons: Int = 1) -> Int:
+        if self.output_edges.contains(port):
+            return self.output_edges[port]
+        _ = neurons
+        var edge_index = self.add_layer(1, 0, 0)
+        self.output_edges[port] = edge_index
+        return edge_index
+
+    # ---------------- prune (stub parity) ----------------
+    struct PruneSummary:
+        var pruned_synapses: Int64 = 0
+        var pruned_edges: Int64 = 0
+
+    fn prune(self, synapse_stale_window: Int64, synapse_min_strength: Float64) -> PruneSummary:
+        _ = synapse_stale_window; _ = synapse_min_strength
+        return PruneSummary()
+
+    # ---------------- spatial metrics (helper) ----------------
+    fn compute_spatial_metrics(self, img: list[list[Float64]], prefer_output: Bool = true) -> RegionMetrics:
+        var metrics = RegionMetrics()
+        var chosen = img
+        if prefer_output and self.output_layer_indices.len > 0:
+            var pick = self.output_layer_indices[self.output_layer_indices.len - 1]
+            if pick >= 0 and pick < self.layers.len:
+                if hasattr(self.layers[pick], "get_frame"):
+                    var out = (self.layers[pick] as OutputLayer2D).get_frame()
+                    # prefer out if non-zero; else use input
+                    if _has_non_zero(out):
+                        chosen = out
+        var active: Int64 = 0
+        var total: Float64 = 0.0
+        var sum_r: Float64 = 0.0
+        var sum_c: Float64 = 0.0
+        var rmin: Int64 = 1000000000
+        var rmax: Int64 = -1
+        var cmin: Int64 = 1000000000
+        var cmax: Int64 = -1
+        var H = chosen.len
+        var W = (H > 0) ? chosen[0].len : 0
+        var r = 0
+        while r < H:
+            var row = chosen[r]
+            var c = 0
+            var Wc = (W < row.len) ? W : row.len
+            while c < Wc:
+                var v = row[c]
+                if v > 0.0:
+                    active = active + 1
+                    total = total + v
+                    sum_r = sum_r + (Float64)(r) * v
+                    sum_c = sum_c + (Float64)(c) * v
+                    if r < rmin: rmin = r
+                    if r > rmax: rmax = r
+                    if c < cmin: cmin = c
+                    if c > cmax: cmax = c
+                c = c + 1
+            r = r + 1
+        metrics.active_pixels = active
+        if total > 0.0:
+            metrics.centroid_row = sum_r / total
+            metrics.centroid_col = sum_c / total
+        else:
+            metrics.centroid_row = 0.0
+            metrics.centroid_col = 0.0
+        if rmax >= rmin and cmax >= cmin:
+            metrics.set_bbox(rmin, rmax, cmin, cmax)
+        else:
+            metrics.set_bbox(0, -1, 0, -1)
+        return metrics
+
+    fn _has_non_zero(img: list[list[Float64]]) -> Bool:
+        var i = 0
+        while i < img.len:
+            var row = img[i]
+            var j = 0
+            while j < row.len:
+                if row[j] != 0.0: return true
+                j = j + 1
+            i = i + 1
+        return false
+
     # ---------------- wiring ----------------
     fn connect_layers(mut self, source_index: Int, dest_index: Int, probability: Float64, feedback: Bool = False) -> Int:
         var edge_count: Int = 0

@@ -50,3 +50,22 @@ struct Weight:
 
     fn is_frozen(self) -> Bool:
         return self.frozen
+
+    # Parity accessors
+    fn get_strength_value(self) -> Float64:
+        return self.strength
+
+    fn set_strength_value(mut self, v: Float64) -> None:
+        self.strength = MathUtils.smooth_clamp(v, -1.0, 1.0)
+
+    fn get_threshold_value(self) -> Float64:
+        return self.theta
+
+    fn set_threshold_value(mut self, v: Float64) -> None:
+        self.theta = v
+
+    fn get_hit_count(self) -> Int:
+        return self.hit_count
+
+    fn set_hit_count(mut self, c: Int) -> None:
+        self.hit_count = (if c > 0 then c else 0)

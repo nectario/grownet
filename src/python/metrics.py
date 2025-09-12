@@ -26,3 +26,13 @@ class RegionMetrics:
         self.total_synapses += amt
     def set_bbox(self, row_min: int, row_max: int, col_min: int, col_max: int):
         self.bbox = (int(row_min), int(row_max), int(col_min), int(col_max))
+
+    # Mojo-parity getters (aliases)
+    def get_delivered_events(self) -> int:
+        return int(self.delivered_events)
+
+    def get_total_slots(self) -> int:
+        return int(self.total_slots)
+
+    def get_total_synapses(self) -> int:
+        return int(self.total_synapses)
