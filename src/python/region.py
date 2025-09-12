@@ -2,6 +2,7 @@
 from typing import List, Dict, Any
 import random
 from metrics import RegionMetrics
+import os
 try:
     from growth import GrowthPolicy, maybe_grow  # type: ignore
 except Exception:
@@ -528,12 +529,54 @@ class Region:
                 self.bus.decay()
         except Exception:
             pass
-        for layer_obj in self.layers:
-            for neuron in getattr(layer_obj, "get_neurons")():
-                slots_map = getattr(neuron, "slots", None)
-                metrics.add_slots(len(slots_map) if isinstance(slots_map, dict) else 0)
-                outgoing_list = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
-                metrics.add_synapses(len(outgoing_list))
+        # Optionally parallelize structural metrics aggregation via PAL
+        use_pal = os.environ.get("GROWNET_ENABLE_PAL") == "1"
+        if use_pal:
+            try:
+                from pal.api import parallel_map, ParallelOptions
+                from pal.domains import build_layer_neuron_tiles
+                neuron_counts = [len(getattr(layer_obj, "get_neurons")()) for layer_obj in self.layers]
+                tiles = build_layer_neuron_tiles(neuron_counts, tile_size=2048)
+
+                def kernel(tile):
+                    layer_index, start_index, end_index = int(tile[0]), int(tile[1]), int(tile[2])
+                    layer_obj = self.layers[layer_index]
+                    local_slots = 0
+                    local_synapses = 0
+                    neurons = getattr(layer_obj, "get_neurons")()
+                    for idx in range(start_index, end_index):
+                        neuron = neurons[idx]
+                        slots_map = getattr(neuron, "slots", None)
+                        local_slots += len(slots_map) if isinstance(slots_map, dict) else 0
+                        outgoing_list = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+                        local_synapses += len(outgoing_list)
+                    return (local_slots, local_synapses)
+
+                def reduce_in_order(local_results):
+                    total_s = 0
+                    total_e = 0
+                    for pair in local_results:
+                        total_s += int(pair[0])
+                        total_e += int(pair[1])
+                    return (total_s, total_e)
+
+                total_slots, total_edges = parallel_map(tiles, kernel, reduce_in_order, ParallelOptions())
+                metrics.add_slots(total_slots)
+                metrics.add_synapses(total_edges)
+            except Exception:
+                for layer_obj in self.layers:
+                    for neuron in getattr(layer_obj, "get_neurons")():
+                        slots_map = getattr(neuron, "slots", None)
+                        metrics.add_slots(len(slots_map) if isinstance(slots_map, dict) else 0)
+                        outgoing_list = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+                        metrics.add_synapses(len(outgoing_list))
+        else:
+            for layer_obj in self.layers:
+                for neuron in getattr(layer_obj, "get_neurons")():
+                    slots_map = getattr(neuron, "slots", None)
+                    metrics.add_slots(len(slots_map) if isinstance(slots_map, dict) else 0)
+                    outgoing_list = neuron.get_outgoing() if hasattr(neuron, "get_outgoing") else []
+                    metrics.add_synapses(len(outgoing_list))
 
         # Optional spatial metrics
         try:
