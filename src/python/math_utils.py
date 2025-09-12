@@ -27,29 +27,29 @@ def smooth_clamp(
     """
     if hi <= lo:
         return lo
-    rng = hi - lo
-    s = (0.1 * rng) if (soft is None or soft <= 0.0) else float(soft)
-    if 2.0 * s > rng:
-        s = 0.5 * rng
+    range_span = hi - lo
+    soft_band = (0.1 * range_span) if (soft is None or soft <= 0.0) else float(soft)
+    if 2.0 * soft_band > range_span:
+        soft_band = 0.5 * range_span
 
     if x <= lo:
         return lo
     if x >= hi:
         return hi
-    if s <= 0.0:
+    if soft_band <= 0.0:
         return x
 
-    m = str(smoothness or "cubic").lower()
-    def h_cubic(t: float) -> float:
-        return t * t * (3.0 - 2.0 * t)
-    def h_quintic(t: float) -> float:
-        return t * t * t * (10.0 - 15.0 * t + 6.0 * t * t)
-    h = h_quintic if m == "quintic" else h_cubic
+    mode = str(smoothness or "cubic").lower()
+    def h_cubic(param: float) -> float:
+        return param * param * (3.0 - 2.0 * param)
+    def h_quintic(param: float) -> float:
+        return param * param * param * (10.0 - 15.0 * param + 6.0 * param * param)
+    h = h_quintic if mode == "quintic" else h_cubic
 
-    if x < (lo + s):
-        t = (x - lo) / s
-        return lo + s * h(t)
-    if x > (hi - s):
-        t = (hi - x) / s
-        return hi - s * h(t)
+    if x < (lo + soft_band):
+        normalized_position = (x - lo) / soft_band
+        return lo + soft_band * h(normalized_position)
+    if x > (hi - soft_band):
+        normalized_position_upper = (hi - x) / soft_band
+        return hi - soft_band * h(normalized_position_upper)
     return x

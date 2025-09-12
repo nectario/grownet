@@ -485,37 +485,37 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         Layer src = layers.get(sourceIndex);
         Layer dst = layers.get(destIndex);
 
-        int H = 0, W = 0;
+        int gridHeight = 0, gridWidth = 0;
         if (src instanceof InputLayer2D) {
-            H = ((InputLayer2D) src).getHeight();
-            W = ((InputLayer2D) src).getWidth();
+            gridHeight = ((InputLayer2D) src).getHeight();
+            gridWidth = ((InputLayer2D) src).getWidth();
         } else if (dst instanceof OutputLayer2D) {
-            H = ((OutputLayer2D) dst).getHeight();
-            W = ((OutputLayer2D) dst).getWidth();
+            gridHeight = ((OutputLayer2D) dst).getHeight();
+            gridWidth = ((OutputLayer2D) dst).getWidth();
         } else {
-            int n = src.getNeurons().size();
-            int side = (int)Math.sqrt(n);
-            if (side * side != n) throw new IllegalStateException("source is not 2D-compatible");
-            H = side; W = side;
+            int neuronCount = src.getNeurons().size();
+            int sideLength = (int)Math.sqrt(neuronCount);
+            if (sideLength * sideLength != neuronCount) throw new IllegalStateException("source is not 2D-compatible");
+            gridHeight = sideLength; gridWidth = sideLength;
         }
 
         java.util.List<int[]> origins = new java.util.ArrayList<>();
         if ("same".equalsIgnoreCase(padding)) {
-            int outRows = (int)Math.ceil((double)H / strideHeight);
-            int outCols = (int)Math.ceil((double)W / strideWidth);
-            int padRows = Math.max(0, (outRows - 1) * strideHeight + kernelHeight - H);
-            int padCols = Math.max(0, (outCols - 1) * strideWidth + kernelWidth  - W);
+            int outRows = (int)Math.ceil((double)gridHeight / strideHeight);
+            int outCols = (int)Math.ceil((double)gridWidth / strideWidth);
+            int padRows = Math.max(0, (outRows - 1) * strideHeight + kernelHeight - gridHeight);
+            int padCols = Math.max(0, (outCols - 1) * strideWidth + kernelWidth  - gridWidth);
             int rowStart = -padRows / 2;
             int colStart = -padCols / 2;
-            for (int r = rowStart; r + kernelHeight <= H + padRows; r += strideHeight) {
-                for (int c = colStart; c + kernelWidth <= W + padCols; c += strideWidth) {
-                    origins.add(new int[]{r, c});
+            for (int originRow = rowStart; originRow + kernelHeight <= gridHeight + padRows; originRow += strideHeight) {
+                for (int originCol = colStart; originCol + kernelWidth <= gridWidth + padCols; originCol += strideWidth) {
+                    origins.add(new int[]{originRow, originCol});
                 }
             }
         } else { // VALID
-            for (int r = 0; r + kernelHeight <= H; r += strideHeight) {
-                for (int c = 0; c + kernelWidth <= W; c += strideWidth) {
-                    origins.add(new int[]{r, c});
+            for (int originRow = 0; originRow + kernelHeight <= gridHeight; originRow += strideHeight) {
+                for (int originCol = 0; originCol + kernelWidth <= gridWidth; originCol += strideWidth) {
+                    origins.add(new int[]{originRow, originCol});
                 }
             }
         }
@@ -526,18 +526,18 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
 
         if (dst instanceof OutputLayer2D) {
             for (int[] origin : origins) {
-                int r0 = origin[0], c0 = origin[1];
-                int rr0 = Math.max(0, r0), cc0 = Math.max(0, c0);
-                int rr1 = Math.min(H, r0 + kernelHeight), cc1 = Math.min(W, c0 + kernelWidth);
-                if (rr0 >= rr1 || cc0 >= cc1) continue;
-                int cr = Math.min(H - 1, Math.max(0, r0 + kernelHeight / 2));
-                int cc = Math.min(W - 1, Math.max(0, c0 + kernelWidth  / 2));
-                int centerIdx = cr * W + cc;
-                for (int rr = rr0; rr < rr1; ++rr) {
-                    for (int cc2 = cc0; cc2 < cc1; ++cc2) {
-                        int srcIdx = rr * W + cc2;
-                        allowed.add(srcIdx);
-                        ((java.util.Map<Integer,Integer>)centerMap).putIfAbsent(srcIdx, centerIdx);
+                int originRow = origin[0], originCol = origin[1];
+                int clippedRowStart = Math.max(0, originRow), clippedColStart = Math.max(0, originCol);
+                int clippedRowEnd = Math.min(gridHeight, originRow + kernelHeight), clippedColEnd = Math.min(gridWidth, originCol + kernelWidth);
+                if (clippedRowStart >= clippedRowEnd || clippedColStart >= clippedColEnd) continue;
+                int centerRow = Math.min(gridHeight - 1, Math.max(0, originRow + kernelHeight / 2));
+                int centerCol = Math.min(gridWidth - 1, Math.max(0, originCol + kernelWidth  / 2));
+                int centerIndex = centerRow * gridWidth + centerCol;
+                for (int rowIndex = clippedRowStart; rowIndex < clippedRowEnd; ++rowIndex) {
+                    for (int colIndex = clippedColStart; colIndex < clippedColEnd; ++colIndex) {
+                        int sourceIndex = rowIndex * gridWidth + colIndex;
+                        allowed.add(sourceIndex);
+                        ((java.util.Map<Integer,Integer>)centerMap).putIfAbsent(sourceIndex, centerIndex);
                     }
                 }
             }
@@ -546,14 +546,14 @@ public int addInputLayerND(int[] shape, double gain, double epsilonFire) {
         } else {
             java.util.Set<Integer> seen = new java.util.HashSet<>();
             for (int[] origin : origins) {
-                int r0 = origin[0], c0 = origin[1];
-                int rr0 = Math.max(0, r0), cc0 = Math.max(0, c0);
-                int rr1 = Math.min(H, r0 + kernelHeight), cc1 = Math.min(W, c0 + kernelWidth);
-                if (rr0 >= rr1 || cc0 >= cc1) continue;
-                for (int rr = rr0; rr < rr1; ++rr) {
-                    for (int cc2 = cc0; cc2 < cc1; ++cc2) {
-                        int srcIdx = rr * W + cc2;
-                        if (seen.add(srcIdx)) allowed.add(srcIdx);
+                int originRow = origin[0], originCol = origin[1];
+                int clippedRowStart = Math.max(0, originRow), clippedColStart = Math.max(0, originCol);
+                int clippedRowEnd = Math.min(gridHeight, originRow + kernelHeight), clippedColEnd = Math.min(gridWidth, originCol + kernelWidth);
+                if (clippedRowStart >= clippedRowEnd || clippedColStart >= clippedColEnd) continue;
+                for (int rowIndex = clippedRowStart; rowIndex < clippedRowEnd; ++rowIndex) {
+                    for (int colIndex = clippedColStart; colIndex < clippedColEnd; ++colIndex) {
+                        int sourceIndex = rowIndex * gridWidth + colIndex;
+                        if (seen.add(sourceIndex)) allowed.add(sourceIndex);
                     }
                 }
             }

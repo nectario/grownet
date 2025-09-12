@@ -76,18 +76,18 @@ struct Tract:
         # Wires just-grown source neuron through this tract; returns created edge count.
         var created_edges = 0
         var (row_index, col_index) = self._row_col_from_flat(new_source_index)
-        var origins = self._origin_list()
+        var window_origins = self._origin_list()
 
         # Determine if destination is OutputLayer2D
-        var dest_is_output_2d = hasattr(region.layers[self.dst_layer_index], "height") \
+        var destination_is_output_2d = hasattr(region.layers[self.dst_layer_index], "height") \
                                 and hasattr(region.layers[self.dst_layer_index], "width")
 
-        if dest_is_output_2d:
+        if destination_is_output_2d:
             var seen_center_indices: dict[Int, Bool] = dict[Int, Bool]()
-            var origin_iter = 0
-            while origin_iter < origins.len:
-                var origin_row = origins[origin_iter][0]
-                var origin_col = origins[origin_iter][1]
+            var origin_index = 0
+            while origin_index < window_origins.len:
+                var origin_row = window_origins[origin_index][0]
+                var origin_col = window_origins[origin_index][1]
                 var window_row_start = if origin_row > 0 then origin_row else 0
                 var window_col_start = if origin_col > 0 then origin_col else 0
                 var window_row_end   = if (origin_row + self.kernel_height) < self.source_height \
@@ -102,7 +102,7 @@ struct Tract:
                         region.layers[self.src_layer_index].get_neurons()[new_source_index].outgoing.append(syn)
                         seen_center_indices[center_flat_index] = True
                         created_edges = created_edges + 1
-                origin_iter = origin_iter + 1
+                origin_index = origin_index + 1
             return created_edges
 
         # Generic destination: connect to all destination neurons

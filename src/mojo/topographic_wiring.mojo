@@ -47,16 +47,16 @@ fn connect_layers_topographic(
             let delta_row = Float64(source_row_index - center_row_index)
             let delta_col = Float64(source_col_index - center_col_index)
             let squared_distance = delta_row*delta_row + delta_col*delta_col
-            var w: Float64 = 0.0
+            var weight_value: Float64 = 0.0
             if config.weight_mode == "dog":
                 let weight_center = exp(-squared_distance / (2.0 * config.sigma_center * config.sigma_center))
                 let weight_surround = exp(-squared_distance / (2.0 * config.sigma_surround * config.sigma_surround))
                 let diff = weight_center - config.surround_ratio * weight_surround
-                w = if diff > 0.0 then diff else 0.0
+                weight_value = if diff > 0.0 then diff else 0.0
             else:
-                w = exp(-squared_distance / (2.0 * config.sigma_center * config.sigma_center))
-            outgoing_synapses[synapse_index].weight_state.strength = w
-            incoming_sums[center_index] = incoming_sums[center_index] + w
+                weight_value = exp(-squared_distance / (2.0 * config.sigma_center * config.sigma_center))
+            outgoing_synapses[synapse_index].weight_state.strength = weight_value
+            incoming_sums[center_index] = incoming_sums[center_index] + weight_value
             synapse_index = synapse_index + 1
         neuron_index = neuron_index + 1
 
@@ -68,9 +68,9 @@ fn connect_layers_topographic(
             var normalize_synapse_index = 0
             while normalize_synapse_index < synapses_for_scale.len:
                 let center_index2 = synapses_for_scale[normalize_synapse_index].target_index
-                let s = incoming_sums[center_index2]
-                if s > 1e-12:
-                    synapses_for_scale[normalize_synapse_index].weight_state.strength = synapses_for_scale[normalize_synapse_index].weight_state.strength / s
+                let incoming_sum_value = incoming_sums[center_index2]
+                if incoming_sum_value > 1e-12:
+                    synapses_for_scale[normalize_synapse_index].weight_state.strength = synapses_for_scale[normalize_synapse_index].weight_state.strength / incoming_sum_value
                 normalize_synapse_index = normalize_synapse_index + 1
             normalize_neuron_index = normalize_neuron_index + 1
 

@@ -33,12 +33,12 @@ class Tract:
             try:
                 neurons = self.dst.get_neurons()
                 # Deduplicate in case a center was added multiple times.
-                for t_idx in (targets if isinstance(targets, set) else set(targets)):
-                    if 0 <= t_idx < len(neurons):
-                        n = neurons[t_idx]
-                        fired = n.on_input(value)
+                for target_index in (targets if isinstance(targets, set) else set(targets)):
+                    if 0 <= target_index < len(neurons):
+                        target_neuron = neurons[target_index]
+                        fired = target_neuron.on_input(value)
                         if fired:
-                            n.on_output(value)
+                            target_neuron.on_output(value)
                 return
             except Exception:
                 pass

@@ -108,17 +108,17 @@ struct Region:
     # ---------------- pulses (parity with Python/Java) ----------------
     fn pulse_inhibition(mut self, factor: Float64) -> None:
         self.bus.set_inhibition_factor(factor)
-        var li = 0
-        while li < self.layers.len:
-            self.layers[li].bus.set_inhibition_factor(factor)
-            li = li + 1
+        var layer_index_inhibit = 0
+        while layer_index_inhibit < self.layers.len:
+            self.layers[layer_index_inhibit].bus.set_inhibition_factor(factor)
+            layer_index_inhibit = layer_index_inhibit + 1
 
     fn pulse_modulation(mut self, factor: Float64) -> None:
         self.bus.set_modulation_factor(factor)
-        var lj = 0
-        while lj < self.layers.len:
-            self.layers[lj].bus.set_modulation_factor(factor)
-            lj = lj + 1
+        var layer_index_modulate = 0
+        while layer_index_modulate < self.layers.len:
+            self.layers[layer_index_modulate].bus.set_modulation_factor(factor)
+            layer_index_modulate = layer_index_modulate + 1
 
     # ---------------- ensure edge helpers (public) ----------------
     fn ensure_input_edge(mut self, port: String, neurons: Int = 1) -> Int:
@@ -166,26 +166,26 @@ struct Region:
         var rmax: Int64 = -1
         var cmin: Int64 = 1000000000
         var cmax: Int64 = -1
-        var H = chosen.len
-        var W = (H > 0) ? chosen[0].len : 0
-        var r = 0
-        while r < H:
-            var row = chosen[r]
-            var c = 0
-            var Wc = (W < row.len) ? W : row.len
-            while c < Wc:
-                var v = row[c]
-                if v > 0.0:
+        var frame_height = chosen.len
+        var frame_width = (frame_height > 0) ? chosen[0].len : 0
+        var row_index = 0
+        while row_index < frame_height:
+            var row_values = chosen[row_index]
+            var column_limit = (frame_width < row_values.len) ? frame_width : row_values.len
+            var col_index = 0
+            while col_index < column_limit:
+                var pixel_value = row_values[col_index]
+                if pixel_value > 0.0:
                     active = active + 1
-                    total = total + v
-                    sum_r = sum_r + (Float64)(r) * v
-                    sum_c = sum_c + (Float64)(c) * v
-                    if r < rmin: rmin = r
-                    if r > rmax: rmax = r
-                    if c < cmin: cmin = c
-                    if c > cmax: cmax = c
-                c = c + 1
-            r = r + 1
+                    total = total + pixel_value
+                    sum_r = sum_r + (Float64)(row_index) * pixel_value
+                    sum_c = sum_c + (Float64)(col_index) * pixel_value
+                    if row_index < rmin: rmin = row_index
+                    if row_index > rmax: rmax = row_index
+                    if col_index < cmin: cmin = col_index
+                    if col_index > cmax: cmax = col_index
+                col_index = col_index + 1
+            row_index = row_index + 1
         metrics.active_pixels = active
         if total > 0.0:
             metrics.centroid_row = sum_r / total

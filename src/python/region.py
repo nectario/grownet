@@ -246,13 +246,13 @@ class Region:
                 if rule.get('src') != layer_i:
                     continue
                 dst_i = int(rule.get('dst'))
-                prob = float(rule.get('prob', 0.0)); fb = bool(rule.get('feedback', False))
+                prob = float(rule.get('prob', 0.0)); feedback_flag = bool(rule.get('feedback', False))
                 dst = self.layers[dst_i]
-                s = layer_obj.get_neurons()[new_idx]
-                for t in dst.get_neurons():
+                new_source_neuron = layer_obj.get_neurons()[new_idx]
+                for target_neuron in dst.get_neurons():
                     if self.rng.random() <= prob:
                         try:
-                            s.connect(t, fb)
+                            new_source_neuron.connect(target_neuron, feedback_flag)
                         except Exception:
                             pass
             except Exception:
@@ -263,13 +263,13 @@ class Region:
                 if rule.get('dst') != layer_i:
                     continue
                 src_i = int(rule.get('src'))
-                prob = float(rule.get('prob', 0.0)); fb = bool(rule.get('feedback', False))
+                prob = float(rule.get('prob', 0.0)); feedback_flag = bool(rule.get('feedback', False))
                 src = self.layers[src_i]
-                t_neuron = layer_obj.get_neurons()[new_idx]
-                for s_neuron in src.get_neurons():
+                target_neuron = layer_obj.get_neurons()[new_idx]
+                for source_neuron in src.get_neurons():
                     if self.rng.random() <= prob:
                         try:
-                            s_neuron.connect(t_neuron, fb)
+                            source_neuron.connect(target_neuron, feedback_flag)
                         except Exception:
                             pass
             except Exception:

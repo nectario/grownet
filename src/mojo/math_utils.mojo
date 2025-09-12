@@ -21,17 +21,17 @@ struct MathUtils:
         if hi <= lo:
             return lo
 
-        let rng = hi - lo
-        var s = soft
-        if s <= 0.0:
-            s = 0.1 * rng
-        if (2.0 * s) > rng:
-            s = 0.5 * rng
+        let range_span = hi - lo
+        var soft_band = soft
+        if soft_band <= 0.0:
+            soft_band = 0.1 * range_span
+        if (2.0 * soft_band) > range_span:
+            soft_band = 0.5 * range_span
 
         if x <= lo: return lo
         if x >= hi: return hi
 
-        if s <= 0.0:
+        if soft_band <= 0.0:
             return x
 
         # choose easing function h(t)
@@ -42,13 +42,13 @@ struct MathUtils:
             return t * t * t * (10.0 - 15.0 * t + 6.0 * t * t)
         var is_quintic = (smoothness == "quintic") or (smoothness == "Quintic") or (smoothness == "QUINTIC")
 
-        if x < (lo + s):
-            let t = (x - lo) / s
-            return lo + s * (if is_quintic { h_quintic(t) } else { h_cubic(t) })
+        if x < (lo + soft_band):
+            let normalized_position = (x - lo) / soft_band
+            return lo + soft_band * (if is_quintic { h_quintic(normalized_position) } else { h_cubic(normalized_position) })
 
-        if x > (hi - s):
-            let t = (hi - x) / s
-            return hi - s * (if is_quintic { h_quintic(t) } else { h_cubic(t) })
+        if x > (hi - soft_band):
+            let normalized_position_upper = (hi - x) / soft_band
+            return hi - soft_band * (if is_quintic { h_quintic(normalized_position_upper) } else { h_cubic(normalized_position_upper) })
 
         return x
 

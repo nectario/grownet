@@ -105,26 +105,26 @@ def connect_layers_topographic(region, source_layer_index: int, destination_laye
                 delta_col = float(src_col_index - center_col_index)
                 squared_distance = delta_row * delta_row + delta_col * delta_col
                 if config.weight_mode.lower() == "gaussian":
-                    w = math.exp(-squared_distance / (2.0 * config.sigma_center * config.sigma_center))
+                    weight_value = math.exp(-squared_distance / (2.0 * config.sigma_center * config.sigma_center))
                 else:
                     weight_center = math.exp(-squared_distance / (2.0 * config.sigma_center * config.sigma_center))
                     weight_surround = math.exp(-squared_distance / (2.0 * config.sigma_surround * config.sigma_surround))
-                    w = max(0.0, weight_center - config.surround_ratio * weight_surround)
+                    weight_value = max(0.0, weight_center - config.surround_ratio * weight_surround)
                 key = (src_index, center_index)
                 # dedupe by keeping the first assignment; center mapping ensures one center per window
                 if key not in weights:
-                    weights[key] = w
+                    weights[key] = weight_value
 
     # Optional per-target normalization (incoming to each destination center sums to 1.0)
     if config.normalize_incoming:
         incoming_sums = [0.0] * (dest_height * dest_width)
         for (_, center_index), w_val in weights.items():
             incoming_sums[center_index] += w_val
-        for key, w_val in list(weights.items()):
+        for key, weight_val in list(weights.items()):
             center_index = key[1]
-            s_val = incoming_sums[center_index]
-            if s_val > 1e-12:
-                weights[key] = w_val / s_val
+            sum_value = incoming_sums[center_index]
+            if sum_value > 1e-12:
+                weights[key] = weight_val / sum_value
 
     # Save to registry for inspection
     _TOPO_REGISTRY[(id(region), int(source_layer_index), int(destination_layer_index))] = weights

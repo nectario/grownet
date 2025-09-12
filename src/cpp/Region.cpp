@@ -102,22 +102,22 @@ int Region::connectLayersWindowed(int sourceIndex, int destIndex,
     if (dstOut2d) {
         std::unordered_set<int> seenSources;
         for (const auto& edge : windowedPtr->sourceToCenterEdges()) {
-            const int srcIdx = edge.first;
-            const int centerIdx = edge.second;
-            if (seenSources.insert(srcIdx).second) uniqueSources += 1;
-            if (srcIdx >= 0 && srcIdx < static_cast<int>(srcNeurons.size()) &&
-                centerIdx >= 0 && centerIdx < static_cast<int>(dstNeurons.size())) {
-                auto sourceNeuron = srcNeurons[srcIdx];
-                auto targetNeuron = dstNeurons[centerIdx];
+            const int sourceIndex = edge.first;
+            const int centerIndex = edge.second;
+            if (seenSources.insert(sourceIndex).second) uniqueSources += 1;
+            if (sourceIndex >= 0 && sourceIndex < static_cast<int>(srcNeurons.size()) &&
+                centerIndex >= 0 && centerIndex < static_cast<int>(dstNeurons.size())) {
+                auto sourceNeuron = srcNeurons[sourceIndex];
+                auto targetNeuron = dstNeurons[centerIndex];
                 if (sourceNeuron && targetNeuron) sourceNeuron->connect(targetNeuron.get(), feedback);
             }
         }
     } else {
         const auto& allowed = windowedPtr->allowedSourceIndices();
         uniqueSources = static_cast<int>(allowed.size());
-        for (int srcIdx : allowed) {
-            if (srcIdx < 0 || srcIdx >= static_cast<int>(srcNeurons.size())) continue;
-            auto sourceNeuron = srcNeurons[srcIdx];
+        for (int sourceIndex : allowed) {
+            if (sourceIndex < 0 || sourceIndex >= static_cast<int>(srcNeurons.size())) continue;
+            auto sourceNeuron = srcNeurons[sourceIndex];
             if (!sourceNeuron) continue;
             for (auto& targetNeuron : dstNeurons) {
                 if (targetNeuron) sourceNeuron->connect(targetNeuron.get(), feedback);
