@@ -18,3 +18,22 @@ fn gpu_map_identity_f64(input: list[Float64]) -> list[Float64]:
         i = i + 1
     return out
 
+# Add-scalar mapping for Float64 (CPU placeholder; swap with GPU launch later).
+fn gpu_map_add_scalar_f64(input: list[Float64], scalar: Float64) -> list[Float64]:
+    var out = [Float64]()
+    out.reserve(input.len)
+    var i = 0
+    while i < input.len:
+        out.append(input[i] + scalar)
+        i = i + 1
+    return out
+
+# Scale mapping for Float64 (CPU placeholder; swap with GPU launch later).
+fn gpu_map_scale_f64(input: list[Float64], scale: Float64) -> list[Float64]:
+    var out = [Float64]()
+    out.reserve(input.len)
+    var i = 0
+    while i < input.len:
+        out.append(input[i] * scale)
+        i = i + 1
+    return out

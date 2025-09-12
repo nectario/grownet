@@ -52,20 +52,34 @@ fn gpu_parallel_map[T, R](domain: list[T], kernel: fn(T) -> R,
     return reduce_in_order(locals)
 
 # Specialized overload: Float64 → Float64 path with identity-kernel detection.
-from pal.gpu_impl import gpu_map_identity_f64
+from pal.gpu_impl import gpu_map_identity_f64, gpu_map_add_scalar_f64, gpu_map_scale_f64
 
 fn gpu_parallel_map(domain: list[Float64], kernel: fn(Float64) -> Float64,
                     reduce_in_order: fn(list[Float64]) -> Float64,
                     options: ParallelOptions) -> Float64:
-    # Detect identity kernel cheaply; otherwise fall back to CPU mapping.
+    # Detect simple kernels: identity, add-constant, or scale. Otherwise CPU.
     var probe_a: Float64 = 0.0
     var probe_b: Float64 = 1.2345
     let a_out = kernel(probe_a)
     let b_out = kernel(probe_b)
-    if (a_out == probe_a) and (b_out == probe_b):
-        # Use the GPU mapping path for identity: maps input → output directly.
-        var mapped = gpu_map_identity_f64(domain)
-        return reduce_in_order(mapped)
+    let eps: Float64 = 1e-12
+    # Identity: k(x) == x for two probes
+    if (abs(a_out - probe_a) <= eps) and (abs(b_out - probe_b) <= eps):
+        var mapped_id = gpu_map_identity_f64(domain)
+        return reduce_in_order(mapped_id)
+    # Add-constant: k(x) - x is (approximately) constant
+    let d0 = a_out - probe_a
+    let d1 = b_out - probe_b
+    if abs(d0 - d1) <= 1e-9:
+        var mapped_add = gpu_map_add_scalar_f64(domain, d0)
+        return reduce_in_order(mapped_add)
+    # Scale: k(x) / x is constant (avoid division by zero using probe_b)
+    if abs(probe_b) > eps:
+        let r1 = b_out / probe_b
+        # For probe_a==0, use the offset at b to infer scale; ensure k(0)≈0 for pure scaling
+        if abs(a_out) <= 1e-9:
+            var mapped_scale = gpu_map_scale_f64(domain, r1)
+            return reduce_in_order(mapped_scale)
     # CPU fallback for arbitrary kernels
     var locals = [Float64]()
     var index = 0
