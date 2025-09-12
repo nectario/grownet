@@ -1,7 +1,12 @@
-// Header-only PAL v1 (sequential fallback). Deterministic by construction.
+// Header-only PAL v1.5 — deterministic parallel backends (OpenMP) with sequential fallback.
 #pragma once
 #include <cstdint>
 #include <vector>
+#include <type_traits>
+
+#if defined(_OPENMP)
+  #include <omp.h>
+#endif
 
 namespace grownet { namespace pal {
 
@@ -13,22 +18,59 @@ struct ParallelOptions {
   bool vectorization_enabled = true;
 };
 
-inline void configure(const ParallelOptions& /*options*/) {
-  // No-op for the sequential fallback.
-}
+inline void configure(const ParallelOptions& /*options*/) {}
 
+// Domain requirements:
+//  - size() -> size_t
+//  - operator[](size_t) -> item
+//  - Stable, lexicographic iteration order
 template <typename Domain, typename Kernel>
-inline void parallel_for(const Domain& domain, Kernel kernel, const ParallelOptions* /*options*/ = nullptr) {
-  for (const auto& item : domain) kernel(item);
+inline void parallel_for(const Domain& domain, Kernel kernel, const ParallelOptions* opt = nullptr) {
+  const std::size_t n = domain.size();
+  if (n == 0) return;
+#if defined(_OPENMP)
+  const int requested = (opt && opt->max_workers > 0) ? opt->max_workers : omp_get_max_threads();
+  #pragma omp parallel for schedule(static) num_threads(requested)
+  for (std::int64_t i = 0; i < static_cast<std::int64_t>(n); ++i) {
+    kernel(domain[static_cast<std::size_t>(i)]);
+  }
+#else
+  (void)opt;
+  for (std::size_t i=0; i<n; ++i) kernel(domain[i]);
+#endif
 }
 
 template <typename Domain, typename Kernel, typename Reduce>
-inline auto parallel_map(const Domain& domain, Kernel kernel, Reduce reduce_in_order, const ParallelOptions* /*options*/ = nullptr)
-    -> decltype(reduce_in_order(std::declval<std::vector<decltype(kernel(*std::begin(domain)))>>() )) {
-  using R = decltype(kernel(*std::begin(domain)));
-  std::vector<R> locals;
-  for (const auto& item : domain) locals.push_back(kernel(item));
+inline auto parallel_map(const Domain& domain, Kernel kernel, Reduce reduce_in_order, const ParallelOptions* opt = nullptr)
+    -> decltype(kernel(domain[0])) {
+  using R = decltype(kernel(domain[0]));
+  const std::size_t n = domain.size();
+  if (n == 0) {
+    std::vector<R> empty;
+    return reduce_in_order(empty);
+  }
+#if defined(_OPENMP)
+  const int requested = (opt && opt->max_workers > 0) ? opt->max_workers : omp_get_max_threads();
+  std::vector<std::vector<R>> buckets(static_cast<std::size_t>(requested));
+  for (auto& b : buckets) b.reserve(static_cast<std::size_t>((n / requested) + 1));
+  #pragma omp parallel num_threads(requested)
+  {
+    const int wid = omp_get_thread_num();
+    auto& local = buckets[static_cast<std::size_t>(wid)];
+    #pragma omp for schedule(static)
+    for (std::int64_t i = 0; i < static_cast<std::int64_t>(n); ++i) {
+      local.push_back(kernel(domain[static_cast<std::size_t>(i)]));
+    }
+  }
+  std::vector<R> flat; flat.reserve(n);
+  for (auto& b : buckets) flat.insert(flat.end(), b.begin(), b.end());
+  return reduce_in_order(flat);
+#else
+  (void)opt;
+  std::vector<R> locals; locals.reserve(n);
+  for (std::size_t i=0; i<n; ++i) locals.push_back(kernel(domain[i]));
   return reduce_in_order(locals);
+#endif
 }
 
 inline std::uint64_t mix64(std::uint64_t x) {
@@ -53,4 +95,3 @@ inline double counter_rng(std::uint64_t seed, std::uint64_t step,
 }
 
 }} // namespace grownet::pal
-

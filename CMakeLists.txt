@@ -38,6 +38,20 @@ target_include_directories(grownet PUBLIC
         "${GROWNET_CPP_ROOT}/include"
 )
 
+# --- PAL / OpenMP backend (optional) -----------------------------------------
+option(GROWNET_WITH_OPENMP "Enable OpenMP backend for PAL (C++)" ON)
+if (GROWNET_WITH_OPENMP)
+  find_package(OpenMP)
+  if (OpenMP_CXX_FOUND)
+    message(STATUS "GrowNet: OpenMP found; enabling PAL parallel backends.")
+    if (TARGET grownet)
+      target_link_libraries(grownet PUBLIC OpenMP::OpenMP_CXX)
+    endif()
+  else()
+    message(WARNING "GrowNet: OpenMP not found; PAL will run sequentially.")
+  endif()
+endif()
+
 # Demo (optional)
 set(GROWNET_DEMO "${GROWNET_CPP_ROOT}/demo/region_demo.cpp")
 if(EXISTS "${GROWNET_DEMO}")
@@ -119,6 +133,9 @@ if(GROWNET_BUILD_TESTS)
             "${GROWNET_CPP_ROOT}"
             "${GROWNET_CPP_ROOT}/grownet"
         )
+        if (GROWNET_WITH_OPENMP AND OpenMP_CXX_FOUND)
+            target_link_libraries(grownet_tests PUBLIC OpenMP::OpenMP_CXX)
+        endif()
         target_compile_definitions(grownet_tests PRIVATE GTEST_AVAILABLE)
         add_test(NAME grownet_tests COMMAND grownet_tests)
     else()
