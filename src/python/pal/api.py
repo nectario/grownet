@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Iterable, Any, List, Optional, TypeVar, Generic
+from typing import Callable, Iterable, List, Optional, TypeVar, Sequence
+import os
+from concurrent.futures import ThreadPoolExecutor
+
+
+T = TypeVar("T")
+R = TypeVar("R")
 
 
 @dataclass
 class ParallelOptions:
     max_workers: Optional[int] = None
     tile_size: int = 4096
-    reduction_mode: str = "ordered"   # "ordered" | "pairwise_tree"
-    device: str = "cpu"               # "cpu" | "gpu" | "auto"
+    reduction_mode: str = "ordered"   # "ordered" | "pairwise_tree" (ordered used)
+    device: str = "cpu"               # "cpu" | "gpu" | "auto" (no-op in Python for now)
     vectorization_enabled: bool = True
 
 
@@ -21,28 +27,79 @@ def configure(options: ParallelOptions) -> None:
     GLOBAL_OPTIONS = options
 
 
-T = TypeVar("T")
-R = TypeVar("R")
+def _coerce_items(domain: Iterable[T]) -> List[T]:
+    return list(domain) if not isinstance(domain, list) else domain  # preserve order
 
 
-def parallel_for(domain: Iterable[T], kernel: Callable[[T], None], options: Optional[ParallelOptions] = None) -> None:
-    # Sequential fallback; deterministic by construction.
-    _ = options or GLOBAL_OPTIONS
-    for item in domain:
+def _resolve_max_workers(options: Optional[ParallelOptions]) -> int:
+    if options and options.max_workers:
+        return max(1, int(options.max_workers))
+    env = os.getenv("GROWNET_PAL_MAX_WORKERS")
+    if env:
+        try:
+            return max(1, int(env))
+        except ValueError:
+            pass
+    return max(1, (os.cpu_count() or 1))
+
+
+def _resolve_tile_size(options: Optional[ParallelOptions]) -> int:
+    tile = (options.tile_size if options else GLOBAL_OPTIONS.tile_size)
+    return max(1, int(tile))
+
+
+def _run_chunk_for(chunk: Sequence[T], kernel: Callable[[T], None]) -> None:
+    for item in chunk:
         kernel(item)
 
 
+def _run_chunk_map(chunk: Sequence[T], kernel: Callable[[T], R]) -> List[R]:
+    results: List[R] = []
+    for item in chunk:
+        results.append(kernel(item))
+    return results
+
+
+def parallel_for(domain: Iterable[T], kernel: Callable[[T], None], options: Optional[ParallelOptions] = None) -> None:
+    items = _coerce_items(domain)
+    n = len(items)
+    if n == 0:
+        return
+    opts = options or GLOBAL_OPTIONS
+    tile = _resolve_tile_size(opts)
+    max_workers = _resolve_max_workers(opts)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = []
+        for start in range(0, n, tile):
+            end = min(n, start + tile)
+            futures.append(pool.submit(_run_chunk_for, items[start:end], kernel))
+        for f in futures:
+            f.result()
+
+
 def parallel_map(domain: Iterable[T], kernel: Callable[[T], R], reduce_in_order: Callable[[List[R]], R], options: Optional[ParallelOptions] = None) -> R:
-    # Sequential fallback; collect in a stable order and reduce deterministically.
-    _ = options or GLOBAL_OPTIONS
-    local_results: List[R] = []
-    for item in domain:
-        local_results.append(kernel(item))
-    return reduce_in_order(local_results)
+    items = _coerce_items(domain)
+    n = len(items)
+    if n == 0:
+        return reduce_in_order([])
+    opts = options or GLOBAL_OPTIONS
+    tile = _resolve_tile_size(opts)
+    max_workers = _resolve_max_workers(opts)
 
+    partials: List[List[R]] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = []
+        for start in range(0, n, tile):
+            end = min(n, start + tile)
+            futures.append(pool.submit(_run_chunk_map, items[start:end], kernel))
+        for f in futures:
+            partials.append(f.result())
 
-def rotl64(x: int, r: int) -> int:
-    return ((x << r) & 0xFFFFFFFFFFFFFFFF) | (x >> (64 - r))
+    flat: List[R] = []
+    for part in partials:
+        flat.extend(part)
+    return reduce_in_order(flat)
 
 
 def mix64(x: int) -> int:
@@ -56,11 +113,9 @@ def mix64(x: int) -> int:
 
 
 def counter_rng(seed: int, step: int, draw_kind: int, layer_index: int, unit_index: int, draw_index: int) -> float:
-    # Counter-based deterministic RNG using SplitMix64-style mixing of a composed counter.
-    # Compose a 64-bit key from inputs in a stable way.
+    # Counter-based deterministic RNG using SplitMix64-style mixing
     key = (seed & 0xFFFFFFFFFFFFFFFF)
     for v in (step, draw_kind, layer_index, unit_index, draw_index):
         key = mix64((key ^ (v & 0xFFFFFFFFFFFFFFFF)) & 0xFFFFFFFFFFFFFFFF)
-    # Convert to double in [0,1)
     mantissa = (key >> 11) & ((1 << 53) - 1)
     return mantissa / float(1 << 53)

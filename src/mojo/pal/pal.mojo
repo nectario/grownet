@@ -6,11 +6,17 @@ struct ParallelOptions:
     var vectorization_enabled: Bool = True
 
 fn configure(options: ParallelOptions) -> None:
-    # Sequential fallback: no-op (reserved for future backends)
+    # Reserved for future backend state; no-op for now.
     _ = options
 
+fn gpu_available() -> Bool:
+    # Hook up to real detection when GPU kernels land
+    return False
+
 fn parallel_for[T](domain: list[T], kernel: fn(T) -> None, options: ParallelOptions) -> None:
-    _ = options
+    if (options.device == "gpu") and gpu_available():
+        gpu_parallel_for(domain, kernel, options)
+        return
     var index = 0
     while index < domain.len:
         kernel(domain[index])
@@ -19,7 +25,25 @@ fn parallel_for[T](domain: list[T], kernel: fn(T) -> None, options: ParallelOpti
 fn parallel_map[T, R](domain: list[T], kernel: fn(T) -> R,
                       reduce_in_order: fn(list[R]) -> R,
                       options: ParallelOptions) -> R:
-    _ = options
+    if (options.device == "gpu") and gpu_available():
+        return gpu_parallel_map(domain, kernel, reduce_in_order, options)
+    var locals = [R]()
+    var index = 0
+    while index < domain.len:
+        locals.append(kernel(domain[index]))
+        index = index + 1
+    return reduce_in_order(locals)
+
+# CPU fallback stubs for future GPU path (deterministic)
+fn gpu_parallel_for[T](domain: list[T], kernel: fn(T) -> None, options: ParallelOptions) -> None:
+    var index = 0
+    while index < domain.len:
+        kernel(domain[index])
+        index = index + 1
+
+fn gpu_parallel_map[T, R](domain: list[T], kernel: fn(T) -> R,
+                          reduce_in_order: fn(list[R]) -> R,
+                          options: ParallelOptions) -> R:
     var locals = [R]()
     var index = 0
     while index < domain.len:
