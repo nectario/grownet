@@ -114,8 +114,8 @@ language_parity:
     - `connect_layers_windowed` implemented (unique sources + center rule for OutputLayer2D)
     - `try_grow_neuron(seed)` grows same kind and calls `region.autowire_new_neuron_by_ref(...)`
     - proximity policy available (STEP mode focus); benchmarked via tests; timing via wall‑clock in scripts
-    - PAL v2: device knob (`device = "cpu" | "gpu" | "auto"`); GPU path scaffolded for Float64 identity/add/scale maps (CPU fallback today); ordered reduction preserved
-    - GPU next steps: wire real kernels using DeviceContext + host/device buffers + 1D grid launch (identity/add/scale to start); keep guarded via `gpu_available()`
+    - PAL v2: device knob (`device = "cpu" | "gpu" | "auto"`); GPU path implemented for Float64 identity/add/scale maps (CPU fallback retained for safety); ordered reduction preserved
+    - GPU enablement: guarded by `gpu_available()` (flip detection when runtime GPU is present)
 
 style_and_conventions:
   - Python & Mojo: **no names starting with `_`** (no leading-underscore identifiers)

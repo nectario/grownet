@@ -10,7 +10,8 @@ fn configure(options: ParallelOptions) -> None:
     _ = options
 
 fn gpu_available() -> Bool:
-    # Hook up to real detection when GPU kernels land
+    # Enable GPU path when the environment supports it.
+    # For safety, keep this guarded; flip detection when integrating runtime checks.
     return False
 
 fn parallel_for[T](domain: list[T], kernel: fn(T) -> None, options: ParallelOptions) -> None:
