@@ -17,11 +17,11 @@ TEST(StressRetinaHDImageTick, One2DTickTiming) {
     int out = region.addOutputLayer2D(H, W, 0.0);
 
     grownet::TopographicConfig cfg;
-    cfg.kernel_h = 7; cfg.kernel_w = 7;
-    cfg.stride_h = 1; cfg.stride_w = 1;
+    cfg.kernelH = 7; cfg.kernelW = 7;
+    cfg.strideH = 1; cfg.strideW = 1;
     cfg.padding = std::string("same");
-    cfg.weight_mode = std::string("gaussian");
-    cfg.normalize_incoming = true;
+    cfg.weightMode = std::string("gaussian");
+    cfg.normalizeIncoming = true;
     int unique = grownet::connectLayersTopographic(region, in, out, cfg);
     ASSERT_GT(unique, 0);
 

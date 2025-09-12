@@ -8,13 +8,13 @@
 namespace grownet {
 
 static void validate(const TopographicConfig& c) {
-    if (c.kernel_h < 1 || c.kernel_w < 1) throw std::invalid_argument("kernel must be >= 1");
-    if (c.stride_h < 1 || c.stride_w < 1) throw std::invalid_argument("stride must be >= 1");
+    if (c.kernelH < 1 || c.kernelW < 1) throw std::invalid_argument("kernel must be >= 1");
+    if (c.strideH < 1 || c.strideW < 1) throw std::invalid_argument("stride must be >= 1");
     if (!(c.padding == "same" || c.padding == "valid")) throw std::invalid_argument("padding must be 'same' or 'valid'");
-    if (c.sigma_center <= 0.0) throw std::invalid_argument("sigma_center must be > 0");
-    if (c.weight_mode == "dog") {
-        if (c.sigma_surround <= c.sigma_center) throw std::invalid_argument("sigma_surround must be > sigma_center for DoG");
-        if (c.surround_ratio < 0.0) throw std::invalid_argument("surround_ratio must be >= 0");
+    if (c.sigmaCenter <= 0.0) throw std::invalid_argument("sigma_center must be > 0");
+    if (c.weightMode == "dog") {
+        if (c.sigmaSurround <= c.sigmaCenter) throw std::invalid_argument("sigma_surround must be > sigma_center for DoG");
+        if (c.surroundRatio < 0.0) throw std::invalid_argument("surround_ratio must be >= 0");
     }
 }
 
@@ -24,8 +24,8 @@ int connectLayersTopographic(Region& region,
                              const TopographicConfig& config) {
     validate(config);
     int unique = region.connectLayersWindowed(sourceLayerIndex, destinationLayerIndex,
-                                              config.kernel_h, config.kernel_w,
-                                              config.stride_h, config.stride_w,
+                                              config.kernelH, config.kernelW,
+                                              config.strideH, config.strideW,
                                               config.padding, config.feedback);
     // Geometry check
     auto& layers = region.getLayers();
@@ -49,4 +49,3 @@ int connectLayersTopographic(Region& region,
 }
 
 } // namespace grownet
-

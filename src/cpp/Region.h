@@ -31,8 +31,6 @@ struct RegionMetrics {
     long long deliveredEvents {0};
     long long totalSlots {0};
     long long totalSynapses {0};
-    // legacy alias used by some demos
-    long long delivered_events {0};
 
     // Optional spatial metrics (Phase B)
     long long activePixels {0};
@@ -43,10 +41,7 @@ struct RegionMetrics {
     int bboxColMin {0};
     int bboxColMax {-1};
 
-    inline void incDeliveredEvents(long long by = 1) {
-        deliveredEvents += by;
-        delivered_events += by;
-    }
+    inline void incDeliveredEvents(long long by = 1) { deliveredEvents += by; }
     inline void addSlots(long long n) { totalSlots += n; }
     inline void addSynapses(long long n) { totalSynapses += n; }
 

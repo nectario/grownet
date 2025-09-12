@@ -13,7 +13,7 @@
 namespace grownet {
 
 // Helper: pack two 32-bit ints into an unsigned 64-bit key (for dedupe sets).
-static inline unsigned long long pack_u32_pair(int first, int second) {
+static inline unsigned long long packU32Pair(int first, int second) {
     return ((static_cast<unsigned long long>(first) & 0xFFFFFFFFULL) << 32)
          |  (static_cast<unsigned long long>(second) & 0xFFFFFFFFULL);
 }
