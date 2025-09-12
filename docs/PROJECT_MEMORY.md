@@ -115,7 +115,7 @@ language_parity:
     - `try_grow_neuron(seed)` grows same kind and calls `region.autowire_new_neuron_by_ref(...)`
     - proximity policy available (STEP mode focus); benchmarked via tests; timing via wall‑clock in scripts
     - PAL v2: device knob (`device = "cpu" | "gpu" | "auto"`); GPU path implemented for Float64 identity/add/scale maps (CPU fallback retained for safety); ordered reduction preserved
-    - GPU enablement: guarded by `gpu_available()` (flip detection when runtime GPU is present)
+    - GPU enablement: runtime detection via `gpu_available()` which tries to construct a DeviceContext; returns False if unavailable
 
 style_and_conventions:
   - Python & Mojo: **no names starting with `_`** (no leading-underscore identifiers)

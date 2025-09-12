@@ -10,9 +10,15 @@ fn configure(options: ParallelOptions) -> None:
     _ = options
 
 fn gpu_available() -> Bool:
-    # Enable GPU path when the environment supports it.
-    # For safety, keep this guarded; flip detection when integrating runtime checks.
-    return False
+    # Detect GPU availability by attempting to construct a DeviceContext.
+    # If the runtime does not provide GPU support, this will raise and we return False.
+    try:
+        from gpu import DeviceContext
+        var ctx = DeviceContext()
+        _ = ctx
+        return True
+    except:
+        return False
 
 fn parallel_for[T](domain: list[T], kernel: fn(T) -> None, options: ParallelOptions) -> None:
     if (options.device == "gpu") and gpu_available():
