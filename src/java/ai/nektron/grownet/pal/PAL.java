@@ -3,6 +3,12 @@ package ai.nektron.grownet.pal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -18,9 +24,45 @@ public final class PAL {
   public static <T> void parallelFor(Domain<T> domain, Consumer<T> kernel, ParallelOptions opts) {
     Objects.requireNonNull(domain, "domain");
     Objects.requireNonNull(kernel, "kernel");
-    // Sequential fallback: run in deterministic iteration order.
-    for (T item : domain) {
-      kernel.accept(item);
+
+    // Enumerate domain deterministically
+    final List<T> items = new ArrayList<>();
+    domain.forEach(items::add);
+    final int n = items.size();
+    if (n == 0) return;
+
+    final int tile = Math.max(1, (opts != null ? opts.tileSize : GLOBAL.tileSize));
+    final Integer mw = (opts != null ? opts.maxWorkers : GLOBAL.maxWorkers);
+    final int maxWorkers = Math.max(1, (mw != null ? mw : Runtime.getRuntime().availableProcessors()));
+    final int tileCount = (n + tile - 1) / tile;
+
+    final Semaphore permits = new Semaphore(maxWorkers, false);
+    try (ExecutorService vexec = Executors.newVirtualThreadPerTaskExecutor()) {
+      final List<Future<Void>> futures = new ArrayList<>(tileCount);
+      for (int start = 0; start < n; start += tile) {
+        final int s = start;
+        final int e = Math.min(n, start + tile);
+        futures.add(vexec.submit((Callable<Void>) () -> {
+          try {
+            permits.acquire();
+            for (int i = s; i < e; i++) {
+              kernel.accept(items.get(i));
+            }
+            return null;
+          } finally {
+            permits.release();
+          }
+        }));
+      }
+      // Barrier
+      for (Future<Void> f : futures) {
+        f.get();
+      }
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(ie);
+    } catch (ExecutionException ee) {
+      throw new RuntimeException(ee.getCause());
     }
   }
 
@@ -31,11 +73,60 @@ public final class PAL {
     Objects.requireNonNull(domain, "domain");
     Objects.requireNonNull(kernel, "kernel");
     Objects.requireNonNull(reduceInOrder, "reduceInOrder");
-    List<R> locals = new ArrayList<>();
-    for (T item : domain) {
-      locals.add(kernel.apply(item));
+
+    // Enumerate deterministically
+    final List<T> items = new ArrayList<>();
+    domain.forEach(items::add);
+    final int n = items.size();
+    if (n == 0) {
+      return reduceInOrder.apply(List.of());
     }
-    return reduceInOrder.apply(locals);
+
+    final int tile = Math.max(1, (opts != null ? opts.tileSize : GLOBAL.tileSize));
+    final Integer mw = (opts != null ? opts.maxWorkers : GLOBAL.maxWorkers);
+    final int maxWorkers = Math.max(1, (mw != null ? mw : Runtime.getRuntime().availableProcessors()));
+    final int tileCount = (n + tile - 1) / tile;
+
+    final Semaphore permits = new Semaphore(maxWorkers, false);
+    @SuppressWarnings("unchecked")
+    final List<R>[] partials = (List<R>[]) new List<?>[tileCount];
+
+    try (ExecutorService vexec = Executors.newVirtualThreadPerTaskExecutor()) {
+      final List<Future<Void>> futures = new ArrayList<>(tileCount);
+      int tileIndex = 0;
+      for (int start = 0; start < n; start += tile, tileIndex++) {
+        final int s = start;
+        final int e = Math.min(n, start + tile);
+        final int idx = tileIndex;
+        futures.add(vexec.submit((Callable<Void>) () -> {
+          try {
+            permits.acquire();
+            final List<R> local = new ArrayList<>(e - s);
+            for (int i = s; i < e; i++) {
+              local.add(kernel.apply(items.get(i)));
+            }
+            partials[idx] = local;
+            return null;
+          } finally {
+            permits.release();
+          }
+        }));
+      }
+      for (Future<Void> f : futures) { f.get(); }
+    } catch (InterruptedException ie) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(ie);
+    } catch (ExecutionException ee) {
+      throw new RuntimeException(ee.getCause());
+    }
+
+    // Deterministic reduction: flatten by tile index then in‑tile order
+    final List<R> flat = new ArrayList<>(n);
+    for (int t = 0; t < tileCount; t++) {
+      final List<R> local = partials[t];
+      if (local != null) flat.addAll(local);
+    }
+    return reduceInOrder.apply(flat);
   }
 
   public static double counterRng(long seed,
@@ -63,4 +154,3 @@ public final class PAL {
     return z;
   }
 }
-
