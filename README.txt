@@ -13,7 +13,17 @@ No changes to Java/Python in this PR.
 
 More documentation
 - Coding Style (MUST READ): docs/CODING_STYLE_MUST_READ.md
-- Latest changelog: docs/changelog/SESSION_WORKLOG_2025-09-03.md
+- Central changelog index: CHANGELOG.md (links to docs/changelog entries)
+- PAL (Parallelism Abstraction Layer): docs/PAL_README.md
+
+Parallelism Abstraction Layer (PAL)
+-----------------------------------
+PAL provides a unified `parallel_for` / `parallel_map` API across Python, Java, C++, and Mojo with deterministic results. Backends:
+- C++: OpenMP (enabled if available via CMake flag `-DGROWNET_WITH_OPENMP=ON`, default ON)
+- Java: fixed platform executor + structured orchestration
+- Python/Mojo: deterministic sequential façade (CPU tiling in Mojo), safe to adopt now
+
+Feature flag (Python): set `GROWNET_ENABLE_PAL=1` to aggregate structural metrics via PAL in the 2D tick path. Default off; behavior unchanged otherwise.
 
 Benchmarks
 ----------
