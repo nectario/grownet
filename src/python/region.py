@@ -781,11 +781,13 @@ class Region:
                 rmin, rmax, cmin, cmax = 10**9, -1, 10**9, -1
                 height = len(image_2d) if image_2d is not None else 0
                 width = len(image_2d[0]) if height > 0 else 0
+                active = 0
                 for row_index in range(height):
                     row_values = image_2d[row_index]
                     for col_index in range(min(width, len(row_values))):
                         pixel_value = float(row_values[col_index])
                         if pixel_value > 0.0:
+                            active += 1
                             total += pixel_value
                             sum_r += row_index * pixel_value
                             sum_c += col_index * pixel_value
@@ -793,6 +795,7 @@ class Region:
                             if row_index > rmax: rmax = row_index
                             if col_index < cmin: cmin = col_index
                             if col_index > cmax: cmax = col_index
+                metrics.active_pixels = active
                 if total > 0.0:
                     metrics.centroid_row = sum_r / total
                     metrics.centroid_col = sum_c / total
