@@ -83,6 +83,8 @@ language_parity:
     - `request_layer_growth` uses p=1.0 wiring
     - proximity policy available (`policy/proximity_connectivity.py`); per‑source cooldown and per‑step guard implemented
     - PAL v2: ThreadPool-backed `parallel_for/map` with deterministic submission-order reduction; honors `ParallelOptions.max_workers`, `tile_size`, and env `GROWNET_PAL_MAX_WORKERS`
+    - ND path parity: `Region.tick_nd(port, flat, shape)` implemented
+    - Spatial metrics: public `Region.compute_spatial_metrics(image_2d, prefer_output=True)` wrapper present (internal helper updates metrics during tick_2d when enabled)
   cxx:
     - SlotEngine strict capacity (scalar & 2D) + fallback marking
     - `preferLastSlotOnce` honored in selectors; bus `currentStep` increments in `decay()`
@@ -92,6 +94,8 @@ language_parity:
     - Region records mesh rules; `requestLayerGrowth` uses p=1.0
     - proximity policy scaffolding present (headers + stub); not integrated into Region tick yet
     - PAL v2: OpenMP backend with ordered reduction; runtime-bound via `ParallelOptions.max_workers` (or `OMP_NUM_THREADS`)
+    - Spatial metrics: public `Region::computeSpatialMetrics(image2d, preferOutput)` added
+    - Naming: public headers strictly camelCase/PascalCase (no snake_case); `TopographicConfig` fields use camelCase; PAL functions `parallelFor/parallelMap`
   java:
     - SlotEngine strict capacity (scalar & 2D) + fallback marking; one-shot reuse after unfreeze
     - GrowthPolicy: avg-slots threshold, max layers, cooldown, **percent-at-cap-fallback** OR-trigger
@@ -101,6 +105,8 @@ language_parity:
     - unfreeze prefers the originally frozen slot exactly once (tracks a specific slot id)
     - proximity policy available (`policy` package); per‑source cooldown + per‑region per‑step guard
     - PAL v2: Virtual Threads (JDK 21) with a `Semaphore(maxWorkers)` bound; deterministic submission-order join; env `GROWNET_PAL_MAX_WORKERS` respected
+    - Spatial metrics: public `Region.computeSpatialMetrics(image2d, preferOutput)` wrapper added
+    - Naming: camelCase/PascalCase only (no snake_case) across public APIs
   mojo:
     - `struct` + `fn` with typed params (no leading underscores)
     - strict capacity (scalar & 2D) + fallback marking
@@ -109,9 +115,11 @@ language_parity:
     - `try_grow_neuron(seed)` grows same kind and calls `region.autowire_new_neuron_by_ref(...)`
     - proximity policy available (STEP mode focus); benchmarked via tests; timing via wall‑clock in scripts
     - PAL v2: device knob (`device = "cpu" | "gpu" | "auto"`); GPU path scaffolded for Float64 identity/add/scale maps (CPU fallback today); ordered reduction preserved
+    - GPU next steps: wire real kernels using DeviceContext + host/device buffers + 1D grid launch (identity/add/scale to start); keep guarded via `gpu_available()`
 
 style_and_conventions:
   - Python & Mojo: **no names starting with `_`** (no leading-underscore identifiers)
+  - Java & C++: public API strictly camelCase/PascalCase (no snake_case identifiers)
   - Mojo: use `struct`, `fn`, and **typed** parameters
   - No single/double-character variable names in any language
   - Keep RNG seeds deterministic where used (e.g., 1234)
@@ -141,16 +149,19 @@ tests_and_demos:
     - growth tests (fallback → neuron growth; autowiring smoke)
     - bus decay parity; one‑growth‑per‑tick invariant
     - stress: HD 1920×1080 + Retina/Topographic single‑tick timing
+    - ND & spatial metrics wrappers: `src/python/tests/test_tick_nd_and_spatial_metrics.py`
   - java:
     - growth smoke; windowed wiring; OR‑trigger tests
     - bus decay parity; frozen slots; one‑growth‑per‑tick invariant
     - proximity STEP (budget + cooldown) test
     - stress: HD 1920×1080 + Retina/Topographic single‑tick timing
     - PAL determinism: `PalDeterminismTest` validates ordered reduction across worker counts
+    - Spatial metrics wrapper smoke: `SpatialMetricsPublicTest`
   - cxx:
     - bus decay test; one‑growth‑per‑tick test; edge/windowed wiring smoke
     - stress: HD 1920×1080 + Retina/Topographic single‑tick timing (gtest)
     - proximity STEP placeholder test (disabled) until integrated into Region
+    - Spatial metrics wrapper smoke: `spatial_metrics_public_test.cpp`
   - mojo:
     - bus decay test; frozen slots test; one‑growth‑per‑tick test
     - stress: HD 1920×1080 + Retina/Topographic single‑tick execution (timing observed via wall‑clock in script)
@@ -164,5 +175,6 @@ open_items_to_watch:
   - Ensure `owner` backrefs are set for any new layer types
   - Integrate proximity policy in C++ Region tick; enable STEP tests and parity with Python/Java/Mojo
   - Consider CI matrix for stress script on a fixed runner to track regressions
-  - Mojo GPU path: wire real kernels using DeviceContext + host/device buffers for identity/add/scale maps; enable guarded detection in `gpu_available()`
+  - Mojo GPU path: implement real kernels (DeviceContext + host/device buffers) for identity/add/scale maps; enable guarded detection in `gpu_available()`
   - Ensure PAL paths remain deterministic (stable tiling + submission-order reduction) as we expand coverage
+  - Add ND smoke tests for Java/C++ if needed (tickND/tick_nd parity)
