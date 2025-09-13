@@ -1,0 +1,33 @@
+name: typescript-ci
+
+on:
+  push:
+    paths:
+      - 'src/typescript/grownet-ts/**'
+      - '.eslintrc.cjs'
+      - 'tsconfig.base.json'
+      - '.github/workflows/typescript-ci.yml'
+      - 'package.json'
+  pull_request:
+    paths:
+      - 'src/typescript/grownet-ts/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: npm install
+      - name: Lint
+        run: npm run ts:lint
+      - name: Typecheck
+        run: npm run ts:typecheck
+      - name: Test
+        run: npm run ts:test
+      - name: Build
+        run: npm run ts:build
+

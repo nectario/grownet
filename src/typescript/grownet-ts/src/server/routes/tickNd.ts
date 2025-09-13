@@ -1,10 +1,11 @@
 import { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import { Region } from '../../Region.js';
 import { ParallelOptions } from '../../pal/index.js';
+import { tickNdSchema } from '../schemas.js';
 
 export function registerTickNdRoute(server: FastifyInstance): void {
   const handler: FastifyPluginCallback = (instance, _opts, done) => {
-    instance.post('/api/v1/region/tick-nd', async (request, reply) => {
+    instance.post('/api/v1/region/tick-nd', { schema: tickNdSchema }, async (request, reply) => {
       const body = request.body as {
         port: string;
         tensor: number[] | number[][] | number[][][];

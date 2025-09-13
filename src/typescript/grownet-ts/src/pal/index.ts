@@ -72,20 +72,13 @@ export function parallelMap<T, R>(
     for (let index = 0; index < n; index += 1) values.push(kernel(domain.at(index)));
     return reduceInOrder(values);
   }
-  // Deterministic ordered reduction across worker buckets using round-robin assignment
+  // Deterministic ordered reduction: compute results and emit in domain order (stable across worker counts)
   return new Promise<R>((resolve) => {
-    const buckets: R[][] = [];
-    for (let wid = 0; wid < workers; wid += 1) buckets.push([]);
+    const results: R[] = new Array<R>(n);
     for (let index = 0; index < n; index += 1) {
-      const wid = index % workers;
-      buckets[wid].push(kernel(domain.at(index)));
+      results[index] = kernel(domain.at(index));
     }
-    const flat: R[] = [];
-    for (let wid = 0; wid < workers; wid += 1) {
-      const local = buckets[wid];
-      for (let j = 0; j < local.length; j += 1) flat.push(local[j]);
-    }
-    resolve(reduceInOrder(flat));
+    resolve(reduceInOrder(results));
   });
 }
 
