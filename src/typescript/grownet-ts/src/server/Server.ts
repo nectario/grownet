@@ -1,5 +1,7 @@
 import fastify from 'fastify';
 import pino from 'pino';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import { registerComputeSpatialMetricsRoute } from './routes/computeSpatialMetrics.js';
 import { registerTickNdRoute } from './routes/tickNd.js';
 
@@ -16,6 +18,18 @@ export async function createServer() {
         strict: true,
       },
     },
+  });
+  await app.register(swagger, {
+    openapi: {
+      info: { title: 'GrowNet Server API', version: '0.1.0' },
+      servers: [{ url: '/' }],
+      components: {},
+      paths: {},
+    },
+  });
+  await app.register(swaggerUi, {
+    routePrefix: '/docs',
+    exposeRoute: true,
   });
   registerComputeSpatialMetricsRoute(app);
   registerTickNdRoute(app);

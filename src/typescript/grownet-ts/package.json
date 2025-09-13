@@ -28,6 +28,8 @@
     "grownet-server": "dist/cli.js"
   },
   "dependencies": {
+    "@fastify/swagger": "^8.14.0",
+    "@fastify/swagger-ui": "^3.0.0",
     "fastify": "^4.28.1",
     "pino": "^9.3.2"
   },
