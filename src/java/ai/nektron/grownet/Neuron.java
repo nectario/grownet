@@ -133,13 +133,14 @@ public class Neuron {
                     fallbackStreak++;
                 }
                 final int threshold = Math.max(1, C.getFallbackGrowthThreshold());
-                if (owner != null && fallbackStreak >= threshold) {
+                if (fallbackStreak >= threshold) {
                     final long now = bus.getCurrentStep();
                     final int cooldown = Math.max(0, C.getNeuronGrowthCooldownTicks());
-                    if (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown) {
+                    if (owner != null && (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown)) {
                         try { owner.tryGrowNeuron(this); } catch (Throwable ignored) { }
                         lastGrowthTick = now;
                     }
+                    // Reset streak and ids whether or not growth occurred, matching Python semantics
                     fallbackStreak = 0;
                     prevMissingSlotId = -1;
                     lastMissingSlotId = -1;
@@ -206,10 +207,10 @@ public class Neuron {
                     fallbackStreak++;
                 }
                 final int threshold = Math.max(1, C.getFallbackGrowthThreshold());
-                if (owner != null && fallbackStreak >= threshold) {
+                if (fallbackStreak >= threshold) {
                     final long now = bus.getCurrentStep();
                     final int cooldown = Math.max(0, C.getNeuronGrowthCooldownTicks());
-                    if (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown) {
+                    if (owner != null && (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown)) {
                         try { owner.tryGrowNeuron(this); } catch (Throwable ignored) { }
                         lastGrowthTick = now;
                     }
