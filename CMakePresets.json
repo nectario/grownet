@@ -1,0 +1,43 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 16,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "ninja-debug",
+      "displayName": "Ninja Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-ninja-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GROWNET_BUILD_TESTS": "ON",
+        "GROWNET_WITH_OPENMP": "ON",
+        "GROWNET_SKIP_CPP_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "mingw-debug",
+      "displayName": "MinGW Makefiles Debug",
+      "generator": "MinGW Makefiles",
+      "binaryDir": "${sourceDir}/cmake-build-mingw-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GROWNET_BUILD_TESTS": "ON",
+        "GROWNET_WITH_OPENMP": "ON",
+        "GROWNET_SKIP_CPP_TESTS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "ninja-debug", "configurePreset": "ninja-debug" },
+    { "name": "mingw-debug", "configurePreset": "mingw-debug" }
+  ],
+  "testPresets": [
+    { "name": "ninja-debug", "configurePreset": "ninja-debug" },
+    { "name": "mingw-debug", "configurePreset": "mingw-debug" }
+  ]
+}
+
