@@ -20,7 +20,10 @@ TEST(PAL_Determinism, OrderedReductionIdenticalAcrossWorkers) {
   const std::size_t N = 10000;
   const IndexDomain domain{N};
   auto kernel = [](std::size_t i) -> double {
-    return pal::counter_rng(/*seed*/1234, /*step*/0, /*draw_kind*/1, /*layer*/0, /*unit*/static_cast<int>(i), /*draw*/0);
+    // Deterministic per-index value (no RNG state): hash then map to [0,1)
+    std::uint64_t key = pal::mix64(1234ull ^ static_cast<std::uint64_t>(i));
+    std::uint64_t mantissa = (key >> 11) & ((1ull << 53) - 1ull);
+    return static_cast<double>(mantissa) / static_cast<double>(1ull << 53);
   };
   auto reduceInOrder = [](const std::vector<double>& v) -> double {
     double s = 0.0;

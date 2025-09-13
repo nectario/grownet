@@ -8,7 +8,7 @@
 
 using grownet::Region;
 
-static void run_case(int height, int width,
+static void runCase(int height, int width,
                      int kernelHeight, int kernelWidth,
                      int strideHeight, int strideWidth,
                      const std::string& padding,
@@ -38,19 +38,19 @@ static void run_case(int height, int width,
 
 int main() {
     // 1) 4×4, VALID, kernel 4×4 covers whole grid once → 16 uniques
-    run_case(/*height*/4, /*width*/4, /*kernelHeight*/4, /*kernelWidth*/4, /*strideHeight*/1, /*strideWidth*/1, "valid", /*expectedUniqueSources*/16);
+    runCase(/*height*/4, /*width*/4, /*kernelHeight*/4, /*kernelWidth*/4, /*strideHeight*/1, /*strideWidth*/1, "valid", /*expectedUniqueSources*/16);
 
     // 2) 4×4, VALID, kernel 2×2, stride 2 tiles perfectly → 16 uniques
-    run_case(4, 4, 2, 2, 2, 2, "valid", 16);
+    runCase(4, 4, 2, 2, 2, 2, "valid", 16);
 
     // 3) 5×5, VALID, kernel 3×3, stride 3 → only origin (0,0) fits → 9 uniques
-    run_case(5, 5, 3, 3, 3, 3, "valid", 9);
+    runCase(5, 5, 3, 3, 3, 3, "valid", 9);
 
     // 4) 5×5, SAME, kernel 3×3, stride 3 → four windows (-1,-1),( -1,2),(2,-1),(2,2) → covers all → 25 uniques
-    run_case(5, 5, 3, 3, 3, 3, "same", 25);
+    runCase(5, 5, 3, 3, 3, 3, "same", 25);
 
     // 5) 4×4, SAME, kernel 2×2, stride 2 → SAME == VALID for even 2×2 with our center rule → 16
-    run_case(4, 4, 2, 2, 2, 2, "same", 16);
+    runCase(4, 4, 2, 2, 2, 2, "same", 16);
 
     std::cout << "All windowed\u2011wiring smoke tests passed.\n";
     return 0;

@@ -9,7 +9,7 @@
 
 using namespace grownet;
 
-static void test_multi_layer_input_binding() {
+static void testMultiLayerInputBinding() {
     Region region("t");
     int l0 = region.addLayer(1,0,0);
     int l1 = region.addLayer(1,0,0);
@@ -19,7 +19,7 @@ static void test_multi_layer_input_binding() {
     assert(m.deliveredEvents == 2);
 }
 
-static void test_pulse_checks() {
+static void testPulseChecks() {
     Region region("t");
     int l0 = region.addLayer(1,0,0);
     region.bindInput("x", std::vector<int>{l0});
@@ -43,8 +43,8 @@ static void test_pulse_checks() {
 
 #ifndef GTEST_AVAILABLE
 int main() {
-    test_multi_layer_input_binding();
-    test_pulse_checks();
+    testMultiLayerInputBinding();
+    testPulseChecks();
     std::cout << "[C++] RegionPulseAndBindingTests passed." << std::endl;
     return 0;
 }

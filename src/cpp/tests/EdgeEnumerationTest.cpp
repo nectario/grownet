@@ -22,7 +22,7 @@ static EdgeMap enumerateEdgesOutput2D(Region& region, int srcLayerIndex, int dst
             // Map target pointer to index in destination layer
             for (int targetIndex = 0; targetIndex < static_cast<int>(dstNeurons.size()); ++targetIndex) {
                 if (dstNeurons[targetIndex].get() == syn.target) {
-                    targets.push_back(targetIndex);
+                    targets.insert(targets.end(), targetIndex);
                     break;
                 }
             }

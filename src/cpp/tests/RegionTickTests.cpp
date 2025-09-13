@@ -6,7 +6,7 @@
 
 using namespace grownet;
 
-static void test_single_tick_no_tracts() {
+static void testSingleTickNoTracts() {
     Region region("t");
     int inputLayer = region.addLayer(1,0,0);
     region.bindInput("x", std::vector<int>{inputLayer});
@@ -18,7 +18,7 @@ static void test_single_tick_no_tracts() {
     assert(m.totalSynapses >= 0);
 }
 
-static void test_connect_layers_full_mesh() {
+static void testConnectLayersFullMesh() {
     Region region("t");
     int src = region.addLayer(2,0,0);
     int dst = region.addLayer(3,0,0);
@@ -30,7 +30,7 @@ static void test_connect_layers_full_mesh() {
     assert(m.totalSynapses >= 2*3);
 }
 
-static void test_image_input_event_count() {
+static void testImageInputEventCount() {
     Region region("t");
     int inIdx = region.addInputLayer2D(2,2,1.0,0.01);
     region.bindInput("pixels", std::vector<int>{inIdx});
@@ -42,9 +42,9 @@ static void test_image_input_event_count() {
 
 #ifndef GTEST_AVAILABLE
 int main() {
-    test_single_tick_no_tracts();
-    test_connect_layers_full_mesh();
-    test_image_input_event_count();
+    testSingleTickNoTracts();
+    testConnectLayersFullMesh();
+    testImageInputEventCount();
     std::cout << "[C++] All RegionTick tests passed." << std::endl;
     return 0;
 }
