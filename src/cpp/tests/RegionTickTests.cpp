@@ -40,6 +40,22 @@ static void testImageInputEventCount() {
     assert(m.deliveredEvents == 1);
 }
 
+#ifdef GTEST_AVAILABLE
+#include <gtest/gtest.h>
+
+TEST(RegionTick, SingleTickNoTracts) {
+    testSingleTickNoTracts();
+}
+
+TEST(RegionTick, ConnectLayersFullMesh) {
+    testConnectLayersFullMesh();
+}
+
+TEST(RegionTick, ImageInputEventCount) {
+    testImageInputEventCount();
+}
+#endif
+
 #ifndef GTEST_AVAILABLE
 int main() {
     testSingleTickNoTracts();

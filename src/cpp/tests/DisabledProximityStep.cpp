@@ -11,7 +11,8 @@
 #ifdef GTEST_AVAILABLE
 TEST(DISABLED_ProximityPolicy, StepBudgetAndCooldown) {
     grownet::Region region("prox-step");
-    int l = region.addLayer(9,0,0);
+    const int layerIndex = region.addLayer(9,0,0);
+    (void)layerIndex; // silence unused warning until integrated
     grownet::ProximityConfig cfg;
     cfg.proximityConnectEnabled = true;
     cfg.proximityFunction = grownet::ProximityConfig::Function::STEP;
@@ -23,4 +24,3 @@ TEST(DISABLED_ProximityPolicy, StepBudgetAndCooldown) {
     SUCCEED();
 }
 #endif
-

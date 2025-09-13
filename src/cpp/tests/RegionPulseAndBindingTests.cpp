@@ -41,6 +41,18 @@ static void testPulseChecks() {
     assert(std::abs(bus.getInhibitionFactor() - 0.7 * 0.9) < 1e-9);
 }
 
+#ifdef GTEST_AVAILABLE
+#include <gtest/gtest.h>
+
+TEST(RegionPulseAndBinding, MultiLayerInputBinding) {
+    testMultiLayerInputBinding();
+}
+
+TEST(RegionPulseAndBinding, PulseChecks) {
+    testPulseChecks();
+}
+#endif
+
 #ifndef GTEST_AVAILABLE
 int main() {
     testMultiLayerInputBinding();
