@@ -25,7 +25,7 @@ function counterRng(seed: bigint, step: bigint, drawKind: bigint, layerIndex: bi
   return mantissa / Math.pow(2, 53);
 }
 
-type CounterRngSumTask = {
+interface CounterRngSumTask {
   kind: 'counterRngSum';
   startIndex: number;
   endIndex: number; // exclusive
@@ -34,27 +34,25 @@ type CounterRngSumTask = {
   drawKind: number;
   layerIndex: number;
   drawIndex: number;
-};
+}
 
-type MapArrayAddScalarTask = {
+interface MapArrayAddScalarTask {
   kind: 'mapArrayAddScalar';
   startIndex: number;
   endIndex: number; // exclusive
   scalar: number;
   buffer: ArrayBuffer;
-};
+}
 
-type MapArrayScaleTask = {
+interface MapArrayScaleTask {
   kind: 'mapArrayScale';
   startIndex: number;
   endIndex: number; // exclusive
   factor: number;
   buffer: ArrayBuffer;
-};
+}
 
-type Task = CounterRngSumTask | MapArrayAddScalarTask | MapArrayScaleTask;
-
-parentPort.on('message', (task: Task) => {
+parentPort.on('message', (task: CounterRngSumTask | MapArrayAddScalarTask | MapArrayScaleTask) => {
   if (task.kind === 'counterRngSum') {
     const seed = BigInt(task.seed);
     const step = BigInt(task.step);
