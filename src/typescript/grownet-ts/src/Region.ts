@@ -1,11 +1,14 @@
 import { RegionMetrics } from './metrics/RegionMetrics.js';
 import { ParallelOptions } from './pal/index.js';
+import { Layer } from './core/Layer.js';
+import { Tract } from './core/Tract.js';
 
 export class Region {
   private name: string;
-  private layers2d: Array<{ id: number; type: 'input' | 'output'; height: number; width: number; gain?: number; epsilonFire?: number; smoothing?: number }> = [];
+  private layers: Array<Layer> = [];
   private nextLayerId: number = 0;
   private inputBindings: Map<string, number[]> = new Map();
+  private tracts: Array<Tract> = [];
 
   constructor(name: string) {
     this.name = name;
@@ -13,13 +16,15 @@ export class Region {
 
   addInputLayer2D(height: number, width: number, gain: number, epsilonFire: number): number {
     const layerId = this.nextLayerId++;
-    this.layers2d.push({ id: layerId, type: 'input', height, width, gain, epsilonFire });
+    const layer = new Layer(`input2d_${layerId}`, 'input2d', height, width);
+    this.layers.push(layer);
     return layerId;
   }
 
   addOutputLayer2D(height: number, width: number, smoothing: number): number {
     const layerId = this.nextLayerId++;
-    this.layers2d.push({ id: layerId, type: 'output', height, width, smoothing });
+    const layer = new Layer(`output2d_${layerId}`, 'output2d', height, width);
+    this.layers.push(layer);
     return layerId;
   }
 
@@ -37,30 +42,80 @@ export class Region {
     padding: string,
     feedback: boolean,
   ): number {
-    (void)dstLayerId; (void)feedback;
-    const src = this.layers2d.find((l) => l.id === srcLayerId);
-    if (!src) return 0;
-    const height = src.height; const width = src.width;
-    if (padding.toLowerCase() === 'same') return height * width;
-    // VALID padding: compute union coverage of all valid windows
+    const srcLayer = this.layers[srcLayerId];
+    const dstLayer = this.layers[dstLayerId];
+    if (!srcLayer || !dstLayer) return 0;
+    const srcHeight = srcLayer.getHeight();
+    const srcWidth = srcLayer.getWidth();
+    const dstHeight = dstLayer.getHeight();
+    const dstWidth = dstLayer.getWidth();
+    const isSame = padding.toLowerCase() === 'same';
     const rowStartOffsets: number[] = [];
     const colStartOffsets: number[] = [];
-    for (let startRowOffset = 0; startRowOffset <= height - kernelHeight; startRowOffset += strideHeight) rowStartOffsets.push(startRowOffset);
-    for (let startColOffset = 0; startColOffset <= width - kernelWidth; startColOffset += strideWidth) colStartOffsets.push(startColOffset);
-    const coveredIndices = new Array<boolean>(height * width);
+    if (isSame) {
+      // Enumerate destination centers and infer source windows
+      for (let dstRow = 0; dstRow < dstHeight; dstRow += 1) rowStartOffsets.push(dstRow);
+      for (let dstCol = 0; dstCol < dstWidth; dstCol += 1) colStartOffsets.push(dstCol);
+    } else {
+      for (let r0 = 0; r0 <= srcHeight - kernelHeight; r0 += strideHeight) rowStartOffsets.push(r0);
+      for (let c0 = 0; c0 <= srcWidth - kernelWidth; c0 += strideWidth) colStartOffsets.push(c0);
+    }
+    const coveredIndices = new Array<boolean>(srcHeight * srcWidth);
     for (let coveredIndex = 0; coveredIndex < coveredIndices.length; coveredIndex += 1) coveredIndices[coveredIndex] = false;
-    for (let rowStartListIndex = 0; rowStartListIndex < rowStartOffsets.length; rowStartListIndex += 1) {
-      const windowStartRow = rowStartOffsets[rowStartListIndex];
-      for (let colStartListIndex = 0; colStartListIndex < colStartOffsets.length; colStartListIndex += 1) {
-        const windowStartCol = colStartOffsets[colStartListIndex];
-        for (let kernelRowOffset = 0; kernelRowOffset < kernelHeight; kernelRowOffset += 1) {
-          for (let kernelColOffset = 0; kernelColOffset < kernelWidth; kernelColOffset += 1) {
-            const rowIndex = windowStartRow + kernelRowOffset; const colIndex = windowStartCol + kernelColOffset;
-            coveredIndices[rowIndex * width + colIndex] = true;
+    const centerMap = new Map<number, number>();
+    const srcNeurons = srcLayer.getNeurons();
+    const dstNeurons = dstLayer.getNeurons();
+    const connections = new Set<string>();
+    if (isSame) {
+      for (let dstRow = 0; dstRow < dstHeight; dstRow += 1) {
+        for (let dstCol = 0; dstCol < dstWidth; dstCol += 1) {
+          const r0 = Math.max(0, Math.min(srcHeight - kernelHeight, dstRow - Math.floor(kernelHeight / 2)));
+          const c0 = Math.max(0, Math.min(srcWidth - kernelWidth, dstCol - Math.floor(kernelWidth / 2)));
+          const r1 = Math.min(srcHeight, r0 + kernelHeight);
+          const c1 = Math.min(srcWidth, c0 + kernelWidth);
+          const centerIndex = dstLayer.indexAt(dstRow, dstCol);
+          for (let r = r0; r < r1; r += 1) {
+            for (let c = c0; c < c1; c += 1) {
+              const srcIndex = srcLayer.indexAt(r, c);
+              coveredIndices[srcIndex] = true;
+              centerMap.set(srcIndex, centerIndex);
+              const key = `${srcIndex}->${centerIndex}`;
+              if (!connections.has(key)) {
+                srcNeurons[srcIndex].connect(dstNeurons[centerIndex], feedback);
+                connections.add(key);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      for (let r0Index = 0; r0Index < rowStartOffsets.length; r0Index += 1) {
+        const r0 = rowStartOffsets[r0Index];
+        for (let c0Index = 0; c0Index < colStartOffsets.length; c0Index += 1) {
+          const c0 = colStartOffsets[c0Index];
+          const r1 = r0 + kernelHeight;
+          const c1 = c0 + kernelWidth;
+          const centerRow = Math.floor(r0 + kernelHeight / 2);
+          const centerCol = Math.floor(c0 + kernelWidth / 2);
+          const centerIndex = dstLayer.indexAt(centerRow, centerCol);
+          for (let r = r0; r < r1; r += 1) {
+            for (let c = c0; c < c1; c += 1) {
+              const srcIndex = srcLayer.indexAt(r, c);
+              coveredIndices[srcIndex] = true;
+              centerMap.set(srcIndex, centerIndex);
+              const key = `${srcIndex}->${centerIndex}`;
+              if (!connections.has(key)) {
+                srcNeurons[srcIndex].connect(dstNeurons[centerIndex], feedback);
+                connections.add(key);
+              }
+            }
           }
         }
       }
     }
+    const tract = new Tract(srcLayer, dstLayer, feedback);
+    tract.setCenterMap(centerMap);
+    this.tracts.push(tract);
     let uniqueSourcesCount = 0;
     for (let coveredIndex = 0; coveredIndex < coveredIndices.length; coveredIndex += 1) if (coveredIndices[coveredIndex]) uniqueSourcesCount += 1;
     return uniqueSourcesCount;
@@ -136,18 +191,37 @@ export class Region {
     tensor: number[] | number[][] | number[][][],
     options?: ParallelOptions,
   ): RegionMetrics {
-    (void)port;
     (void)options;
-    const flat = this.flattenTensor(tensor);
-    let active = 0;
-    for (let index = 0; index < flat.length; index += 1) if (flat[index] > 0) active += 1;
-    const deliveredEvents = active;
-    const totalSlots = flat.length;
+    const boundLayers = this.inputBindings.get(port) || [];
+    const tensor2d = Array.isArray(tensor[0]) ? (tensor as number[][]) : [tensor as number[]];
+    let deliveredEvents = 0;
+    let totalSlots = 0;
+    for (let b = 0; b < boundLayers.length; b += 1) {
+      const layerIndex = boundLayers[b];
+      const layer = this.layers[layerIndex];
+      if (!layer) continue;
+      const height = layer.getHeight();
+      const width = layer.getWidth();
+      const neurons = layer.getNeurons();
+      totalSlots += neurons.length;
+      for (let rowIndex = 0; rowIndex < height; rowIndex += 1) {
+        const row = tensor2d[rowIndex] || [];
+        for (let colIndex = 0; colIndex < width; colIndex += 1) {
+          const value = row[colIndex] || 0;
+          if (value <= 0) continue;
+          const idx = layer.indexAt(rowIndex, colIndex);
+          const fired = neurons[idx].onInput2D(value, rowIndex, colIndex);
+          if (fired) { deliveredEvents += 1; neurons[idx].onOutput(value); }
+        }
+      }
+    }
+    // Phase B: end tick
+    for (let i = 0; i < this.layers.length; i += 1) this.layers[i].endTick();
     return new RegionMetrics(
       deliveredEvents,
       totalSlots,
       0,
-      active,
+      0,
       0,
       0,
       -1,

@@ -9,6 +9,7 @@ export class Neuron {
   private bus: LateralBus;
   private lastInputValue: number = 0.0;
   private firedLast: boolean = false;
+  private outgoing: Array<{ target: Neuron; feedback: boolean }> = [];
 
   private focusAnchor: number = 0.0; // scalar
   private focusSet: boolean = false;
@@ -63,6 +64,18 @@ export class Neuron {
     return this.firedLast;
   }
 
+  onOutput(amplitude: number): void {
+    for (let idx = 0; idx < this.outgoing.length; idx += 1) {
+      const edge = this.outgoing[idx];
+      // Scalar propagation for now; in a more complete system, context would decide 2D vs scalar
+      edge.target.onInput(amplitude);
+    }
+  }
+
+  connect(target: Neuron, feedback: boolean): void {
+    this.outgoing.push({ target, feedback });
+  }
+
   freezeLastSlot(): boolean {
     const lastKey = this.findLastSlotKey();
     if (lastKey === null) return false;
@@ -109,4 +122,3 @@ export class Neuron {
     return minKey;
   }
 }
-
