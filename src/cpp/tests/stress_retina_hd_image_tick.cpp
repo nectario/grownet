@@ -14,7 +14,7 @@ TEST(StressRetinaHDImageTick, One2DTickTiming) {
     const int imageHeight = 1080;
     const int imageWidth = 1920;
     int inputLayerIndex  = region.addInputLayer2D(imageHeight, imageWidth, 1.0, 0.01);
-    int out = region.addOutputLayer2D(H, W, 0.0);
+    int out = region.addOutputLayer2D(imageHeight, imageWidth, 0.0);
 
     grownet::TopographicConfig cfg;
     cfg.kernelH = 7; cfg.kernelW = 7;
@@ -22,10 +22,10 @@ TEST(StressRetinaHDImageTick, One2DTickTiming) {
     cfg.padding = std::string("same");
     cfg.weightMode = std::string("gaussian");
     cfg.normalizeIncoming = true;
-    int unique = grownet::connectLayersTopographic(region, in, out, cfg);
+    int unique = grownet::connectLayersTopographic(region, inputLayerIndex, out, cfg);
     ASSERT_GT(unique, 0);
 
-    region.bindInput2D("img", H, W, 1.0, 0.01, std::vector<int>{in});
+    region.bindInput2D("img", imageHeight, imageWidth, 1.0, 0.01, std::vector<int>{inputLayerIndex});
 
     std::vector<std::vector<double>> frame(imageHeight, std::vector<double>(imageWidth, 0.0));
     for (int rowIndex = 0; rowIndex < imageHeight; ++rowIndex) frame[rowIndex][rowIndex % imageWidth] = 1.0;
