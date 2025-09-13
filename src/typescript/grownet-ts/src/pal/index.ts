@@ -1,4 +1,5 @@
 import nodeOs from 'os';
+import { WorkerPool } from './worker/Pool.js';
 
 export interface ParallelOptions {
   maxWorkers?: number;
@@ -129,36 +130,18 @@ export async function parallelMapCounterRngSum(
     }
     return sum;
   }
-  const { Worker } = await import('node:worker_threads');
   const shardCount = Math.min(workerCount, Math.max(1, Math.floor(length / 1024)) || workerCount);
   const shardSize = Math.ceil(length / shardCount);
-  const workers: any[] = [];
   const tasks: Array<Promise<number>> = [];
+  const pool = WorkerPool.getInstance(workerCount);
   for (let shardIndex = 0; shardIndex < shardCount; shardIndex += 1) {
     const startIndex = shardIndex * shardSize;
     const endIndex = Math.min(length, startIndex + shardSize);
     if (startIndex >= endIndex) continue;
-    const worker = new Worker(new URL('./worker/numericWorker.js', import.meta.url), { type: 'module' });
-    workers.push(worker);
-    const promise = new Promise<number>((resolve, reject) => {
-      worker.once('message', (msg: any) => {
-        worker.terminate();
-        if (msg && msg.ok) resolve(msg.result as number);
-        else reject(new Error(String(msg && msg.error)));
-      });
-      worker.once('error', (err: Error) => {
-        worker.terminate(); reject(err);
-      });
-      worker.postMessage({
-        kind: 'counterRngSum',
-        startIndex,
-        endIndex,
-        seed: String(BigInt(seed)),
-        step: String(BigInt(step)),
-        drawKind,
-        layerIndex,
-        drawIndex,
-      });
+    const task = { kind: 'counterRngSum', startIndex, endIndex, seed: String(BigInt(seed)), step: String(BigInt(step)), drawKind, layerIndex, drawIndex };
+    const promise = pool.run(task).then((msg: any) => {
+      if (msg && msg.ok) return msg.result as number;
+      throw new Error(String(msg && msg.error));
     });
     tasks.push(promise);
   }
@@ -179,29 +162,25 @@ export async function mapFloat64ArrayAddScalar(
     for (let offset = 0; offset < values.length; offset += 1) out[offset] = values[offset] + scalar;
     return out;
   }
-  const { Worker } = await import('node:worker_threads');
   const shardCount = Math.min(workerCount, Math.ceil(values.length / 2048));
   const shardSize = Math.ceil(values.length / shardCount);
   const out = new Float64Array(values.length);
   const promises: Array<Promise<void>> = [];
+  const pool = WorkerPool.getInstance(workerCount);
   for (let shardIndex = 0; shardIndex < shardCount; shardIndex += 1) {
     const startIndex = shardIndex * shardSize;
     const endIndex = Math.min(values.length, startIndex + shardSize);
     if (startIndex >= endIndex) continue;
     const segment = values.slice(startIndex, endIndex);
-    const worker = new Worker(new URL('./worker/numericWorker.js', import.meta.url), { type: 'module' });
-    const promise = new Promise<void>((resolve, reject) => {
-      worker.once('message', (msg: any) => {
-        worker.terminate();
-        if (msg && msg.ok) {
-          const buf = msg.result as ArrayBuffer;
-          const segOut = new Float64Array(buf);
-          out.set(segOut, startIndex);
-          resolve();
-        } else reject(new Error(String(msg && msg.error)));
-      });
-      worker.once('error', (err: Error) => { worker.terminate(); reject(err); });
-      worker.postMessage({ kind: 'mapArrayAddScalar', startIndex: 0, endIndex: segment.length, scalar, buffer: segment.buffer }, [segment.buffer]);
+    const task = { kind: 'mapArrayAddScalar', startIndex: 0, endIndex: segment.length, scalar, buffer: segment.buffer };
+    const promise = pool.run(task, [segment.buffer]).then((msg: any) => {
+      if (msg && msg.ok) {
+        const buf = msg.result as ArrayBuffer;
+        const segOut = new Float64Array(buf);
+        out.set(segOut, startIndex);
+        return;
+      }
+      throw new Error(String(msg && msg.error));
     });
     promises.push(promise);
   }
@@ -220,29 +199,25 @@ export async function mapFloat64ArrayScale(
     for (let offset = 0; offset < values.length; offset += 1) out[offset] = values[offset] * factor;
     return out;
   }
-  const { Worker } = await import('node:worker_threads');
   const shardCount = Math.min(workerCount, Math.ceil(values.length / 2048));
   const shardSize = Math.ceil(values.length / shardCount);
   const out = new Float64Array(values.length);
   const promises: Array<Promise<void>> = [];
+  const pool = WorkerPool.getInstance(workerCount);
   for (let shardIndex = 0; shardIndex < shardCount; shardIndex += 1) {
     const startIndex = shardIndex * shardSize;
     const endIndex = Math.min(values.length, startIndex + shardSize);
     if (startIndex >= endIndex) continue;
     const segment = values.slice(startIndex, endIndex);
-    const worker = new Worker(new URL('./worker/numericWorker.js', import.meta.url), { type: 'module' });
-    const promise = new Promise<void>((resolve, reject) => {
-      worker.once('message', (msg: any) => {
-        worker.terminate();
-        if (msg && msg.ok) {
-          const buf = msg.result as ArrayBuffer;
-          const segOut = new Float64Array(buf);
-          out.set(segOut, startIndex);
-          resolve();
-        } else reject(new Error(String(msg && msg.error)));
-      });
-      worker.once('error', (err: Error) => { worker.terminate(); reject(err); });
-      worker.postMessage({ kind: 'mapArrayScale', startIndex: 0, endIndex: segment.length, factor, buffer: segment.buffer }, [segment.buffer]);
+    const task = { kind: 'mapArrayScale', startIndex: 0, endIndex: segment.length, factor, buffer: segment.buffer };
+    const promise = pool.run(task, [segment.buffer]).then((msg: any) => {
+      if (msg && msg.ok) {
+        const buf = msg.result as ArrayBuffer;
+        const segOut = new Float64Array(buf);
+        out.set(segOut, startIndex);
+        return;
+      }
+      throw new Error(String(msg && msg.error));
     });
     promises.push(promise);
   }
