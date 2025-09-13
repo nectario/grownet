@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <unordered_set>
+#include <limits>
 #include <algorithm>
 #include <cstdint>
 
@@ -472,7 +473,7 @@ RegionMetrics Region::tick2D(const std::string& port, const std::vector<std::vec
     return metrics;
 }
 
-Region::RegionMetrics Region::computeSpatialMetrics(const std::vector<std::vector<double>>& image2d, bool preferOutput) {
+RegionMetrics Region::computeSpatialMetrics(const std::vector<std::vector<double>>& image2d, bool preferOutput) {
     RegionMetrics metrics;
     try {
         const std::vector<std::vector<double>>* chosen = &image2d;
