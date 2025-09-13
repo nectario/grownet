@@ -118,6 +118,7 @@ if(GROWNET_BUILD_TESTS)
         FetchContent_Declare(
             googletest
             URL https://github.com/google/googletest/archive/refs/tags/v1.13.0.zip
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         )
         # For MSVC: prevent overriding runtime library selection
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -133,7 +134,8 @@ if(GROWNET_BUILD_TESTS)
             "${GROWNET_CPP_ROOT}"
             "${GROWNET_CPP_ROOT}/grownet"
         )
-        if (GROWNET_WITH_OPENMP AND OpenMP_CXX_FOUND)
+        # Ensure OpenMP is linked for tests when available (header-only PAL uses _OPENMP in tests too)
+        if (OpenMP_CXX_FOUND)
             target_link_libraries(grownet_tests PUBLIC OpenMP::OpenMP_CXX)
         endif()
         target_compile_definitions(grownet_tests PRIVATE GTEST_AVAILABLE)

@@ -476,42 +476,70 @@ RegionMetrics Region::tick2D(const std::string& port, const std::vector<std::vec
 RegionMetrics Region::computeSpatialMetrics(const std::vector<std::vector<double>>& image2d, bool preferOutput) {
     RegionMetrics metrics;
     try {
-        const std::vector<std::vector<double>>* chosen = &image2d;
+        const std::vector<std::vector<double>>* chosenFramePtr = &image2d;
         if (preferOutput) {
-            for (int i = static_cast<int>(layers.size()) - 1; i >= 0; --i) {
-                auto* out2d = dynamic_cast<OutputLayer2D*>(layers[static_cast<std::size_t>(i)].get());
-                if (out2d) { chosen = &out2d->getFrame(); break; }
+            for (int layerIndex = static_cast<int>(layers.size()) - 1; layerIndex >= 0; --layerIndex) {
+                auto* out2d = dynamic_cast<OutputLayer2D*>(layers[static_cast<std::size_t>(layerIndex)].get());
+                if (out2d) {
+                    chosenFramePtr = &out2d->getFrame();
+                    break;
+                }
             }
-            auto isAllZero = [](const std::vector<std::vector<double>>& img) {
-                for (auto& row : img) for (double v : row) if (v != 0.0) return false; return true;
+            auto isAllZero = [](const std::vector<std::vector<double>>& image) {
+                for (const auto& rowVector : image) {
+                    for (double pixelValue : rowVector) {
+                        if (pixelValue != 0.0) return false;
+                    }
+                }
+                return true;
             };
-            if (chosen != &image2d && isAllZero(*chosen) && !isAllZero(image2d)) {
-                chosen = &image2d;
+            if (chosenFramePtr != &image2d && isAllZero(*chosenFramePtr) && !isAllZero(image2d)) {
+                chosenFramePtr = &image2d;
             }
         }
-        long long active = 0; double total = 0.0, sumRow = 0.0, sumCol = 0.0;
-        int rowMin = std::numeric_limits<int>::max(), rowMax = -1, colMin = std::numeric_limits<int>::max(), colMax = -1;
-        const int H = static_cast<int>(chosen->size());
-        const int W = (H > 0 ? static_cast<int>((*chosen)[0].size()) : 0);
-        for (int r = 0; r < H; ++r) {
-            const auto& row = (*chosen)[static_cast<std::size_t>(r)];
-            const int limit = std::min(W, static_cast<int>(row.size()));
-            for (int c = 0; c < limit; ++c) {
-                const double v = row[static_cast<std::size_t>(c)];
-                if (v > 0.0) {
-                    active += 1; total += v; sumRow += static_cast<double>(r) * v; sumCol += static_cast<double>(c) * v;
-                    if (r < rowMin) rowMin = r; if (r > rowMax) rowMax = r;
-                    if (c < colMin) colMin = c; if (c > colMax) colMax = c;
+        long long activeCount = 0;
+        double totalSum = 0.0, sumRowWeighted = 0.0, sumColWeighted = 0.0;
+        int rowMin = std::numeric_limits<int>::max();
+        int rowMax = -1;
+        int colMin = std::numeric_limits<int>::max();
+        int colMax = -1;
+        const int height = static_cast<int>(chosenFramePtr->size());
+        const int width = (height > 0 ? static_cast<int>((*chosenFramePtr)[0].size()) : 0);
+        for (int rowIndex = 0; rowIndex < height; ++rowIndex) {
+            const auto& rowVector = (*chosenFramePtr)[static_cast<std::size_t>(rowIndex)];
+            const int columnLimit = std::min(width, static_cast<int>(rowVector.size()));
+            for (int colIndex = 0; colIndex < columnLimit; ++colIndex) {
+                const double pixelValue = rowVector[static_cast<std::size_t>(colIndex)];
+                if (pixelValue > 0.0) {
+                    activeCount += 1;
+                    totalSum += pixelValue;
+                    sumRowWeighted += static_cast<double>(rowIndex) * pixelValue;
+                    sumColWeighted += static_cast<double>(colIndex) * pixelValue;
+                    if (rowIndex < rowMin) rowMin = rowIndex;
+                    if (rowIndex > rowMax) rowMax = rowIndex;
+                    if (colIndex < colMin) colMin = colIndex;
+                    if (colIndex > colMax) colMax = colIndex;
                 }
             }
         }
-        metrics.activePixels = active;
-        if (total > 0.0) { metrics.centroidRow = sumRow / total; metrics.centroidCol = sumCol / total; }
-        else { metrics.centroidRow = 0.0; metrics.centroidCol = 0.0; }
-        if (rowMax >= rowMin && colMax >= colMin) {
-            metrics.bboxRowMin = rowMin; metrics.bboxRowMax = rowMax; metrics.bboxColMin = colMin; metrics.bboxColMax = colMax;
+        metrics.activePixels = activeCount;
+        if (totalSum > 0.0) {
+            metrics.centroidRow = sumRowWeighted / totalSum;
+            metrics.centroidCol = sumColWeighted / totalSum;
         } else {
-            metrics.bboxRowMin = 0; metrics.bboxRowMax = -1; metrics.bboxColMin = 0; metrics.bboxColMax = -1;
+            metrics.centroidRow = 0.0;
+            metrics.centroidCol = 0.0;
+        }
+        if (rowMax >= rowMin && colMax >= colMin) {
+            metrics.bboxRowMin = rowMin;
+            metrics.bboxRowMax = rowMax;
+            metrics.bboxColMin = colMin;
+            metrics.bboxColMax = colMax;
+        } else {
+            metrics.bboxRowMin = 0;
+            metrics.bboxRowMax = -1;
+            metrics.bboxColMin = 0;
+            metrics.bboxColMax = -1;
         }
     } catch (...) { /* best-effort */ }
     return metrics;
