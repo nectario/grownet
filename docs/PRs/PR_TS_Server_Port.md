@@ -27,7 +27,7 @@
 
 ## Package Layout
 ```
-packages/
+src/typescript/
   grownet-ts/
     src/
       index.ts                 # exports public API
@@ -120,9 +120,16 @@ Notes
 - ESM-first; dual package if needed (CJS build via `tsup` or `tsc` + `exports` mapping).
 - `type: "module"` in `package.json`.
 - `tsconfig.json`: `strict: true`; `target: ES2020`; `module: ES2020`.
-- Publishable packages:
-  - `@grownet/core-ts` (library only)
-  - `@grownet/server` (Fastify service CLI: `grownet-server start`)
+- Publishable package:
+  - `@grownet/server-ts` (this server package)
+
+Root npm workspace (optional): add a root `package.json` with:
+```
+{
+  "private": true,
+  "workspaces": ["src/typescript/grownet-ts"]
+}
+```
 
 ## Testing
 - Unit tests (Vitest or Jest) mirroring Python/C++:
@@ -174,11 +181,10 @@ Notes
 - GPU backend choice (Dawn vs wgpu-native wrappers) and f64 support policy.
 
 ## Next Steps (Implementation Checklist)
-- Create `packages/grownet-ts` with `tsconfig`, `eslint`, `prettier`, `vitest`.
+- Create `src/typescript/grownet-ts` with `tsconfig`, `eslint`, `prettier`, `vitest`.
 - Implement PAL v2 (`parallelFor`/`parallelMap`/`counterRng`) with worker pool.
 - Implement `RegionMetrics` and `Region.computeSpatialMetrics`.
 - Add `tickND` scaffolding and minimal path.
 - Add Fastify server with the two routes + schemas.
 - Write tests (unit + integration) and add GitHub Actions workflow.
 - Draft OpenAPI JSON and README with usage examples.
-

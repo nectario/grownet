@@ -42,7 +42,7 @@ Everything else (PAL v2 semantics, APIs, server, tests, CI) follows your origina
 ## Package Layout
 
 ```
-packages/
+src/typescript/
   grownet-ts/
     src/
       index.ts                  # explicit named exports, no barrels-with-renames
@@ -72,7 +72,7 @@ tsconfig.base.json              # no "paths"
 ## Public API (TypeScript, **no aliases**)
 
 ```ts
-// packages/grownet-ts/src/pal/index.ts
+// src/typescript/grownet-ts/src/pal/index.ts
 export interface ParallelOptions {
   maxWorkers?: number;
   tileSize?: number;
@@ -109,7 +109,7 @@ export function counterRng(
   unitIndex: number,
   drawIndex: number
 ): number;
-// packages/grownet-ts/src/Region.ts
+// src/typescript/grownet-ts/src/Region.ts
 import { ParallelOptions } from './pal/index.js';
 import { RegionMetrics } from './metrics/RegionMetrics.js';
 
@@ -130,7 +130,7 @@ export class Region {
     options?: ParallelOptions
   ): RegionMetrics;
 }
-// packages/grownet-ts/src/metrics/RegionMetrics.ts
+// src/typescript/grownet-ts/src/metrics/RegionMetrics.ts
 export class RegionMetrics {
   constructor(
     deliveredEvents: number,
@@ -243,7 +243,7 @@ module.exports = {
 
 ```json
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2020",
     "module": "ES2020",
@@ -275,7 +275,7 @@ module.exports = {
 
 ## Implementation Checklist (updated)
 
-1. Scaffold `packages/grownet-ts` with **ESM** and **strict** tsconfig (no paths).
+1. Scaffold `src/typescript/grownet-ts` with **ESM** and **strict** tsconfig (no paths).
 2. Implement PAL v2 in `src/pal` using **worker_threads** pool (bounded) with **ordered reduction**.
 3. Implement `RegionMetrics` and `Region.computeSpatialMetrics` + `tickND`.
 4. Add Fastify server with the two routes + schemas.
