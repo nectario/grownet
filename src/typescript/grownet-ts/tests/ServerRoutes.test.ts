@@ -11,7 +11,7 @@ describe('Server routes', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as Record<string, unknown>;
-    expect(body.activePixels).toBe(1);
+    expect(body.active_pixels).toBe(1);
     await app.close();
   });
 
@@ -24,8 +24,7 @@ describe('Server routes', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json() as Record<string, unknown>;
-    expect(body.deliveredEvents).toBe(1);
+    expect(body.delivered_events).toBe(1);
     await app.close();
   });
 });
-

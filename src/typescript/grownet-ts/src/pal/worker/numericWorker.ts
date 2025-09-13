@@ -5,13 +5,13 @@ if (!parentPort) {
 }
 
 function mix64(x: bigint): bigint {
-  let z = x + 0x9e3779b97f4a7c15n;
-  z ^= z >> 30n;
-  z *= 0xbf58476d1ce4e5b9n;
-  z ^= z >> 27n;
-  z *= 0x94d049bb133111ebn;
-  z ^= z >> 31n;
-  return z;
+  let mixed = x + 0x9e3779b97f4a7c15n;
+  mixed ^= mixed >> 30n;
+  mixed *= 0xbf58476d1ce4e5b9n;
+  mixed ^= mixed >> 27n;
+  mixed *= 0x94d049bb133111ebn;
+  mixed ^= mixed >> 31n;
+  return mixed;
 }
 
 function counterRng(seed: bigint, step: bigint, drawKind: bigint, layerIndex: bigint, unitIndex: bigint, drawIndex: bigint): number {
@@ -87,4 +87,3 @@ parentPort.on('message', (task: Task) => {
 
   parentPort!.postMessage({ ok: false, error: 'Unknown task kind' });
 });
-

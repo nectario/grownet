@@ -12,15 +12,15 @@ export class Region {
   }
 
   addInputLayer2D(height: number, width: number, gain: number, epsilonFire: number): number {
-    const id = this.nextLayerId++;
-    this.layers2d.push({ id, type: 'input', height, width, gain, epsilonFire });
-    return id;
+    const layerId = this.nextLayerId++;
+    this.layers2d.push({ id: layerId, type: 'input', height, width, gain, epsilonFire });
+    return layerId;
   }
 
   addOutputLayer2D(height: number, width: number, smoothing: number): number {
-    const id = this.nextLayerId++;
-    this.layers2d.push({ id, type: 'output', height, width, smoothing });
-    return id;
+    const layerId = this.nextLayerId++;
+    this.layers2d.push({ id: layerId, type: 'output', height, width, smoothing });
+    return layerId;
   }
 
   bindInput(portName: string, layerIndices: number[]): void {

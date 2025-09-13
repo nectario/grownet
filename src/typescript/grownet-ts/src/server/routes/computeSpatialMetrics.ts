@@ -30,16 +30,16 @@ export function registerComputeSpatialMetricsRoute(server: FastifyInstance): voi
         metrics = region.computeSpatialMetrics(body.image2d as number[][], preferOutput);
       }
       reply.send({
-        deliveredEvents: metrics.getDeliveredEvents(),
-        totalSlots: metrics.getTotalSlots(),
-        totalSynapses: metrics.getTotalSynapses(),
-        activePixels: metrics.getActivePixels(),
-        centroidRow: metrics.getCentroidRow(),
-        centroidCol: metrics.getCentroidCol(),
-        bboxRowMin: metrics.getBboxRowMin(),
-        bboxRowMax: metrics.getBboxRowMax(),
-        bboxColMin: metrics.getBboxColMin(),
-        bboxColMax: metrics.getBboxColMax(),
+        delivered_events: metrics.getDeliveredEvents(),
+        total_slots: metrics.getTotalSlots(),
+        total_synapses: metrics.getTotalSynapses(),
+        active_pixels: metrics.getActivePixels(),
+        centroid_row: metrics.getCentroidRow(),
+        centroid_col: metrics.getCentroidCol(),
+        bbox_row_min: metrics.getBboxRowMin(),
+        bbox_row_max: metrics.getBboxRowMax(),
+        bbox_col_min: metrics.getBboxColMin(),
+        bbox_col_max: metrics.getBboxColMax(),
       });
     });
     done();
