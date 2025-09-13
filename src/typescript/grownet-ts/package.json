@@ -18,8 +18,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "vitest run",
-  "dev": "node --loader ts-node/esm src/server/Server.ts",
-  "start": "node dist/server/Server.js"
+    "dev": "node --loader ts-node/esm src/server/Server.ts",
+    "start": "node dist/server/Server.js"
   },
   "engines": {
     "node": ">=18"
@@ -46,5 +46,3 @@
     "vitest": "^1.6.0"
   }
 }
-{
-  "name": "@grownet/server-ts",
