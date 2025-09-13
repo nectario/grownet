@@ -1,0 +1,40 @@
+{
+  "name": "@grownet/server-ts",
+  "version": "0.1.0",
+  "description": "GrowNet server and core runtime in TypeScript (No-Aliases Edition)",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "vitest run",
+    "dev": "node --loader ts-node/esm src/server/Server.ts",
+    "start": "node dist/server/Server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "pino": "^9.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@typescript-eslint/eslint-plugin": "^7.5.0",
+    "@typescript-eslint/parser": "^7.5.0",
+    "eslint": "^8.57.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.3.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}
+
