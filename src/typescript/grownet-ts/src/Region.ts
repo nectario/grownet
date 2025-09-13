@@ -3,9 +3,67 @@ import { ParallelOptions } from './pal/index.js';
 
 export class Region {
   private name: string;
+  private layers2d: Array<{ id: number; type: 'input' | 'output'; height: number; width: number; gain?: number; epsilonFire?: number; smoothing?: number }> = [];
+  private nextLayerId: number = 0;
+  private inputBindings: Map<string, number[]> = new Map();
 
   constructor(name: string) {
     this.name = name;
+  }
+
+  addInputLayer2D(height: number, width: number, gain: number, epsilonFire: number): number {
+    const id = this.nextLayerId++;
+    this.layers2d.push({ id, type: 'input', height, width, gain, epsilonFire });
+    return id;
+  }
+
+  addOutputLayer2D(height: number, width: number, smoothing: number): number {
+    const id = this.nextLayerId++;
+    this.layers2d.push({ id, type: 'output', height, width, smoothing });
+    return id;
+  }
+
+  bindInput(portName: string, layerIndices: number[]): void {
+    this.inputBindings.set(portName, [...layerIndices]);
+  }
+
+  connectLayersWindowed(
+    srcLayerId: number,
+    dstLayerId: number,
+    kernelHeight: number,
+    kernelWidth: number,
+    strideHeight: number,
+    strideWidth: number,
+    padding: string,
+    feedback: boolean,
+  ): number {
+    (void)dstLayerId; (void)feedback;
+    const src = this.layers2d.find((l) => l.id === srcLayerId);
+    if (!src) return 0;
+    const height = src.height; const width = src.width;
+    if (padding.toLowerCase() === 'same') return height * width;
+    // VALID padding: compute union coverage of all valid windows
+    const rowStartOffsets: number[] = [];
+    const colStartOffsets: number[] = [];
+    for (let startRowOffset = 0; startRowOffset <= height - kernelHeight; startRowOffset += strideHeight) rowStartOffsets.push(startRowOffset);
+    for (let startColOffset = 0; startColOffset <= width - kernelWidth; startColOffset += strideWidth) colStartOffsets.push(startColOffset);
+    const coveredIndices = new Array<boolean>(height * width);
+    for (let coveredIndex = 0; coveredIndex < coveredIndices.length; coveredIndex += 1) coveredIndices[coveredIndex] = false;
+    for (let rowStartListIndex = 0; rowStartListIndex < rowStartOffsets.length; rowStartListIndex += 1) {
+      const windowStartRow = rowStartOffsets[rowStartListIndex];
+      for (let colStartListIndex = 0; colStartListIndex < colStartOffsets.length; colStartListIndex += 1) {
+        const windowStartCol = colStartOffsets[colStartListIndex];
+        for (let kernelRowOffset = 0; kernelRowOffset < kernelHeight; kernelRowOffset += 1) {
+          for (let kernelColOffset = 0; kernelColOffset < kernelWidth; kernelColOffset += 1) {
+            const rowIndex = windowStartRow + kernelRowOffset; const colIndex = windowStartCol + kernelColOffset;
+            coveredIndices[rowIndex * width + colIndex] = true;
+          }
+        }
+      }
+    }
+    let uniqueSourcesCount = 0;
+    for (let coveredIndex = 0; coveredIndex < coveredIndices.length; coveredIndex += 1) if (coveredIndices[coveredIndex]) uniqueSourcesCount += 1;
+    return uniqueSourcesCount;
   }
 
   computeSpatialMetrics(
@@ -97,6 +155,11 @@ export class Region {
       -1,
       -1,
     );
+  }
+  
+  tick2D(port: string, image2d: number[][]): RegionMetrics {
+    // Basic wrapper using ND path
+    return this.tickND(port, image2d);
   }
 
   private parseImage2D(
