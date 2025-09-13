@@ -22,4 +22,4 @@ if (process.argv[1] && process.argv[1].endsWith('Server.js')) {
       process.exit(1);
     });
 }
-
+import fastify from 'fastify';

@@ -29,4 +29,4 @@ export function registerTickNdRoute(server: FastifyInstance): void {
   };
   server.register(handler);
 }
-
+import { FastifyInstance, FastifyPluginCallback } from 'fastify';

@@ -37,4 +37,5 @@
     "vitest": "^1.6.0"
   }
 }
-
+{
+  "name": "@grownet/server-ts",

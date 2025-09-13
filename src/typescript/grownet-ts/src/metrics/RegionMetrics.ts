@@ -45,4 +45,4 @@ export class RegionMetrics {
   getBboxColMin(): number { return this.bboxColMin; }
   getBboxColMax(): number { return this.bboxColMax; }
 }
-
+export class RegionMetrics {

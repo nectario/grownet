@@ -10,4 +10,4 @@ describe('ND Tick smoke', () => {
     expect(m.getTotalSlots()).toBe(6);
   });
 });
-
+import { describe, it, expect } from 'vitest';

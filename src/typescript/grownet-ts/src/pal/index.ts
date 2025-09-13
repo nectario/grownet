@@ -117,4 +117,4 @@ export function counterRng(
   const mantissa = Number((key >> 11n) & ((1n << 53n) - 1n));
   return mantissa / Math.pow(2, 53);
 }
-
+import os from 'os';

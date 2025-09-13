@@ -45,4 +45,4 @@ export function registerComputeSpatialMetricsRoute(server: FastifyInstance): voi
   };
   server.register(handler);
 }
-
+import { FastifyInstance, FastifyPluginCallback } from 'fastify';

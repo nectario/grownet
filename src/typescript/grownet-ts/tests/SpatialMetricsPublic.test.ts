@@ -15,4 +15,4 @@ describe('SpatialMetrics public', () => {
     expect(m.getBboxColMax()).toBe(1);
   });
 });
-
+import { describe, it, expect } from 'vitest';
