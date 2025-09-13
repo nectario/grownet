@@ -2,13 +2,14 @@
   "name": "grownet-root",
   "private": true,
   "workspaces": [
-    "src/typescript/grownet-ts"
+    "src/typescript/grownet-ts",
+    "src/typescript/grownet-client"
   ],
   "scripts": {
     "ts:build": "npm --workspace @grownet/server-ts run build",
     "ts:test": "npm --workspace @grownet/server-ts run test",
     "ts:lint": "npm --workspace @grownet/server-ts run lint",
-    "ts:typecheck": "npm --workspace @grownet/server-ts run typecheck"
+    "ts:typecheck": "npm --workspace @grownet/server-ts run typecheck",
+    "client:dev": "npm --workspace @grownet/client run dev"
   }
 }
-

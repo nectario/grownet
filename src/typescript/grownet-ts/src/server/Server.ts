@@ -5,6 +5,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import { registerComputeSpatialMetricsRoute } from './routes/computeSpatialMetrics.js';
 import { registerTickNdRoute } from './routes/tickNd.js';
 import { WorkerPool } from '../pal/worker/Pool.js';
+import { registerWebSocket } from './ws.js';
 
 export async function createServer() {
   const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -32,6 +33,7 @@ export async function createServer() {
     routePrefix: '/docs',
     exposeRoute: true,
   });
+  await registerWebSocket(app);
   registerComputeSpatialMetricsRoute(app);
   registerTickNdRoute(app);
   app.addHook('onClose', async () => {

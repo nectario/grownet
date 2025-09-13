@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GrowNet Client</title>
+    <style>
+      html, body, #app { margin:0; padding:0; height:100%; background:#111; color:#eee; font-family: system-ui, sans-serif; }
+      canvas { display:block; margin:0 auto; background:#000; image-rendering: pixelated; }
+      .hud { position: fixed; top: 8px; left: 8px; background: rgba(0,0,0,0.5); padding: 6px 8px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="hud">WS: <span id="ws">connecting</span> • FPS: <span id="fps">0</span></div>
+    <canvas id="cv" width="640" height="640"></canvas>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+  </html>
+
