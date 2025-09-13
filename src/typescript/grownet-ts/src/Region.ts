@@ -9,6 +9,8 @@ export class Region {
   private nextLayerId: number = 0;
   private inputBindings: Map<string, number[]> = new Map();
   private tracts: Array<Tract> = [];
+  private growthPolicy: { enableLayerGrowth: boolean; maxLayers: number; avgSlotsThreshold: number; percentNeuronsAtCapacityThreshold?: number; layerCooldownTicks: number; rngSeed: number } | null = null;
+  private lastLayerGrowthStep: number = -1;
 
   constructor(name: string) {
     this.name = name;
@@ -30,6 +32,14 @@ export class Region {
 
   bindInput(portName: string, layerIndices: number[]): void {
     this.inputBindings.set(portName, [...layerIndices]);
+  }
+
+  setGrowthPolicy(policy: { enableLayerGrowth: boolean; maxLayers: number; avgSlotsThreshold: number; percentNeuronsAtCapacityThreshold?: number; layerCooldownTicks: number; rngSeed: number }): void {
+    this.growthPolicy = policy;
+  }
+
+  getGrowthPolicy(): { enableLayerGrowth: boolean; maxLayers: number; avgSlotsThreshold: number; percentNeuronsAtCapacityThreshold?: number; layerCooldownTicks: number; rngSeed: number } | null {
+    return this.growthPolicy;
   }
 
   connectLayersWindowed(
@@ -196,8 +206,8 @@ export class Region {
     const tensor2d = Array.isArray(tensor[0]) ? (tensor as number[][]) : [tensor as number[]];
     let deliveredEvents = 0;
     let totalSlots = 0;
-    for (let b = 0; b < boundLayers.length; b += 1) {
-      const layerIndex = boundLayers[b];
+    for (let bindIndex = 0; bindIndex < boundLayers.length; bindIndex += 1) {
+      const layerIndex = boundLayers[bindIndex];
       const layer = this.layers[layerIndex];
       if (!layer) continue;
       const height = layer.getHeight();
@@ -215,19 +225,80 @@ export class Region {
         }
       }
     }
-    // Phase B: end tick
+    // Output metrics (scan output2d layers)
+    let activePixels = 0;
+    let sum = 0.0;
+    let rowSum = 0.0;
+    let colSum = 0.0;
+    let rowMin = Number.POSITIVE_INFINITY;
+    let rowMax = Number.NEGATIVE_INFINITY;
+    let colMin = Number.POSITIVE_INFINITY;
+    let colMax = Number.NEGATIVE_INFINITY;
+    for (let layerIndex = 0; layerIndex < this.layers.length; layerIndex += 1) {
+      const layer = this.layers[layerIndex];
+      if (layer.getKind() !== 'output2d') continue;
+      const height = layer.getHeight();
+      const width = layer.getWidth();
+      const neurons = layer.getNeurons();
+      for (let rowIndex = 0; rowIndex < height; rowIndex += 1) {
+        for (let colIndex = 0; colIndex < width; colIndex += 1) {
+          const idx = layer.indexAt(rowIndex, colIndex);
+          const neuron = neurons[idx];
+          if (neuron && (neuron as any).firedLast === true) { // internal access for now
+            activePixels += 1;
+            const value = 1.0;
+            sum += value;
+            rowSum += value * rowIndex;
+            colSum += value * colIndex;
+            if (rowIndex < rowMin) rowMin = rowIndex;
+            if (rowIndex > rowMax) rowMax = rowIndex;
+            if (colIndex < colMin) colMin = colIndex;
+            if (colIndex > colMax) colMax = colIndex;
+          }
+        }
+      }
+    }
+
+    // Phase B: end tick + growth check (one growth per tick)
     for (let i = 0; i < this.layers.length; i += 1) this.layers[i].endTick();
+    if (this.growthPolicy) {
+      const policy = this.growthPolicy;
+      const currentStep = (this.layers[0]?.getBus().getCurrentStep()) || 0;
+      let growthDone = false;
+      for (let li = 0; li < this.layers.length && !growthDone; li += 1) {
+        const neurons = this.layers[li].getNeurons();
+        for (let ni = 0; ni < neurons.length && !growthDone; ni += 1) {
+          const neuron = neurons[ni];
+          if ((neuron as any).getFallbackStreak && neuron.getFallbackStreak() >= 3) { // using default threshold if absent
+            const last = neuron.getLastGrowthTick();
+            if (currentStep - last >= (policy.layerCooldownTicks || 100)) {
+              const newIndex = this.layers[li].tryGrowNeuron(ni);
+              if (newIndex >= 0) {
+                // Autowire new neuron for tracts where this layer is source
+                for (let ti = 0; ti < this.tracts.length; ti += 1) {
+                  const t = this.tracts[ti];
+                  if (t.getSource() === this.layers[li]) t.attachSourceNeuron(newIndex);
+                }
+                neuron.setLastGrowthTick(currentStep);
+                growthDone = true;
+                this.lastLayerGrowthStep = currentStep;
+              }
+            }
+          }
+        }
+      }
+    }
     return new RegionMetrics(
       deliveredEvents,
       totalSlots,
       0,
-      0,
-      0,
-      0,
-      -1,
-      -1,
-      -1,
-      -1,
+      activePixels,
+      sum > 0 ? rowSum / sum : 0,
+      sum > 0 ? colSum / sum : 0,
+      activePixels > 0 ? Math.floor(rowMin) : -1,
+      activePixels > 0 ? Math.floor(rowMax) : -1,
+      activePixels > 0 ? Math.floor(colMin) : -1,
+      activePixels > 0 ? Math.floor(colMax) : -1,
     );
   }
   

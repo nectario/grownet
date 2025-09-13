@@ -37,6 +37,7 @@ export class Neuron {
   setLastSlotUsedFallback(value: boolean): void { this.lastSlotUsedFallback = value; }
   getFallbackStreak(): number { return this.fallbackStreak; }
   getLastGrowthTick(): number { return this.lastGrowthTick; }
+  setLastGrowthTick(step: number): void { this.lastGrowthTick = step; }
 
   onInput(value: number): boolean {
     this.lastInputValue = value;
@@ -47,6 +48,7 @@ export class Neuron {
     const binIndex = Math.floor(pct / Math.max(1e-12, this.config.binWidthPercent));
     const slot = this.selectOrCreateSlot(binIndex);
     this.firedLast = slot.updateThreshold(value * this.bus.getModulationFactor());
+    if (!this.lastSlotUsedFallback) this.fallbackStreak = 0; // reset when not falling back
     return this.firedLast;
   }
 
@@ -61,6 +63,7 @@ export class Neuron {
     const packedKey = rowBin * 1_000_000 + colBin;
     const slot = this.selectOrCreateSlot(packedKey);
     this.firedLast = slot.updateThreshold(value * this.bus.getModulationFactor());
+    if (!this.lastSlotUsedFallback) this.fallbackStreak = 0;
     return this.firedLast;
   }
 

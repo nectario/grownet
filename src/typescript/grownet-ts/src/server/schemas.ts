@@ -95,3 +95,85 @@ export const tickNdSchema = {
     },
   },
 };
+
+export const addInputLayer2DSchema = {
+  body: {
+    type: 'object',
+    required: ['height', 'width', 'gain', 'epsilonFire'],
+    additionalProperties: false,
+    properties: {
+      height: { type: 'integer', minimum: 1 },
+      width: { type: 'integer', minimum: 1 },
+      gain: { type: 'number' },
+      epsilonFire: { type: 'number' },
+    },
+  },
+  response: {
+    200: { type: 'object', properties: { layer_id: { type: 'integer' } }, additionalProperties: false },
+  },
+};
+
+export const addOutputLayer2DSchema = {
+  body: {
+    type: 'object',
+    required: ['height', 'width', 'smoothing'],
+    additionalProperties: false,
+    properties: {
+      height: { type: 'integer', minimum: 1 },
+      width: { type: 'integer', minimum: 1 },
+      smoothing: { type: 'number' },
+    },
+  },
+  response: {
+    200: { type: 'object', properties: { layer_id: { type: 'integer' } }, additionalProperties: false },
+  },
+};
+
+export const bindInputSchema = {
+  body: {
+    type: 'object',
+    required: ['port', 'layers'],
+    additionalProperties: false,
+    properties: {
+      port: { type: 'string' },
+      layers: { type: 'array', items: { type: 'integer' } },
+    },
+  },
+  response: { 200: { type: 'object', properties: { ok: { type: 'boolean' } }, additionalProperties: false } },
+};
+
+export const connectWindowedSchema = {
+  body: {
+    type: 'object',
+    required: ['src', 'dst', 'kernelH', 'kernelW', 'strideH', 'strideW', 'padding', 'feedback'],
+    additionalProperties: false,
+    properties: {
+      src: { type: 'integer', minimum: 0 },
+      dst: { type: 'integer', minimum: 0 },
+      kernelH: { type: 'integer', minimum: 1 },
+      kernelW: { type: 'integer', minimum: 1 },
+      strideH: { type: 'integer', minimum: 1 },
+      strideW: { type: 'integer', minimum: 1 },
+      padding: { enum: ['same', 'valid'] },
+      feedback: { type: 'boolean' },
+    },
+  },
+  response: { 200: { type: 'object', properties: { unique_sources: { type: 'integer' } }, additionalProperties: false } },
+};
+
+export const setGrowthPolicySchema = {
+  body: {
+    type: 'object',
+    required: ['enableLayerGrowth', 'maxLayers', 'avgSlotsThreshold', 'layerCooldownTicks', 'rngSeed'],
+    additionalProperties: false,
+    properties: {
+      enableLayerGrowth: { type: 'boolean' },
+      maxLayers: { type: 'integer', minimum: 0 },
+      avgSlotsThreshold: { type: 'number', minimum: 0 },
+      percentNeuronsAtCapacityThreshold: { type: 'number' },
+      layerCooldownTicks: { type: 'integer', minimum: 0 },
+      rngSeed: { type: 'integer' },
+    },
+  },
+  response: { 200: { type: 'object', properties: { ok: { type: 'boolean' } }, additionalProperties: false } },
+};

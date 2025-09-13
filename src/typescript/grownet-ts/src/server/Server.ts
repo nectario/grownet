@@ -4,6 +4,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { registerComputeSpatialMetricsRoute } from './routes/computeSpatialMetrics.js';
 import { registerTickNdRoute } from './routes/tickNd.js';
+import { registerWiringAndGrowthRoutes } from './routes/wiringGrowth.js';
 import { WorkerPool } from '../pal/worker/Pool.js';
 import { registerWebSocket } from './ws.js';
 
@@ -36,6 +37,7 @@ export async function createServer() {
   await registerWebSocket(app);
   registerComputeSpatialMetricsRoute(app);
   registerTickNdRoute(app);
+  registerWiringAndGrowthRoutes(app);
   app.addHook('onClose', async () => {
     if (WorkerPool.instance) await WorkerPool.instance.close();
   });

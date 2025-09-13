@@ -45,5 +45,12 @@ export class Layer {
     // In a fuller implementation, per-neuron end-of-tick bookkeeping would live here.
     this.bus.decay();
   }
-}
 
+  tryGrowNeuron(seedIndex?: number): number {
+    if (this.neuronLimit >= 0 && this.neurons.length >= this.neuronLimit) return -1;
+    const newIndex = this.neurons.length;
+    const neuron = new Neuron(`${this.name}.${newIndex}`, this.bus, this.slotConfig);
+    this.neurons.push(neuron);
+    return newIndex;
+  }
+}
