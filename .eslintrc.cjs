@@ -9,6 +9,11 @@ module.exports = {
     'plugin:import/typescript',
     'prettier'
   ],
+  settings: {
+    'import/resolver': {
+      node: { extensions: ['.js', '.ts'] }
+    }
+  },
   rules: {
     '@typescript-eslint/naming-convention': [
       'error',
@@ -33,7 +38,9 @@ module.exports = {
 
     '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
     'import/prefer-default-export': 'off',
-    'import/no-default-export': 'warn'
+    'import/no-default-export': 'warn',
+    'import/no-unresolved': 'off',
+    'import/extensions': 'off'
   },
   overrides: [
     {
@@ -42,4 +49,3 @@ module.exports = {
     }
   ]
 };
-
