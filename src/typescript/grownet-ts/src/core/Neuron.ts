@@ -38,6 +38,7 @@ export class Neuron {
   getFallbackStreak(): number { return this.fallbackStreak; }
   getLastGrowthTick(): number { return this.lastGrowthTick; }
   setLastGrowthTick(step: number): void { this.lastGrowthTick = step; }
+  getFiredLast(): boolean { return this.firedLast; }
 
   onInput(value: number): boolean {
     this.lastInputValue = value;

@@ -1,6 +1,6 @@
 import { RegionMetrics } from './metrics/RegionMetrics.js';
 import { ParallelOptions } from './pal/index.js';
-import { Layer } from './core/Layer.js';
+import { Layer, LayerKind } from './core/Layer.js';
 import { Tract } from './core/Tract.js';
 
 export class Region {
@@ -18,14 +18,14 @@ export class Region {
 
   addInputLayer2D(height: number, width: number, gain: number, epsilonFire: number): number {
     const layerId = this.nextLayerId++;
-    const layer = new Layer(`input2d_${layerId}`, 'input2d', height, width);
+    const layer = new Layer(`input2d_${layerId}`, LayerKind.Input2D, height, width);
     this.layers.push(layer);
     return layerId;
   }
 
   addOutputLayer2D(height: number, width: number, smoothing: number): number {
     const layerId = this.nextLayerId++;
-    const layer = new Layer(`output2d_${layerId}`, 'output2d', height, width);
+    const layer = new Layer(`output2d_${layerId}`, LayerKind.Output2D, height, width);
     this.layers.push(layer);
     return layerId;
   }
@@ -236,7 +236,7 @@ export class Region {
     let colMax = Number.NEGATIVE_INFINITY;
     for (let layerIndex = 0; layerIndex < this.layers.length; layerIndex += 1) {
       const layer = this.layers[layerIndex];
-      if (layer.getKind() !== 'output2d') continue;
+      if (layer.getKind() !== LayerKind.Output2D) continue;
       const height = layer.getHeight();
       const width = layer.getWidth();
       const neurons = layer.getNeurons();
@@ -244,7 +244,7 @@ export class Region {
         for (let colIndex = 0; colIndex < width; colIndex += 1) {
           const idx = layer.indexAt(rowIndex, colIndex);
           const neuron = neurons[idx];
-          if (neuron && (neuron as any).firedLast === true) { // internal access for now
+          if (neuron && neuron.getFiredLast() === true) {
             activePixels += 1;
             const value = 1.0;
             sum += value;
@@ -269,7 +269,7 @@ export class Region {
         const neurons = this.layers[li].getNeurons();
         for (let ni = 0; ni < neurons.length && !growthDone; ni += 1) {
           const neuron = neurons[ni];
-          if ((neuron as any).getFallbackStreak && neuron.getFallbackStreak() >= 3) { // using default threshold if absent
+          if (neuron.getFallbackStreak() >= 3) {
             const last = neuron.getLastGrowthTick();
             if (currentStep - last >= (policy.layerCooldownTicks || 100)) {
               const newIndex = this.layers[li].tryGrowNeuron(ni);

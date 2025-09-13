@@ -2,7 +2,7 @@ import { LateralBus } from './LateralBus.js';
 import { Neuron } from './Neuron.js';
 import { SlotConfig, fixedSlotConfig } from './SlotConfig.js';
 
-export type LayerKind = 'generic' | 'input2d' | 'output2d';
+export enum LayerKind { Generic = 'generic', Input2D = 'input2d', Output2D = 'output2d' }
 
 export class Layer {
   private name: string;
@@ -22,7 +22,7 @@ export class Layer {
     this.bus = new LateralBus(0.9);
     this.slotConfig = slotConfig || fixedSlotConfig(5.0);
     this.neuronLimit = -1;
-    if (kind === 'input2d' || kind === 'output2d') {
+    if (kind === LayerKind.Input2D || kind === LayerKind.Output2D) {
       const count = this.height * this.width;
       for (let index = 0; index < count; index += 1) {
         const neuron = new Neuron(`${name}.${index}`, this.bus, this.slotConfig);
