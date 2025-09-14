@@ -101,10 +101,10 @@ export function defaultTopographicConfig(): TopographicConfig {
     }
     if (config.normalizeIncoming) {
       let sumWeights = 0;
-      for (const w of weights) sumWeights += w.weight;
+      for (const weightEntry of weights) sumWeights += weightEntry.weight;
       const eps = 1e-12;
       const denom = sumWeights > eps ? sumWeights : 1.0;
-      for (const w of weights) w.weight = w.weight / denom;
+      for (const weightEntry of weights) weightEntry.weight = weightEntry.weight / denom;
     }
     incomingPerCenter.push({ centerRow, centerCol, weights });
   }

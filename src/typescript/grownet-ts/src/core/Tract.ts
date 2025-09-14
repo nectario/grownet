@@ -1,5 +1,4 @@
 import { Layer } from './Layer.js';
-import { Neuron } from './Neuron.js';
 
 export class Tract {
   private source: Layer;
