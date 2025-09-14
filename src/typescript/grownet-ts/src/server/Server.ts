@@ -32,12 +32,12 @@ export async function createServer() {
   });
   await app.register(swaggerUi, {
     routePrefix: '/docs',
-    exposeRoute: true,
   });
-  await registerWebSocket(app);
-  registerComputeSpatialMetricsRoute(app);
-  registerTickNdRoute(app);
-  registerWiringAndGrowthRoutes(app);
+  const typedApp: any = app;
+  await registerWebSocket(typedApp);
+  registerComputeSpatialMetricsRoute(typedApp);
+  registerTickNdRoute(typedApp);
+  registerWiringAndGrowthRoutes(typedApp);
   app.addHook('onClose', async () => {
     if (WorkerPool.instance) await WorkerPool.instance.close();
   });

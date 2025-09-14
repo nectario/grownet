@@ -154,7 +154,7 @@ export async function parallelMapCounterRngSum(
   }
   const partials = await Promise.all(tasks);
   let total = 0.0;
-  for (let indexValue = 0; indexValue < partials.length; indexValue += 1) total += partials[indexValue];
+  for (const partial of partials) total += partial;
   return total;
 }
 
@@ -166,7 +166,7 @@ export async function mapFloat64ArrayAddScalar(
   const workerCount = effectiveWorkers(options ?? defaultOptions);
   if (workerCount <= 1 || values.length < 2048) {
     const out = new Float64Array(values.length);
-    for (let offset = 0; offset < values.length; offset += 1) out[offset] = values[offset] + scalar;
+    for (let offset = 0; offset < values.length; offset += 1) out[offset] = (values[offset] ?? 0) + scalar;
     return out;
   }
   const shardCount = Math.min(workerCount, Math.ceil(values.length / 2048));
@@ -204,7 +204,7 @@ export async function mapFloat64ArrayScale(
   const workerCount = effectiveWorkers(options ?? defaultOptions);
   if (workerCount <= 1 || values.length < 2048) {
     const out = new Float64Array(values.length);
-    for (let offset = 0; offset < values.length; offset += 1) out[offset] = values[offset] * factor;
+    for (let offset = 0; offset < values.length; offset += 1) out[offset] = (values[offset] ?? 0) * factor;
     return out;
   }
   const shardCount = Math.min(workerCount, Math.ceil(values.length / 2048));

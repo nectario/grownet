@@ -16,3 +16,6 @@ __pycache__/
 .idea
 *.iml
 
+
+# Node
+node_modules/

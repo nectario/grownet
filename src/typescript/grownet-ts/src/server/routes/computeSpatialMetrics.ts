@@ -1,10 +1,10 @@
-import { FastifyInstance, FastifyPluginCallback } from 'fastify';
+import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from 'fastify';
 import { Region } from '../../Region.js';
 import { computeSpatialMetricsSchema } from '../schemas.js';
 
 export function registerComputeSpatialMetricsRoute(server: FastifyInstance): void {
-  const handler: FastifyPluginCallback = (instance, _opts, done) => {
-    instance.post('/api/v1/region/compute-spatial-metrics', { schema: computeSpatialMetricsSchema }, async (request, reply) => {
+  const handler: FastifyPluginCallback = (instance: FastifyInstance, _opts: unknown, done: () => void): void => {
+    instance.post('/api/v1/region/compute-spatial-metrics', { schema: computeSpatialMetricsSchema }, async (request: FastifyRequest, reply: FastifyReply) => {
       const body = request.body as {
         image2d:
           | number[][]

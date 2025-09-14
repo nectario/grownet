@@ -70,7 +70,7 @@ parentPort.on('message', (task: CounterRngSumTask | MapArrayAddScalarTask | MapA
   if (task.kind === 'mapArrayAddScalar') {
     const input = new Float64Array(task.buffer);
     const out = new Float64Array(input.length);
-    for (let offset = 0; offset < input.length; offset += 1) out[offset] = input[offset] + task.scalar;
+    for (let offset = 0; offset < input.length; offset += 1) out[offset] = (input[offset] ?? 0) + task.scalar;
     parentPort!.postMessage({ success: true, result: out.buffer }, [out.buffer]);
     return;
   }
@@ -78,7 +78,7 @@ parentPort.on('message', (task: CounterRngSumTask | MapArrayAddScalarTask | MapA
   if (task.kind === 'mapArrayScale') {
     const input = new Float64Array(task.buffer);
     const out = new Float64Array(input.length);
-    for (let offset = 0; offset < input.length; offset += 1) out[offset] = input[offset] * task.factor;
+    for (let offset = 0; offset < input.length; offset += 1) out[offset] = (input[offset] ?? 0) * task.factor;
     parentPort!.postMessage({ success: true, result: out.buffer }, [out.buffer]);
     return;
   }

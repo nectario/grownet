@@ -67,49 +67,47 @@ export function defaultTopographicConfig(): TopographicConfig {
   // Unique sources
   const covered = new Array<boolean>(srcHeight * srcWidth);
   for (let i = 0; i < covered.length; i += 1) covered[i] = false;
-    for (let windowIndex = 0; windowIndex < windows.length; windowIndex += 1) {
-      const win = windows[windowIndex];
-      for (let row = win.rowStart; row < win.rowEnd; row += 1) {
-        for (let col = win.colStart; col < win.colEnd; col += 1) {
-          covered[row * srcWidth + col] = true;
-        }
+  for (const win of windows) {
+    for (let row = win.rowStart; row < win.rowEnd; row += 1) {
+      for (let col = win.colStart; col < win.colEnd; col += 1) {
+        covered[row * srcWidth + col] = true;
       }
     }
+  }
   let uniqueSources = 0;
-  for (let idx = 0; idx < covered.length; idx += 1) if (covered[idx]) uniqueSources += 1;
+  for (const flag of covered) if (flag) uniqueSources += 1;
 
   // Build incoming weights per center
-    const incomingPerCenter: Array<{ centerRow: number; centerCol: number; weights: Array<{ row: number; col: number; weight: number }> }> = [];
-    for (let windowIndex = 0; windowIndex < windows.length; windowIndex += 1) {
-      const win = windows[windowIndex];
-      const centerRow = Math.max(0, Math.min(dstHeight - 1, win.centerRow));
-      const centerCol = Math.max(0, Math.min(dstWidth - 1, win.centerCol));
-      const weights: Array<{ row: number; col: number; weight: number }> = [];
-      for (let row = win.rowStart; row < win.rowEnd; row += 1) {
-        for (let col = win.colStart; col < win.colEnd; col += 1) {
-          const deltaRow = row - (win.rowStart + Math.floor(kernelH / 2));
-          const deltaCol = col - (win.colStart + Math.floor(kernelW / 2));
-          const distanceSq = deltaRow * deltaRow + deltaCol * deltaCol;
-          let weightValue = 0.0;
-          if (config.weightMode === 'gaussian') {
-            weightValue = Math.exp(-distanceSq / (2 * config.sigmaCenter * config.sigmaCenter));
-          } else {
-            const centerTerm = Math.exp(-distanceSq / (2 * config.sigmaCenter * config.sigmaCenter));
-            const surroundTerm = Math.exp(-distanceSq / (2 * config.sigmaSurround * config.sigmaSurround));
-            weightValue = Math.max(0, centerTerm - config.surroundRatio * surroundTerm);
-          }
-          weights.push({ row, col, weight: weightValue });
+  const incomingPerCenter: Array<{ centerRow: number; centerCol: number; weights: Array<{ row: number; col: number; weight: number }> }> = [];
+  for (const win of windows) {
+    const centerRow = Math.max(0, Math.min(dstHeight - 1, win.centerRow));
+    const centerCol = Math.max(0, Math.min(dstWidth - 1, win.centerCol));
+    const weights: Array<{ row: number; col: number; weight: number }> = [];
+    for (let row = win.rowStart; row < win.rowEnd; row += 1) {
+      for (let col = win.colStart; col < win.colEnd; col += 1) {
+        const deltaRow = row - (win.rowStart + Math.floor(kernelH / 2));
+        const deltaCol = col - (win.colStart + Math.floor(kernelW / 2));
+        const distanceSq = deltaRow * deltaRow + deltaCol * deltaCol;
+        let weightValue = 0.0;
+        if (config.weightMode === 'gaussian') {
+          weightValue = Math.exp(-distanceSq / (2 * config.sigmaCenter * config.sigmaCenter));
+        } else {
+          const centerTerm = Math.exp(-distanceSq / (2 * config.sigmaCenter * config.sigmaCenter));
+          const surroundTerm = Math.exp(-distanceSq / (2 * config.sigmaSurround * config.sigmaSurround));
+          weightValue = Math.max(0, centerTerm - config.surroundRatio * surroundTerm);
         }
+        weights.push({ row, col, weight: weightValue });
       }
-      if (config.normalizeIncoming) {
-        let sumWeights = 0;
-        for (let i = 0; i < weights.length; i += 1) sumWeights += weights[i].weight;
-        const eps = 1e-12;
-        const denom = sumWeights > eps ? sumWeights : 1.0;
-        for (let i = 0; i < weights.length; i += 1) weights[i].weight = weights[i].weight / denom;
-      }
-      incomingPerCenter.push({ centerRow, centerCol, weights });
     }
+    if (config.normalizeIncoming) {
+      let sumWeights = 0;
+      for (const w of weights) sumWeights += w.weight;
+      const eps = 1e-12;
+      const denom = sumWeights > eps ? sumWeights : 1.0;
+      for (const w of weights) w.weight = w.weight / denom;
+    }
+    incomingPerCenter.push({ centerRow, centerCol, weights });
+  }
   return { uniqueSources, incomingPerCenter };
 }
 

@@ -1,4 +1,4 @@
-import { Worker } from 'node:worker_threads';
+import { Worker, WorkerOptions } from 'node:worker_threads';
 
 export class WorkerPool {
   private maxWorkers: number;
@@ -32,7 +32,7 @@ export class WorkerPool {
   async close(): Promise<void> {
     this.shuttingDown = true;
     const tasks: Array<Promise<number>> = [];
-    for (let index = 0; index < this.workers.length; index += 1) tasks.push(this.workers[index].terminate());
+    for (const worker of this.workers) tasks.push(worker.terminate());
     await Promise.all(tasks);
     this.workers = [];
     this.idle = [];
@@ -42,7 +42,7 @@ export class WorkerPool {
 
   private spawn(): Worker {
     const workerUrl = new URL('./numericWorker.js', import.meta.url);
-    const worker = new Worker(workerUrl, { type: 'module' });
+    const worker = new Worker(workerUrl, { type: 'module' } as unknown as WorkerOptions);
     this.workers.push(worker);
     return worker;
   }
