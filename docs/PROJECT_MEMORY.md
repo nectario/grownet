@@ -117,6 +117,16 @@ language_parity:
     - PAL v2: device knob (`device = "cpu" | "gpu" | "auto"`); GPU path implemented for Float64 identity/add/scale maps (CPU fallback retained for safety); ordered reduction preserved
     - GPU enablement: runtime detection via `gpu_available()` which tries to construct a DeviceContext; returns False if unavailable
 
+  typescript:
+    - strict capacity (scalar & 2D) + fallback marking; one-shot reuse after unfreeze (`preferLastSlotOnce`)
+    - neuron growth via per-neuron escalation in `Layer.endTick()`; one growth per layer per tick
+    - region growth policy: OR-trigger (avg slots or % at-cap+fallback) + cooldown; `requestLayerGrowth` uses p=1.0
+    - mesh rules recorded and replayed (outbound+inbound) on neuron growth
+    - windowed tracts parity: center mapping (SAME/VALID), `attachSourceNeuron(newIndex)`
+    - spatial metrics: bbox/centroid over active pixels only; total synapses count summed across region
+    - policy alias: `percentAtCapFallbackThreshold` accepted (mapped to `percentNeuronsAtCapacityThreshold`)
+    - PAL exports via barrel; WorkerPool determinism (ordered reduction) preserved; ESM-friendly ESLint config
+
 style_and_conventions:
   - Python & Mojo: **no names starting with `_`** (no leading-underscore identifiers)
   - Java & C++: public API strictly camelCase/PascalCase (no snake_case identifiers)
@@ -166,14 +176,22 @@ tests_and_demos:
     - bus decay test; frozen slots test; one‑growth‑per‑tick test
     - stress: HD 1920×1080 + Retina/Topographic single‑tick execution (timing observed via wall‑clock in script)
     - PAL GPU demo: `src/mojo/tests/pal_gpu_map_demo.mojo` exercises identity/add/scale mappings with device knob
+  - typescript:
+    - PAL determinism and numeric workers: `PalDeterminism.test.ts`, `PalNumericWorkers.test.ts`
+    - ND smoke + server routes: `NdTickSmoke.test.ts`, `ServerRoutes.test.ts`
+    - Wiring/windowed smoke & topographic: `WiringWindowedSmoke.test.ts`, `TopographicPreset.test.ts`
+    - Bus/lateral: `LateralBusAndWeight.test.ts`
+    - Spatial metrics public wrapper: `SpatialMetricsPublic.test.ts`
+    - Parity: `AutoGrowth.test.ts` (fallback-streak growth; one per layer per tick), `SpatialMetricsParity.test.ts`
   - benchmarking:
     - `scripts/run_stress_bench.sh` runs HD + Retina stress across languages and prints a timing table; docs in `docs/BENCHMARKS.md`
 
 open_items_to_watch:
   - Keep windowed-tract re-attach verified across Java/Mojo as code evolves
-  - Maintain “one growth per tick” invariant at region level
+  - Maintain “one growth per tick” invariant at region level; for TypeScript also preserve “one growth per layer per tick” in layer-level auto-growth
   - Ensure `owner` backrefs are set for any new layer types
   - Integrate proximity policy in C++ Region tick; enable STEP tests and parity with Python/Java/Mojo
+  - Implement proximity policy parity for TypeScript (STEP mode, once-per-step guard, per-source cooldown, budget)
   - Consider CI matrix for stress script on a fixed runner to track regressions
   - Mojo GPU path: implement real kernels (DeviceContext + host/device buffers) for identity/add/scale maps; enable guarded detection in `gpu_available()`
   - Ensure PAL paths remain deterministic (stable tiling + submission-order reduction) as we expand coverage
