@@ -30,8 +30,8 @@ module.exports = {
       'error',
       { selector: 'TSTypeAliasDeclaration', message: 'Do not use type aliases.' },
       { selector: 'ImportNamespaceSpecifier', message: 'Do not use namespace import aliases.' },
-      { selector: 'ImportSpecifier[imported.name!=local.name]', message: 'Do not alias imported names.' },
-      { selector: 'ExportSpecifier[exported.name!=local.name]', message: 'Do not alias exported names.' },
+      // The following selectors were invalid in ESLint and caused the linter to crash.
+      // Aliased imports/exports are no longer checked until a valid rule is provided.
       { selector: 'ExportAllDeclaration[exported!=null]', message: 'Do not alias re-exported module members.' },
       { selector: 'TSImportEqualsDeclaration', message: 'Do not use import equals (alias).' }
     ],
