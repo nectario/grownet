@@ -3,6 +3,7 @@ import { Region } from '../../Region.js';
 import { addInputLayer2DSchema, addOutputLayer2DSchema, bindInputSchema, connectWindowedSchema, setGrowthPolicySchema, createRegionSchema, destroyRegionSchema, getRegionStateSchema, getMeshRulesSchema, connectTopographicSchema, requestLayerGrowthSchema } from '../schemas.js';
 import { RegionRegistry } from '../sim/Registry.js';
 import { connectLayersTopographic } from '../../wiring/TopographicWiring.js';
+import type { TopographicConfig } from '../../wiring/TopographicWiring.js';
 
 export function registerWiringAndGrowthRoutes(server: FastifyInstance): void {
   const plugin: FastifyPluginCallback = (instance, _opts, done) => {
@@ -21,9 +22,9 @@ export function registerWiringAndGrowthRoutes(server: FastifyInstance): void {
       const body = request.body as { regionId: string };
       const region = RegionRegistry.instance.get(body.regionId);
       if (!region) { reply.code(404).send({ error: 'not_found' }); return; }
-      const layers = region['layers' as keyof Region] as unknown as Array<unknown> | undefined;
-      const busStep = (region['layers' as keyof Region] && (region as unknown as { layers: Array<Region['layers'][number]> }).layers[0]?.getBus().getCurrentStep()) || 0;
-      reply.send({ layersCount: Array.isArray(layers) ? layers.length : 0, busStep });
+      const layers = region.getLayers();
+      const busStep = layers[0]?.getBus().getCurrentStep?.() ?? 0;
+      reply.send({ layersCount: layers.length, busStep });
     });
 
     instance.post('/api/v1/region/add-input-layer-2d', { schema: addInputLayer2DSchema }, async (request, reply) => {
@@ -65,7 +66,6 @@ export function registerWiringAndGrowthRoutes(server: FastifyInstance): void {
     instance.post('/api/v1/region/connect-topographic', { schema: connectTopographicSchema }, async (request, reply) => {
       const body = request.body as { srcHeight: number; srcWidth: number; dstHeight: number; dstWidth: number; config: unknown };
       // Narrow config to the helper's type instead of any
-      import type { TopographicConfig } from '../../wiring/TopographicWiring.js';
       const res = connectLayersTopographic(body.srcHeight, body.srcWidth, body.dstHeight, body.dstWidth, body.config as TopographicConfig);
       reply.send({ uniqueSources: res.uniqueSources });
     });
