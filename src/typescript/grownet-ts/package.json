@@ -28,7 +28,7 @@
     "grownet-server": "dist/cli.js"
   },
   "dependencies": {
-    "@fastify/websocket": "^8.5.1",
+    "@fastify/websocket": "^8.3.0",
     "@fastify/swagger": "^8.14.0",
     "@fastify/swagger-ui": "^3.0.0",
     "fastify": "^4.28.1",
