@@ -17,6 +17,8 @@ export class Region {
   }
 
   addInputLayer2D(height: number, width: number, gain: number, epsilonFire: number): number {
+    void gain;
+    void epsilonFire;
     const layerId = this.nextLayerId++;
     const layer = new Layer(`input2d_${layerId}`, LayerKind.Input2D, height, width);
     this.layers.push(layer);
@@ -24,6 +26,7 @@ export class Region {
   }
 
   addOutputLayer2D(height: number, width: number, smoothing: number): number {
+    void smoothing;
     const layerId = this.nextLayerId++;
     const layer = new Layer(`output2d_${layerId}`, LayerKind.Output2D, height, width);
     this.layers.push(layer);
@@ -67,8 +70,10 @@ export class Region {
       for (let dstRow = 0; dstRow < dstHeight; dstRow += 1) rowStartOffsets.push(dstRow);
       for (let dstCol = 0; dstCol < dstWidth; dstCol += 1) colStartOffsets.push(dstCol);
     } else {
-      for (let r0 = 0; r0 <= srcHeight - kernelHeight; r0 += strideHeight) rowStartOffsets.push(r0);
-      for (let c0 = 0; c0 <= srcWidth - kernelWidth; c0 += strideWidth) colStartOffsets.push(c0);
+      for (let rowStart = 0; rowStart <= srcHeight - kernelHeight; rowStart += strideHeight)
+        rowStartOffsets.push(rowStart);
+      for (let colStart = 0; colStart <= srcWidth - kernelWidth; colStart += strideWidth)
+        colStartOffsets.push(colStart);
     }
     const coveredIndices = new Array<boolean>(srcHeight * srcWidth);
     for (let coveredIndex = 0; coveredIndex < coveredIndices.length; coveredIndex += 1) coveredIndices[coveredIndex] = false;
@@ -79,14 +84,14 @@ export class Region {
     if (isSame) {
       for (let dstRow = 0; dstRow < dstHeight; dstRow += 1) {
         for (let dstCol = 0; dstCol < dstWidth; dstCol += 1) {
-          const r0 = Math.max(0, Math.min(srcHeight - kernelHeight, dstRow - Math.floor(kernelHeight / 2)));
-          const c0 = Math.max(0, Math.min(srcWidth - kernelWidth, dstCol - Math.floor(kernelWidth / 2)));
-          const r1 = Math.min(srcHeight, r0 + kernelHeight);
-          const c1 = Math.min(srcWidth, c0 + kernelWidth);
+          const rowStart = Math.max(0, Math.min(srcHeight - kernelHeight, dstRow - Math.floor(kernelHeight / 2)));
+          const colStart = Math.max(0, Math.min(srcWidth - kernelWidth, dstCol - Math.floor(kernelWidth / 2)));
+          const rowEnd = Math.min(srcHeight, rowStart + kernelHeight);
+          const colEnd = Math.min(srcWidth, colStart + kernelWidth);
           const centerIndex = dstLayer.indexAt(dstRow, dstCol);
-          for (let r = r0; r < r1; r += 1) {
-            for (let c = c0; c < c1; c += 1) {
-              const srcIndex = srcLayer.indexAt(r, c);
+          for (let row = rowStart; row < rowEnd; row += 1) {
+            for (let col = colStart; col < colEnd; col += 1) {
+              const srcIndex = srcLayer.indexAt(row, col);
               coveredIndices[srcIndex] = true;
               centerMap.set(srcIndex, centerIndex);
               const key = `${srcIndex}->${centerIndex}`;
@@ -99,18 +104,18 @@ export class Region {
         }
       }
     } else {
-      for (let r0Index = 0; r0Index < rowStartOffsets.length; r0Index += 1) {
-        const r0 = rowStartOffsets[r0Index];
-        for (let c0Index = 0; c0Index < colStartOffsets.length; c0Index += 1) {
-          const c0 = colStartOffsets[c0Index];
-          const r1 = r0 + kernelHeight;
-          const c1 = c0 + kernelWidth;
-          const centerRow = Math.floor(r0 + kernelHeight / 2);
-          const centerCol = Math.floor(c0 + kernelWidth / 2);
+      for (let rowStartIndex = 0; rowStartIndex < rowStartOffsets.length; rowStartIndex += 1) {
+        const rowStart = rowStartOffsets[rowStartIndex];
+        for (let colStartIndex = 0; colStartIndex < colStartOffsets.length; colStartIndex += 1) {
+          const colStart = colStartOffsets[colStartIndex];
+          const rowEnd = rowStart + kernelHeight;
+          const colEnd = colStart + kernelWidth;
+          const centerRow = Math.floor(rowStart + kernelHeight / 2);
+          const centerCol = Math.floor(colStart + kernelWidth / 2);
           const centerIndex = dstLayer.indexAt(centerRow, centerCol);
-          for (let r = r0; r < r1; r += 1) {
-            for (let c = c0; c < c1; c += 1) {
-              const srcIndex = srcLayer.indexAt(r, c);
+          for (let row = rowStart; row < rowEnd; row += 1) {
+            for (let col = colStart; col < colEnd; col += 1) {
+              const srcIndex = srcLayer.indexAt(row, col);
               coveredIndices[srcIndex] = true;
               centerMap.set(srcIndex, centerIndex);
               const key = `${srcIndex}->${centerIndex}`;
@@ -265,19 +270,19 @@ export class Region {
       const policy = this.growthPolicy;
       const currentStep = (this.layers[0]?.getBus().getCurrentStep()) || 0;
       let growthDone = false;
-      for (let li = 0; li < this.layers.length && !growthDone; li += 1) {
-        const neurons = this.layers[li].getNeurons();
-        for (let ni = 0; ni < neurons.length && !growthDone; ni += 1) {
-          const neuron = neurons[ni];
+      for (let layerIdx = 0; layerIdx < this.layers.length && !growthDone; layerIdx += 1) {
+        const neurons = this.layers[layerIdx].getNeurons();
+        for (let neuronIdx = 0; neuronIdx < neurons.length && !growthDone; neuronIdx += 1) {
+          const neuron = neurons[neuronIdx];
           if (neuron.getFallbackStreak() >= 3) {
             const last = neuron.getLastGrowthTick();
             if (currentStep - last >= (policy.layerCooldownTicks || 100)) {
-              const newIndex = this.layers[li].tryGrowNeuron(ni);
+              const newIndex = this.layers[layerIdx].tryGrowNeuron(neuronIdx);
               if (newIndex >= 0) {
                 // Autowire new neuron for tracts where this layer is source
-                for (let ti = 0; ti < this.tracts.length; ti += 1) {
-                  const t = this.tracts[ti];
-                  if (t.getSource() === this.layers[li]) t.attachSourceNeuron(newIndex);
+                for (let tractIdx = 0; tractIdx < this.tracts.length; tractIdx += 1) {
+                  const tract = this.tracts[tractIdx];
+                  if (tract.getSource() === this.layers[layerIdx]) tract.attachSourceNeuron(newIndex);
                 }
                 neuron.setLastGrowthTick(currentStep);
                 growthDone = true;
