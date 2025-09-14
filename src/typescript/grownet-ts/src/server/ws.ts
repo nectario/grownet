@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import websocket from '@fastify/websocket';
+import websocket, { SocketStream } from '@fastify/websocket';
 
 interface Subscriber {
   send(data: string): void;
@@ -10,7 +10,7 @@ const subscribers: Array<Subscriber> = [];
 export async function registerWebSocket(app: FastifyInstance) {
   await app.register(websocket);
 
-  app.get('/ws', { websocket: true }, (connection: any) => {
+  app.get('/ws', { websocket: true }, (connection: SocketStream) => {
     const socket = connection.socket as unknown as Subscriber & { on(event: string, cb: (...args: unknown[]) => void): void };
     subscribers.push(socket);
     socket.on('close', () => {

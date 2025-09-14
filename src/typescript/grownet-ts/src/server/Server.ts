@@ -1,4 +1,4 @@
-import fastify from 'fastify';
+import fastify, { FastifyInstance } from 'fastify';
 import pino from 'pino';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -33,7 +33,7 @@ export async function createServer() {
   await app.register(swaggerUi, {
     routePrefix: '/docs',
   });
-  const typedApp: any = app;
+  const typedApp = app as unknown as FastifyInstance;
   await registerWebSocket(typedApp);
   registerComputeSpatialMetricsRoute(typedApp);
   registerTickNdRoute(typedApp);
@@ -42,4 +42,4 @@ export async function createServer() {
     if (WorkerPool.instance) await WorkerPool.instance.close();
   });
   return app;
-  }
+}
