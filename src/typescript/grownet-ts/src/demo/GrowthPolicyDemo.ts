@@ -7,12 +7,12 @@ export function runGrowthPolicyDemo(): void {
   region.bindInput('pixels', [inId]);
   region.setGrowthPolicy({ enableLayerGrowth: true, maxLayers: 16, avgSlotsThreshold: 0.0, layerCooldownTicks: 0, rngSeed: 1234 });
 
-  for (let t = 0; t < 5; t += 1) {
-    const before = (region as unknown as { layers: Array<unknown> }).layers.length;
+  for (let tickIndex = 0; tickIndex < 5; tickIndex += 1) {
+    const layerCountBefore = (region as unknown as { layers: Array<unknown> }).layers.length;
     const metrics = region.tickND('pixels', [[1, 0, 0], [0, 0, 0], [0, 0, 0]]);
-    const after = (region as unknown as { layers: Array<unknown> }).layers.length;
+    const layerCountAfter = (region as unknown as { layers: Array<unknown> }).layers.length;
     // eslint-disable-next-line no-console
-    console.log(`[tick ${t}] delivered=${metrics.getDeliveredEvents()} layers=${before}→${after}`);
+    console.log(`[tick ${tickIndex}] delivered=${metrics.getDeliveredEvents()} layers=${layerCountBefore}→${layerCountAfter}`);
   }
 }
 

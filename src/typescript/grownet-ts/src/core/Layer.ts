@@ -45,10 +45,10 @@ export class Layer {
 
   endTick(): void {
     // Per-neuron end-of-tick bookkeeping
-    for (let i = 0; i < this.neurons.length; i += 1) {
-      const n = this.neurons[i];
-      if (typeof (n as unknown as { resetAccumulatedAmplitude: () => void }).resetAccumulatedAmplitude === 'function') {
-        (n as unknown as { resetAccumulatedAmplitude: () => void }).resetAccumulatedAmplitude();
+    for (let neuronIndex = 0; neuronIndex < this.neurons.length; neuronIndex += 1) {
+      const neuronObj = this.neurons[neuronIndex];
+      if (typeof (neuronObj as unknown as { resetAccumulatedAmplitude: () => void }).resetAccumulatedAmplitude === 'function') {
+        (neuronObj as unknown as { resetAccumulatedAmplitude: () => void }).resetAccumulatedAmplitude();
       }
     }
     this.bus.decay();
@@ -67,11 +67,11 @@ export class Layer {
   }
 
   addNeurons(count: number): void {
-    const n = Math.max(0, Math.floor(count));
-    for (let i = 0; i < n; i += 1) {
-      const idx = this.neurons.length;
-      const neuron = new Neuron(`${this.name}.${idx}`, this.bus, this.slotConfig);
-      this.neurons.push(neuron);
+    const addCount = Math.max(0, Math.floor(count));
+    for (let addIndex = 0; addIndex < addCount; addIndex += 1) {
+      const neuronIndex = this.neurons.length;
+      const newNeuron = new Neuron(`${this.name}.${neuronIndex}`, this.bus, this.slotConfig);
+      this.neurons.push(newNeuron);
     }
   }
 }

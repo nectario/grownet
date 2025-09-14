@@ -10,7 +10,7 @@ describe('Region layer growth policy', () => {
     region.setGrowthPolicy({ enableLayerGrowth: true, maxLayers: 64, avgSlotsThreshold: 0.0, layerCooldownTicks: 0, rngSeed: 1234 });
 
     let prevLayers = (region as unknown as { layers: Array<unknown> }).layers.length;
-    for (let t = 0; t < 3; t += 1) {
+    for (let tickIndex = 0; tickIndex < 3; tickIndex += 1) {
       const metrics = region.tickND('p', [[1, 0], [0, 0]]);
       expect(metrics.getDeliveredEvents()).toBeGreaterThanOrEqual(1);
       const nowLayers = (region as unknown as { layers: Array<unknown> }).layers.length;

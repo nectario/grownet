@@ -78,10 +78,10 @@ export class Region {
     const srcNeurons = src.getNeurons();
     const dstNeurons = dst.getNeurons();
     let edges = 0;
-    for (let i = 0; i < srcNeurons.length; i += 1) {
-      for (let j = 0; j < dstNeurons.length; j += 1) {
+    for (let sourceIndexIter = 0; sourceIndexIter < srcNeurons.length; sourceIndexIter += 1) {
+      for (let destIndexIter = 0; destIndexIter < dstNeurons.length; destIndexIter += 1) {
         if (this.rand() <= prob) {
-          srcNeurons[i].connect(dstNeurons[j], feedback);
+          srcNeurons[sourceIndexIter].connect(dstNeurons[destIndexIter], feedback);
           edges += 1;
         }
       }
@@ -191,34 +191,34 @@ export class Region {
 
   private autowireNewNeuron(layerIndex: number, newIdx: number): void {
     // Outbound mesh
-    for (let r = 0; r < this.meshRules.length; r += 1) {
-      const rule = this.meshRules[r];
+    for (let ruleIndex = 0; ruleIndex < this.meshRules.length; ruleIndex += 1) {
+      const rule = this.meshRules[ruleIndex];
       if (rule.src !== layerIndex) continue;
       const srcLayer = this.layers[layerIndex];
       const dstLayer = this.layers[rule.dst];
       if (!srcLayer || !dstLayer) continue;
       const sourceNeuron = srcLayer.getNeurons()[newIdx];
       const targets = dstLayer.getNeurons();
-      for (let t = 0; t < targets.length; t += 1) {
-        if (this.rand() <= rule.prob) sourceNeuron.connect(targets[t], rule.feedback);
+      for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
+        if (this.rand() <= rule.prob) sourceNeuron.connect(targets[targetIndex], rule.feedback);
       }
     }
     // Inbound mesh
-    for (let r = 0; r < this.meshRules.length; r += 1) {
-      const rule = this.meshRules[r];
+    for (let ruleIndex = 0; ruleIndex < this.meshRules.length; ruleIndex += 1) {
+      const rule = this.meshRules[ruleIndex];
       if (rule.dst !== layerIndex) continue;
       const srcLayer = this.layers[rule.src];
       const dstLayer = this.layers[layerIndex];
       if (!srcLayer || !dstLayer) continue;
       const targetNeuron = dstLayer.getNeurons()[newIdx];
       const sources = srcLayer.getNeurons();
-      for (let s = 0; s < sources.length; s += 1) {
-        if (this.rand() <= rule.prob) sources[s].connect(targetNeuron, rule.feedback);
+      for (let sourceIndexIter = 0; sourceIndexIter < sources.length; sourceIndexIter += 1) {
+        if (this.rand() <= rule.prob) sources[sourceIndexIter].connect(targetNeuron, rule.feedback);
       }
     }
     // Tracts where layer is source
-    for (let i = 0; i < this.tracts.length; i += 1) {
-      const tr = this.tracts[i];
+    for (let tractIndex = 0; tractIndex < this.tracts.length; tractIndex += 1) {
+      const tr = this.tracts[tractIndex];
       if (tr.getSource() === this.layers[layerIndex]) tr.attachSourceNeuron(newIdx);
     }
   }
@@ -376,7 +376,7 @@ export class Region {
     }
 
     // Phase B: end tick + region growth check (one growth per tick)
-    for (let i = 0; i < this.layers.length; i += 1) this.layers[i].endTick();
+    for (let layerIndexIter = 0; layerIndexIter < this.layers.length; layerIndexIter += 1) this.layers[layerIndexIter].endTick();
     if (this.growthPolicy && this.growthPolicy.enableLayerGrowth) {
       const policy = this.growthPolicy;
       const currentStep = (this.layers[0]?.getBus().getCurrentStep()) || 0;
@@ -386,11 +386,11 @@ export class Region {
           let totalNeurons = 0;
           let totalSlotsRegion = 0;
           let atCapWithFallback = 0;
-          for (let li = 0; li < this.layers.length; li += 1) {
-            const layer = this.layers[li];
+          for (let layerScanIndex = 0; layerScanIndex < this.layers.length; layerScanIndex += 1) {
+            const layer = this.layers[layerScanIndex];
             const neurons = layer.getNeurons();
-            for (let ni = 0; ni < neurons.length; ni += 1) {
-              const n = neurons[ni] as unknown as {
+            for (let neuronScanIndex = 0; neuronScanIndex < neurons.length; neuronScanIndex += 1) {
+              const n = neurons[neuronScanIndex] as unknown as {
                 getSlotLimit: () => number;
                 getLastSlotUsedFallback: () => boolean;
                 getSlotsCount: () => number;
@@ -411,8 +411,8 @@ export class Region {
           if (avgOk || pctOk) {
             // Choose donor: last trainable layer
             let donor = -1;
-            for (let li = this.layers.length - 1; li >= 0; li -= 1) {
-              if (this.isTrainable(this.layers[li].getKind())) { donor = li; break; }
+            for (let layerReverseIndex = this.layers.length - 1; layerReverseIndex >= 0; layerReverseIndex -= 1) {
+              if (this.isTrainable(this.layers[layerReverseIndex].getKind())) { donor = layerReverseIndex; break; }
             }
             if (donor >= 0) {
               const newIndex = this.requestLayerGrowth(donor, 1.0);
