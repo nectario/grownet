@@ -1,0 +1,29 @@
+diff --git a/src/typescript/grownet-ts/src/Region.ts b/src/typescript/grownet-ts/src/Region.ts
+index 0000000..0000003 100644
+--- a/src/typescript/grownet-ts/src/Region.ts
++++ b/src/typescript/grownet-ts/src/Region.ts
+@@
+ export type GrowthPolicy = {
+   enableLayerGrowth: boolean;
+   maxLayers: number;
+   avgSlotsThreshold: number;
+   // Canonical field; accept `percentAtCapFallbackThreshold` as an alias in setter.
+   percentNeuronsAtCapacityThreshold: number;
+   layerCooldownTicks: number;
+   rngSeed: number;
+ };
++@@
++  /**
++   * Set growth policy; accepts `percentAtCapFallbackThreshold` alias to match other languages.
++   */
++  setGrowthPolicy(policy: Partial<GrowthPolicy> & { percentAtCapFallbackThreshold?: number }) {
++    const threshold =
++      (policy as any).percentNeuronsAtCapacityThreshold ??
++      (policy as any).percentAtCapFallbackThreshold ??
++      this.growthPolicy.percentNeuronsAtCapacityThreshold ?? 0;
++    this.growthPolicy = {
++      ...this.growthPolicy,
++      ...policy,
++      percentNeuronsAtCapacityThreshold: threshold,
++    } as GrowthPolicy;
++  }

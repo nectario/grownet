@@ -1,0 +1,15 @@
+diff --git a/src/typescript/grownet-ts/src/index.ts b/src/typescript/grownet-ts/src/index.ts
+index 0000000..0000001 100644
+--- a/src/typescript/grownet-ts/src/index.ts
++++ b/src/typescript/grownet-ts/src/index.ts
+@@
++export {
++  configure,
++  parallelFor,
++  parallelMap,
++  counterRng,
++  parallelMapCounterRngSum,
++  mapFloat64ArrayAddScalar,
++  mapFloat64ArrayScale,
++} from './pal/index.js';
++

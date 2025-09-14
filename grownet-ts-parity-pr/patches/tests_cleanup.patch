@@ -1,0 +1,14 @@
+diff --git a/src/typescript/grownet-ts/tests/PalDeterminism.test.ts b/src/typescript/grownet-ts/tests/PalDeterminism.test.ts
+index 0000000..0000001 100644
+--- a/src/typescript/grownet-ts/tests/PalDeterminism.test.ts
++++ b/src/typescript/grownet-ts/tests/PalDeterminism.test.ts
+@@
+-import { describe, it, expect } from 'vitest';
++// (cleanup) remove duplicate trailing import if present
+diff --git a/src/typescript/grownet-ts/tests/SpatialMetricsPublic.test.ts b/src/typescript/grownet-ts/tests/SpatialMetricsPublic.test.ts
+index 0000000..0000001 100644
+--- a/src/typescript/grownet-ts/tests/SpatialMetricsPublic.test.ts
++++ b/src/typescript/grownet-ts/tests/SpatialMetricsPublic.test.ts
+@@
+-import { describe, it, expect } from 'vitest';
++// (cleanup) remove duplicate trailing import if present

@@ -1,0 +1,58 @@
+diff --git a/src/typescript/grownet-ts/src/Region.ts b/src/typescript/grownet-ts/src/Region.ts
+index 0000000..0000001 100644
+--- a/src/typescript/grownet-ts/src/Region.ts
++++ b/src/typescript/grownet-ts/src/Region.ts
+@@
+-    // (Existing) computeSpatialMetrics or tickND metrics aggregation
+-    // BUG: bbox min/max were updated for every pixel, not just active ones; totalSynapses reported as 0.
++    // Spatial metrics: update bbox only for active pixels; compute totalSynapses across region
+     let activePixels = 0;
+     let sum = 0;
+     let rowSum = 0;
+     let colSum = 0;
+     let rowMin = Number.POSITIVE_INFINITY;
+     let rowMax = Number.NEGATIVE_INFINITY;
+     let colMin = Number.POSITIVE_INFINITY;
+     let colMax = Number.NEGATIVE_INFINITY;
+@@
+-            if (value > 0) {
+-              activePixels += 1;
+-              sum += value;
+-              rowSum += value * rowIndex;
+-              colSum += value * colIndex;
+-            }
+-            if (rowIndex < rowMin) rowMin = rowIndex;
+-            if (rowIndex > rowMax) rowMax = rowIndex;
+-            if (colIndex < colMin) colMin = colIndex;
+-            if (colIndex > colMax) colMax = colIndex;
++            if (value > 0) {
++              activePixels += 1;
++              sum += value;
++              rowSum += value * rowIndex;
++              colSum += value * colIndex;
++              if (rowIndex < rowMin) rowMin = rowIndex;
++              if (rowIndex > rowMax) rowMax = rowIndex;
++              if (colIndex < colMin) colMin = colIndex;
++              if (colIndex > colMax) colMax = colIndex;
++            }
+@@
+-    const totalSynapses = 0; // TODO: implement
++    // Sum outgoing edge counts for all neurons across all layers.
++    let totalSynapses = 0;
++    for (const layer of this.layers) {
++      if (!layer) continue;
++      const neurons = layer.getNeurons();
++      for (let neuronIndex = 0; neuronIndex < neurons.length; neuronIndex += 1) {
++        const neuronAny = neurons[neuronIndex] as any;
++        const outgoingCount = (typeof neuronAny.getOutgoingCount === 'function')
+          ? neuronAny.getOutgoingCount()
+          : (typeof neuronAny.getOutgoing === 'function' && Array.isArray(neuronAny.getOutgoing()))
+            ? neuronAny.getOutgoing().length
+            : 0;
++        totalSynapses += outgoingCount;
++      }
++    }
+@@
+-    return new RegionMetrics(deliveredEvents, totalSlots, totalSynapses, activePixels,
++    return new RegionMetrics(deliveredEvents, totalSlots, totalSynapses, activePixels,
+         centroidRow, centroidCol, rowMin, rowMax, colMin, colMax);

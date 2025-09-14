@@ -51,6 +51,39 @@ export class Layer {
         (neuronObj as unknown as { resetAccumulatedAmplitude: () => void }).resetAccumulatedAmplitude();
       }
     }
+    // Automatic neuron growth (fallback-streak + cooldown); one growth per layer per tick
+    let grownThisTick = false;
+    const threshold = this.slotConfig?.fallbackGrowthThreshold ?? 3;
+    const cooldownTicks = this.slotConfig?.neuronGrowthCooldownTicks ?? 0;
+    const growthEnabled = this.slotConfig?.growthEnabled ?? true;
+    const neuronGrowthEnabled = this.slotConfig?.neuronGrowthEnabled ?? true;
+    if (growthEnabled && neuronGrowthEnabled) {
+      const currentStep = this.bus.getCurrentStep();
+      for (let neuronIndex = 0; neuronIndex < this.neurons.length && !grownThisTick; neuronIndex += 1) {
+        const neuron = this.neurons[neuronIndex] as unknown as {
+          getSlotLimit: () => number;
+          getSlotsCount: () => number;
+          getLastSlotUsedFallback: () => boolean;
+          getFallbackStreak: () => number;
+          getLastGrowthTick: () => number;
+          setLastGrowthTick: (step: number) => void;
+        };
+        const limit = neuron.getSlotLimit?.() ?? -1;
+        const slotsCount = neuron.getSlotsCount?.() ?? 0;
+        const atCapacity = limit >= 0 && slotsCount >= limit;
+        const usedFallback = neuron.getLastSlotUsedFallback?.() ?? false;
+        const streak = neuron.getFallbackStreak?.() ?? 0;
+        const lastGrowth = neuron.getLastGrowthTick?.() ?? -1;
+        const cooldownOk = lastGrowth < 0 || (currentStep - lastGrowth) >= cooldownTicks;
+        if (atCapacity && usedFallback && streak >= threshold && cooldownOk) {
+          const newIndex = this.tryGrowNeuron();
+          if (newIndex >= 0) {
+            neuron.setLastGrowthTick?.(currentStep);
+            grownThisTick = true;
+          }
+        }
+      }
+    }
     this.bus.decay();
   }
 

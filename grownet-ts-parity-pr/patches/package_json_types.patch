@@ -1,0 +1,15 @@
+diff --git a/src/typescript/grownet-ts/package.json b/src/typescript/grownet-ts/package.json
+index 0000000..0000001 100644
+--- a/src/typescript/grownet-ts/package.json
++++ b/src/typescript/grownet-ts/package.json
+@@
+ {
+   "name": "@grownet/ts",
+   "type": "module",
+   "main": "dist/index.js",
++  "types": "dist/index.d.ts",
+   "exports": {
+     ".": {
+       "import": "./dist/index.js"
+     }
+   },

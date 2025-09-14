@@ -1,0 +1,40 @@
+diff --git a/src/typescript/grownet-ts/src/core/Layer.ts b/src/typescript/grownet-ts/src/core/Layer.ts
+index 0000000..0000001 100644
+--- a/src/typescript/grownet-ts/src/core/Layer.ts
++++ b/src/typescript/grownet-ts/src/core/Layer.ts
+@@
+ export class Layer {
+@@
+   endTick(): void {
+@@
+-    // Existing: neurons' end_tick and bus.decay() happen here.
++    // Existing: neurons' end_tick and bus.decay() happen here.
++    // Parity: automatic neuron growth (one per layer per tick) based on fallback-streak + cooldown.
++    if (this.slotConfig?.growthEnabled && this.slotConfig?.neuronGrowthEnabled) {
++      const currentStep = this.bus.getCurrentStep();
++      for (let neuronIndex = 0; neuronIndex < this.neurons.length; neuronIndex += 1) {
++        const neuron = this.neurons[neuronIndex] as unknown as {
++          getSlotsCount: () => number;
++          getSlotLimit: () => number;
++          getLastSlotUsedFallback: () => boolean;
++          getFallbackStreak: () => number;
++          getLastGrowthTick: () => number;
++          setLastGrowthTick: (s: number) => void;
++        };
++        const slotLimit = neuron.getSlotLimit();
++        const atCapacity = (slotLimit >= 0) && (neuron.getSlotsCount() >= slotLimit);
++        const streakOk = neuron.getFallbackStreak() >= this.slotConfig.fallbackGrowthThreshold;
++        const cooldownOk = (currentStep - neuron.getLastGrowthTick()) >= this.slotConfig.neuronGrowthCooldownTicks;
++        if (atCapacity && neuron.getLastSlotUsedFallback() && streakOk && cooldownOk) {
++          const newIndex = this.tryGrowNeuron(); // grows same kind; region autowires deterministically
++          if (newIndex >= 0) {
++            neuron.setLastGrowthTick(currentStep);
++          }
++          break; // one growth per layer per tick
++        }
++      }
++    }
+@@
+     this.bus.decay();
+   }
+ }

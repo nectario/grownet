@@ -65,8 +65,13 @@ export class Region {
     this.inputBindings.set(portName, [...layerIndices]);
   }
 
-  setGrowthPolicy(policy: { enableLayerGrowth: boolean; maxLayers: number; avgSlotsThreshold: number; percentNeuronsAtCapacityThreshold?: number; layerCooldownTicks: number; rngSeed: number }): void {
-    this.growthPolicy = policy;
+  setGrowthPolicy(policy: { enableLayerGrowth: boolean; maxLayers: number; avgSlotsThreshold: number; percentNeuronsAtCapacityThreshold?: number; percentAtCapFallbackThreshold?: number; layerCooldownTicks: number; rngSeed: number }): void {
+    const alias = (policy as unknown as { percentAtCapFallbackThreshold?: number }).percentAtCapFallbackThreshold;
+    const merged = { ...policy } as { percentNeuronsAtCapacityThreshold?: number } & typeof policy;
+    if (merged.percentNeuronsAtCapacityThreshold == null && typeof alias === 'number') {
+      merged.percentNeuronsAtCapacityThreshold = alias;
+    }
+    this.growthPolicy = merged;
   }
 
   getGrowthPolicy(): { enableLayerGrowth: boolean; maxLayers: number; avgSlotsThreshold: number; percentNeuronsAtCapacityThreshold?: number; layerCooldownTicks: number; rngSeed: number } | null {
@@ -289,7 +294,21 @@ export class Region {
 
     const deliveredEvents = activePixels > 0 ? 1 : 0;
     const totalSlots = height * width;
-    const totalSynapses = 0;
+    // Sum outgoing edges across all neurons
+    let totalSynapses = 0;
+    for (const layerObj of this.layers) {
+      if (!layerObj) continue;
+      const neurons = layerObj.getNeurons();
+      for (const neuron of neurons) {
+        if (!neuron) continue;
+        const countViaMethod = (neuron as unknown as { getOutgoingCount?: () => number }).getOutgoingCount?.();
+        if (typeof countViaMethod === 'number') totalSynapses += countViaMethod;
+        else {
+          const outgoingList = (neuron as unknown as { getOutgoing?: () => Array<unknown> }).getOutgoing?.();
+          if (Array.isArray(outgoingList)) totalSynapses += outgoingList.length;
+        }
+      }
+    }
     const centroidRow = activePixels > 0 ? (sum > 0 ? rowSum / sum : rowSum / activePixels) : 0;
     const centroidCol = activePixels > 0 ? (sum > 0 ? colSum / sum : colSum / activePixels) : 0;
     const bboxRowMin = activePixels > 0 ? Math.floor(rowMin) : -1;
@@ -441,10 +460,25 @@ export class Region {
         }
       }
     }
+    // Compute total synapses across region for this tick
+    let totalEdges = 0;
+    for (const layerObj of this.layers) {
+      if (!layerObj) continue;
+      const neurons = layerObj.getNeurons();
+      for (const neuron of neurons) {
+        if (!neuron) continue;
+        const countViaMethod = (neuron as unknown as { getOutgoingCount?: () => number }).getOutgoingCount?.();
+        if (typeof countViaMethod === 'number') totalEdges += countViaMethod;
+        else {
+          const outgoingList = (neuron as unknown as { getOutgoing?: () => Array<unknown> }).getOutgoing?.();
+          if (Array.isArray(outgoingList)) totalEdges += outgoingList.length;
+        }
+      }
+    }
     return new RegionMetrics(
       deliveredEvents,
       totalSlots,
-      0,
+      totalEdges,
       activePixels,
       sum > 0 ? rowSum / sum : 0,
       sum > 0 ? colSum / sum : 0,
