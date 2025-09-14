@@ -13,6 +13,7 @@ export class Layer {
   private neurons: Array<Neuron> = [];
   private neuronLimit: number;
   private slotConfig: SlotConfig;
+  private regionRef: unknown | undefined;
 
   constructor(name: string, kind: LayerKind, height?: number, width?: number, slotConfig?: SlotConfig) {
     this.name = name;
@@ -38,11 +39,18 @@ export class Layer {
   getBus(): LateralBus { return this.bus; }
   setNeuronLimit(limit: number): void { this.neuronLimit = limit; }
   getNeuronLimit(): number { return this.neuronLimit; }
+  setRegion(region: unknown): void { this.regionRef = region; }
 
   indexAt(rowIndex: number, colIndex: number): number { return rowIndex * this.width + colIndex; }
 
   endTick(): void {
-    // In a fuller implementation, per-neuron end-of-tick bookkeeping would live here.
+    // Per-neuron end-of-tick bookkeeping
+    for (let i = 0; i < this.neurons.length; i += 1) {
+      const n = this.neurons[i];
+      if (typeof (n as unknown as { resetAccumulatedAmplitude: () => void }).resetAccumulatedAmplitude === 'function') {
+        (n as unknown as { resetAccumulatedAmplitude: () => void }).resetAccumulatedAmplitude();
+      }
+    }
     this.bus.decay();
   }
 
@@ -51,6 +59,19 @@ export class Layer {
     const newIndex = this.neurons.length;
     const neuron = new Neuron(`${this.name}.${newIndex}`, this.bus, this.slotConfig);
     this.neurons.push(neuron);
+    try {
+      const r = this.regionRef as { autowireNewNeuronByRef?: (layer: Layer, newIdx: number) => void } | undefined;
+      r?.autowireNewNeuronByRef?.(this, newIndex);
+    } catch {}
     return newIndex;
+  }
+
+  addNeurons(count: number): void {
+    const n = Math.max(0, Math.floor(count));
+    for (let i = 0; i < n; i += 1) {
+      const idx = this.neurons.length;
+      const neuron = new Neuron(`${this.name}.${idx}`, this.bus, this.slotConfig);
+      this.neurons.push(neuron);
+    }
   }
 }

@@ -21,6 +21,8 @@ export class Neuron {
   private fallbackStreak: number = 0;
   private lastGrowthTick: number = 0;
   private config: SlotConfig;
+  private preferLastSlotOnce: boolean = false;
+  private accumulatedAmplitude: number = 0.0;
 
   constructor(neuronId: string, bus: LateralBus, config: SlotConfig) {
     this.neuronId = neuronId;
@@ -39,32 +41,70 @@ export class Neuron {
   getLastGrowthTick(): number { return this.lastGrowthTick; }
   setLastGrowthTick(step: number): void { this.lastGrowthTick = step; }
   getFiredLast(): boolean { return this.firedLast; }
+  getSlotsCount(): number { return this.slots.size; }
+  getAccumulatedAmplitude(): number { return this.accumulatedAmplitude; }
+  resetAccumulatedAmplitude(): void { this.accumulatedAmplitude = 0.0; }
 
   onInput(value: number): boolean {
     this.lastInputValue = value;
     if (!this.focusSet) { this.focusAnchor = value; this.focusSet = true; }
+    // One-shot preference after unfreeze
+    if (this.preferLastSlotOnce && this.lastSelectedKey !== null) {
+      const key = this.lastSelectedKey;
+      const existing = this.slots.get(key);
+      if (existing) {
+        this.preferLastSlotOnce = false;
+        // reinforce with modulation, then update threshold
+        existing.reinforce(this.bus.getModulationFactor());
+        this.firedLast = existing.updateThreshold(value * this.bus.getModulationFactor());
+        this.lastSlotUsedFallback = false;
+        this.accumulatedAmplitude += value;
+        return this.firedLast;
+      }
+    }
+
     const denom = Math.max(this.config.epsilonScale, Math.abs(this.focusAnchor));
     const distance = Math.abs(value - this.focusAnchor);
     const pct = (distance / denom) * 100.0;
     const binIndex = Math.floor(pct / Math.max(1e-12, this.config.binWidthPercent));
     const slot = this.selectOrCreateSlot(binIndex);
+    // reinforce first, then update threshold (parity with other languages)
+    slot.reinforce(this.bus.getModulationFactor());
     this.firedLast = slot.updateThreshold(value * this.bus.getModulationFactor());
     if (!this.lastSlotUsedFallback) this.fallbackStreak = 0; // reset when not falling back
+    this.accumulatedAmplitude += value;
     return this.firedLast;
   }
 
   onInput2D(value: number, row: number, col: number): boolean {
     if (!this.focusSet) { this.anchorRow = row; this.anchorCol = col; this.focusSet = true; }
-    const rowDistance = Math.abs(row - this.anchorRow);
-    const colDistance = Math.abs(col - this.anchorCol);
-    const rowPct = rowDistance * this.config.rowBinWidthPercent; // simplification
-    const colPct = colDistance * this.config.colBinWidthPercent;
+    // One-shot preference after unfreeze
+    if (this.preferLastSlotOnce && this.lastSelectedKey !== null) {
+      const key = this.lastSelectedKey;
+      const existing = this.slots.get(key);
+      if (existing) {
+        this.preferLastSlotOnce = false;
+        existing.reinforce(this.bus.getModulationFactor());
+        this.firedLast = existing.updateThreshold(value * this.bus.getModulationFactor());
+        this.lastSlotUsedFallback = false;
+        this.accumulatedAmplitude += value;
+        return this.firedLast;
+      }
+    }
+    // Percent-of-anchor binning per axis
+    const eps = Math.max(1e-12, this.config.epsilonScale);
+    const denomRow = Math.max(eps, Math.abs(this.anchorRow));
+    const denomCol = Math.max(eps, Math.abs(this.anchorCol));
+    const rowPct = Math.abs(row - this.anchorRow) / denomRow * 100.0;
+    const colPct = Math.abs(col - this.anchorCol) / denomCol * 100.0;
     const rowBin = Math.floor(rowPct / Math.max(1e-12, this.config.rowBinWidthPercent));
     const colBin = Math.floor(colPct / Math.max(1e-12, this.config.colBinWidthPercent));
     const packedKey = rowBin * 1_000_000 + colBin;
     const slot = this.selectOrCreateSlot(packedKey);
+    slot.reinforce(this.bus.getModulationFactor());
     this.firedLast = slot.updateThreshold(value * this.bus.getModulationFactor());
     if (!this.lastSlotUsedFallback) this.fallbackStreak = 0;
+    this.accumulatedAmplitude += value;
     return this.firedLast;
   }
 
@@ -78,6 +118,7 @@ export class Neuron {
   connect(target: Neuron, feedback: boolean): void {
     this.outgoing.push({ target, feedback });
   }
+  getOutgoingCount(): number { return this.outgoing.length; }
 
   freezeLastSlot(): boolean {
     const lastKey = this.findLastSlotKey();
@@ -92,7 +133,8 @@ export class Neuron {
     if (lastKey === null) return false;
     const weight = this.slots.get(lastKey)!;
     weight.unfreeze();
-    // Prefer once logic can be modeled externally; here we just unfreeze.
+    // One-shot reuse next tick
+    this.preferLastSlotOnce = true;
     return true;
   }
 

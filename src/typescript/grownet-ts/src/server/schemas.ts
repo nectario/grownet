@@ -105,6 +105,7 @@ export const addInputLayer2DSchema = {
     required: ['height', 'width', 'gain', 'epsilonFire'],
     additionalProperties: false,
     properties: {
+      regionId: { type: 'string', nullable: true },
       height: { type: 'integer', minimum: 1 },
       width: { type: 'integer', minimum: 1 },
       gain: { type: 'number' },
@@ -123,6 +124,7 @@ export const addOutputLayer2DSchema = {
     required: ['height', 'width', 'smoothing'],
     additionalProperties: false,
     properties: {
+      regionId: { type: 'string', nullable: true },
       height: { type: 'integer', minimum: 1 },
       width: { type: 'integer', minimum: 1 },
       smoothing: { type: 'number' },
@@ -140,6 +142,7 @@ export const bindInputSchema = {
     required: ['port', 'layers'],
     additionalProperties: false,
     properties: {
+      regionId: { type: 'string', nullable: true },
       port: { type: 'string' },
       layers: { type: 'array', items: { type: 'integer' } },
     },
@@ -156,6 +159,7 @@ export const connectWindowedSchema = {
     required: ['src', 'dst', 'kernelH', 'kernelW', 'strideH', 'strideW', 'padding', 'feedback'],
     additionalProperties: false,
     properties: {
+      regionId: { type: 'string', nullable: true },
       src: { type: 'integer', minimum: 0 },
       dst: { type: 'integer', minimum: 0 },
       kernelH: { type: 'integer', minimum: 1 },
@@ -178,6 +182,7 @@ export const setGrowthPolicySchema = {
     required: ['enableLayerGrowth', 'maxLayers', 'avgSlotsThreshold', 'layerCooldownTicks', 'rngSeed'],
     additionalProperties: false,
     properties: {
+      regionId: { type: 'string', nullable: true },
       enableLayerGrowth: { type: 'boolean' },
       maxLayers: { type: 'integer', minimum: 0 },
       avgSlotsThreshold: { type: 'number', minimum: 0 },
@@ -190,4 +195,48 @@ export const setGrowthPolicySchema = {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     200: { type: 'object', properties: { success: { type: 'boolean' } }, additionalProperties: false },
   },
+};
+
+export const createRegionSchema = {
+  body: { type: 'object', additionalProperties: false, properties: { name: { type: 'string' } } },
+  response: { 200: { type: 'object', additionalProperties: false, properties: { regionId: { type: 'string' } } } },
+};
+
+export const destroyRegionSchema = {
+  body: { type: 'object', required: ['regionId'], additionalProperties: false, properties: { regionId: { type: 'string' } } },
+  response: { 200: { type: 'object', additionalProperties: false, properties: { success: { type: 'boolean' } } } },
+};
+
+export const getRegionStateSchema = {
+  body: { type: 'object', required: ['regionId'], additionalProperties: false, properties: { regionId: { type: 'string' } } },
+  response: { 200: { type: 'object', additionalProperties: false, properties: { layersCount: { type: 'integer' }, busStep: { type: 'integer' } } } },
+};
+
+export const getMeshRulesSchema = {
+  body: { type: 'object', additionalProperties: false, properties: { regionId: { type: 'string' } } },
+  response: { 200: { type: 'object', additionalProperties: false, properties: { meshRules: { type: 'array', items: { type: 'object' } } } } },
+};
+
+export const connectTopographicSchema = {
+  body: {
+    type: 'object',
+    required: ['srcHeight', 'srcWidth', 'dstHeight', 'dstWidth', 'config'],
+    additionalProperties: false,
+    properties: {
+      srcHeight: { type: 'integer', minimum: 1 },
+      srcWidth: { type: 'integer', minimum: 1 },
+      dstHeight: { type: 'integer', minimum: 1 },
+      dstWidth: { type: 'integer', minimum: 1 },
+      config: { type: 'object' },
+    },
+  },
+  response: { 200: { type: 'object', additionalProperties: false, properties: { uniqueSources: { type: 'integer' } } } },
+};
+
+export const requestLayerGrowthSchema = {
+  body: {
+    type: 'object', required: ['saturatedLayerIndex'], additionalProperties: false,
+    properties: { regionId: { type: 'string' }, saturatedLayerIndex: { type: 'integer', minimum: 0 }, connectionProbability: { type: 'number' } },
+  },
+  response: { 200: { type: 'object', additionalProperties: false, properties: { newLayerIndex: { type: 'integer' } } } },
 };
