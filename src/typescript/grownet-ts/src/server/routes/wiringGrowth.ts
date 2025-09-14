@@ -74,8 +74,8 @@ export function registerWiringAndGrowthRoutes(server: FastifyInstance): void {
     instance.post('/api/v1/region/get-mesh-rules', { schema: getMeshRulesSchema }, async (request, reply) => {
       const body = request.body as { regionId?: string };
       const region = body.regionId ? RegionRegistry.instance.get(body.regionId) : undefined;
-      const mesh = (region && (region as unknown as { meshRules: Array<unknown> })['meshRules' as keyof Region]) || [];
-      reply.send({ meshRules: mesh });
+      const meshRules = region ? region.getMeshRules() : [];
+      reply.send({ meshRules });
     });
 
     // Request spillover growth for a saturated layer (p=1.0 by default)

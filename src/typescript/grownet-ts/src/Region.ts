@@ -31,6 +31,7 @@ export class Region {
   }
 
   getLayers(): Array<Layer> { return this.layers; }
+  getMeshRules(): Array<{ src: number; dst: number; prob: number; feedback: boolean }> { return [...this.meshRules]; }
 
   addLayer(excitatoryCount: number): number {
     const layerId = this.nextLayerId++;
@@ -429,7 +430,8 @@ export class Region {
             // Choose donor: last trainable layer
             let donor = -1;
             for (let layerReverseIndex = this.layers.length - 1; layerReverseIndex >= 0; layerReverseIndex -= 1) {
-              if (this.isTrainable(this.layers[layerReverseIndex].getKind())) { donor = layerReverseIndex; break; }
+              const candidateLayer = this.layers[layerReverseIndex];
+              if (candidateLayer && this.isTrainable(candidateLayer.getKind())) { donor = layerReverseIndex; break; }
             }
             if (donor >= 0) {
               const newIndex = this.requestLayerGrowth(donor, 1.0);
