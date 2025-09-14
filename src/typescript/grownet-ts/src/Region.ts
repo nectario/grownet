@@ -34,7 +34,7 @@ export class Region {
     const layerId = this.nextLayerId++;
     const layer = new Layer(`layer_${layerId}`, LayerKind.Generic);
     layer.addNeurons(Math.max(0, Math.floor(excitatoryCount)));
-    try { (layer as unknown as { setRegion?: (r: Region) => void }).setRegion?.(this); } catch {}
+    try { (layer as unknown as { setRegion?: (r: Region) => void }).setRegion?.(this); } catch (error) { void error; }
     this.layers.push(layer);
     return layerId;
   }
@@ -44,7 +44,7 @@ export class Region {
     void epsilonFire;
     const layerId = this.nextLayerId++;
     const layer = new Layer(`input2d_${layerId}`, LayerKind.Input2D, height, width);
-    try { (layer as unknown as { setRegion?: (r: Region) => void }).setRegion?.(this); } catch {}
+    try { (layer as unknown as { setRegion?: (r: Region) => void }).setRegion?.(this); } catch (error) { void error; }
     this.layers.push(layer);
     return layerId;
   }
@@ -53,7 +53,7 @@ export class Region {
     void smoothing;
     const layerId = this.nextLayerId++;
     const layer = new Layer(`output2d_${layerId}`, LayerKind.Output2D, height, width);
-    try { (layer as unknown as { setRegion?: (r: Region) => void }).setRegion?.(this); } catch {}
+    try { (layer as unknown as { setRegion?: (r: Region) => void }).setRegion?.(this); } catch (error) { void error; }
     this.layers.push(layer);
     return layerId;
   }
@@ -218,8 +218,8 @@ export class Region {
     }
     // Tracts where layer is source
     for (let tractIndex = 0; tractIndex < this.tracts.length; tractIndex += 1) {
-      const tr = this.tracts[tractIndex];
-      if (tr.getSource() === this.layers[layerIndex]) tr.attachSourceNeuron(newIdx);
+      const tractObj = this.tracts[tractIndex];
+      if (tractObj.getSource() === this.layers[layerIndex]) tractObj.attachSourceNeuron(newIdx);
     }
   }
 
@@ -390,16 +390,16 @@ export class Region {
             const layer = this.layers[layerScanIndex];
             const neurons = layer.getNeurons();
             for (let neuronScanIndex = 0; neuronScanIndex < neurons.length; neuronScanIndex += 1) {
-              const n = neurons[neuronScanIndex] as unknown as {
+              const neuronInfo = neurons[neuronScanIndex] as unknown as {
                 getSlotLimit: () => number;
                 getLastSlotUsedFallback: () => boolean;
                 getSlotsCount: () => number;
               };
               totalNeurons += 1;
-              const slotsCount = (n.getSlotsCount && typeof n.getSlotsCount === 'function') ? n.getSlotsCount() : 0;
+              const slotsCount = (neuronInfo.getSlotsCount && typeof neuronInfo.getSlotsCount === 'function') ? neuronInfo.getSlotsCount() : 0;
               totalSlotsRegion += slotsCount;
-              const cap = (n.getSlotLimit && typeof n.getSlotLimit === 'function') ? n.getSlotLimit() : -1;
-              const usedFallback = (n.getLastSlotUsedFallback && typeof n.getLastSlotUsedFallback === 'function') ? n.getLastSlotUsedFallback() : false;
+              const cap = (neuronInfo.getSlotLimit && typeof neuronInfo.getSlotLimit === 'function') ? neuronInfo.getSlotLimit() : -1;
+              const usedFallback = (neuronInfo.getLastSlotUsedFallback && typeof neuronInfo.getLastSlotUsedFallback === 'function') ? neuronInfo.getLastSlotUsedFallback() : false;
               const atCap = (cap >= 0) && (slotsCount >= cap);
               if (atCap && usedFallback) atCapWithFallback += 1;
             }
