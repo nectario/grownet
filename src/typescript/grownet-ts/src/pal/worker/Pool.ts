@@ -4,7 +4,7 @@ export class WorkerPool {
   private maxWorkers: number;
   private workers: Array<Worker> = [];
   private idle: Array<Worker> = [];
-  private queue: Array<{ task: any; transferList: Array<ArrayBuffer>; resolve: (v: any) => void; reject: (e: Error) => void } > = [];
+  private queue: Array<{ task: unknown; transferList: Array<ArrayBuffer>; resolve: (v: unknown) => void; reject: (e: Error) => void }> = [];
   private shuttingDown: boolean = false;
 
   constructor(maxWorkers: number) {
@@ -18,7 +18,7 @@ export class WorkerPool {
     return WorkerPool.instance;
   }
 
-  async run(task: any, transferList?: Array<ArrayBuffer>): Promise<any> {
+  async run(task: unknown, transferList?: Array<ArrayBuffer>): Promise<unknown> {
     if (this.shuttingDown) throw new Error('WorkerPool is shutting down');
     const transfer = transferList ?? [];
     return new Promise((resolve, reject) => {
@@ -63,8 +63,8 @@ export class WorkerPool {
     else this.idle.push(worker);
   }
 
-  private dispatch(worker: Worker, job: { task: any; transferList: Array<ArrayBuffer>; resolve: (v: any) => void; reject: (e: Error) => void }) {
-    const onMessage = (message: any) => {
+  private dispatch(worker: Worker, job: { task: unknown; transferList: Array<ArrayBuffer>; resolve: (v: unknown) => void; reject: (e: Error) => void }) {
+    const onMessage = (message: unknown) => {
       worker.removeListener('message', onMessage);
       worker.removeListener('error', onError);
       job.resolve(message);

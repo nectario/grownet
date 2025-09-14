@@ -9,6 +9,12 @@ export interface ParallelOptions {
   reduction?: 'ordered' | 'pairwiseTree';
 }
 
+interface WorkerResponse {
+  success: boolean;
+  result?: unknown;
+  error?: unknown;
+}
+
 export interface IndexDomain {
   size(): number;
   at(index: number): number;
@@ -84,8 +90,8 @@ export function parallelMap<T, R>(
 }
 
 // SplitMix64-style mixing on 64-bit integers
-function mix64(x: bigint): bigint {
-  let mixed = x + 0x9e3779b97f4a7c15n;
+function mix64(value: bigint): bigint {
+  let mixed = value + 0x9e3779b97f4a7c15n;
   mixed ^= mixed >> 30n;
   mixed *= 0xbf58476d1ce4e5b9n;
   mixed ^= mixed >> 27n;
@@ -139,9 +145,10 @@ export async function parallelMapCounterRngSum(
     const endIndex = Math.min(length, startIndex + shardSize);
     if (startIndex >= endIndex) continue;
     const task = { kind: 'counterRngSum', startIndex, endIndex, seed: String(BigInt(seed)), step: String(BigInt(step)), drawKind, layerIndex, drawIndex };
-    const promise = pool.run(task).then((msg: any) => {
-      if (msg && msg.ok) return msg.result as number;
-      throw new Error(String(msg && msg.error));
+    const promise = pool.run(task).then((msg) => {
+      const response = msg as WorkerResponse;
+      if (response && response.success) return response.result as number;
+      throw new Error(String(response && response.error));
     });
     tasks.push(promise);
   }
@@ -173,14 +180,15 @@ export async function mapFloat64ArrayAddScalar(
     if (startIndex >= endIndex) continue;
     const segment = values.slice(startIndex, endIndex);
     const task = { kind: 'mapArrayAddScalar', startIndex: 0, endIndex: segment.length, scalar, buffer: segment.buffer };
-    const promise = pool.run(task, [segment.buffer]).then((msg: any) => {
-      if (msg && msg.ok) {
-        const buf = msg.result as ArrayBuffer;
+    const promise = pool.run(task, [segment.buffer]).then((msg) => {
+      const response = msg as WorkerResponse;
+      if (response && response.success) {
+        const buf = response.result as ArrayBuffer;
         const segOut = new Float64Array(buf);
         out.set(segOut, startIndex);
         return;
       }
-      throw new Error(String(msg && msg.error));
+      throw new Error(String(response && response.error));
     });
     promises.push(promise);
   }
@@ -210,14 +218,15 @@ export async function mapFloat64ArrayScale(
     if (startIndex >= endIndex) continue;
     const segment = values.slice(startIndex, endIndex);
     const task = { kind: 'mapArrayScale', startIndex: 0, endIndex: segment.length, factor, buffer: segment.buffer };
-    const promise = pool.run(task, [segment.buffer]).then((msg: any) => {
-      if (msg && msg.ok) {
-        const buf = msg.result as ArrayBuffer;
+    const promise = pool.run(task, [segment.buffer]).then((msg) => {
+      const response = msg as WorkerResponse;
+      if (response && response.success) {
+        const buf = response.result as ArrayBuffer;
         const segOut = new Float64Array(buf);
         out.set(segOut, startIndex);
         return;
       }
-      throw new Error(String(msg && msg.error));
+      throw new Error(String(response && response.error));
     });
     promises.push(promise);
   }
