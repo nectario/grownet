@@ -60,9 +60,9 @@ export class Layer {
     const neuron = new Neuron(`${this.name}.${newIndex}`, this.bus, this.slotConfig);
     this.neurons.push(neuron);
     try {
-      const r = this.regionRef as { autowireNewNeuronByRef?: (layer: Layer, newIdx: number) => void } | undefined;
-      r?.autowireNewNeuronByRef?.(this, newIndex);
-    } catch {}
+      const regionTyped = this.regionRef as { autowireNewNeuronByRef?: (layer: Layer, newIdx: number) => void } | undefined;
+      regionTyped?.autowireNewNeuronByRef?.(this, newIndex);
+    } catch (error) { void error; }
     return newIndex;
   }
 

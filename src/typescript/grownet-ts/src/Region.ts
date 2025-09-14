@@ -422,11 +422,6 @@ export class Region {
         }
       }
     }
-            }
-          }
-        }
-      }
-    }
     return new RegionMetrics(
       deliveredEvents,
       totalSlots,

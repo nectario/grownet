@@ -3,7 +3,7 @@ import { Region } from '../Region.js';
 export function runGrowthPolicyDemo(): void {
   const region = new Region('growth-demo');
   const inId = region.addInputLayer2D(3, 3, 1.0, 0.01);
-  const hidId = region.addLayer(2);
+  region.addLayer(2);
   region.bindInput('pixels', [inId]);
   region.setGrowthPolicy({ enableLayerGrowth: true, maxLayers: 16, avgSlotsThreshold: 0.0, layerCooldownTicks: 0, rngSeed: 1234 });
 

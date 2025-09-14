@@ -1,24 +1,24 @@
 import { Region } from '../../Region.js';
 
 export class RegionRegistry {
-  private static _instance: RegionRegistry | null = null;
+  private static instanceRef: RegionRegistry | null = null;
   static get instance(): RegionRegistry {
-    if (!RegionRegistry._instance) RegionRegistry._instance = new RegionRegistry();
-    return RegionRegistry._instance;
+    if (!RegionRegistry.instanceRef) RegionRegistry.instanceRef = new RegionRegistry();
+    return RegionRegistry.instanceRef;
   }
 
   private regions: Map<string, Region> = new Map();
   private counter = 0;
 
   create(name?: string): { regionId: string; region: Region } {
-    const id = `R${this.counter++}`;
-    const region = new Region(name ?? id);
-    this.regions.set(id, region);
-    return { regionId: id, region };
+    const regionId = `R${this.counter++}`;
+    const region = new Region(name ?? regionId);
+    this.regions.set(regionId, region);
+    return { regionId, region };
   }
 
-  get(id: string): Region | undefined { return this.regions.get(id); }
-  destroy(id: string): boolean { return this.regions.delete(id); }
+  get(regionIdArg: string): Region | undefined { return this.regions.get(regionIdArg); }
+  destroy(regionIdArg: string): boolean { return this.regions.delete(regionIdArg); }
   listIds(): string[] { return Array.from(this.regions.keys()); }
 }
 

@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from 'fastify';
+import { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import { Region } from '../../Region.js';
 import { addInputLayer2DSchema, addOutputLayer2DSchema, bindInputSchema, connectWindowedSchema, setGrowthPolicySchema, createRegionSchema, destroyRegionSchema, getRegionStateSchema, getMeshRulesSchema, connectTopographicSchema, requestLayerGrowthSchema } from '../schemas.js';
 import { RegionRegistry } from '../sim/Registry.js';
@@ -14,8 +14,8 @@ export function registerWiringAndGrowthRoutes(server: FastifyInstance): void {
     });
     instance.post('/api/v1/region/destroy', { schema: destroyRegionSchema }, async (request, reply) => {
       const body = request.body as { regionId: string };
-      const ok = RegionRegistry.instance.destroy(body.regionId);
-      reply.send({ success: ok });
+      const successFlag = RegionRegistry.instance.destroy(body.regionId);
+      reply.send({ success: successFlag });
     });
     instance.post('/api/v1/region/get-region-state', { schema: getRegionStateSchema }, async (request, reply) => {
       const body = request.body as { regionId: string };
@@ -28,38 +28,45 @@ export function registerWiringAndGrowthRoutes(server: FastifyInstance): void {
 
     instance.post('/api/v1/region/add-input-layer-2d', { schema: addInputLayer2DSchema }, async (request, reply) => {
       const body = request.body as { regionId?: string; height: number; width: number; gain: number; epsilonFire: number };
-      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');      const layerId = region.addInputLayer2D(body.height, body.width, body.gain, body.epsilonFire);
+      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');
+      const layerId = region.addInputLayer2D(body.height, body.width, body.gain, body.epsilonFire);
       reply.send({ layerId });
     });
 
     instance.post('/api/v1/region/add-output-layer-2d', { schema: addOutputLayer2DSchema }, async (request, reply) => {
       const body = request.body as { regionId?: string; height: number; width: number; smoothing: number };
-      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');      const layerId = region.addOutputLayer2D(body.height, body.width, body.smoothing);
+      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');
+      const layerId = region.addOutputLayer2D(body.height, body.width, body.smoothing);
       reply.send({ layerId });
     });
 
     instance.post('/api/v1/region/bind-input', { schema: bindInputSchema }, async (request, reply) => {
       const body = request.body as { regionId?: string; port: string; layers: number[] };
-      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');      region.bindInput(body.port, body.layers);
+      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');
+      region.bindInput(body.port, body.layers);
       reply.send({ success: true });
     });
 
     instance.post('/api/v1/region/connect-windowed', { schema: connectWindowedSchema }, async (request, reply) => {
       const body = request.body as { regionId?: string; src: number; dst: number; kernelH: number; kernelW: number; strideH: number; strideW: number; padding: string; feedback: boolean };
-      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');      const uniqueSources = region.connectLayersWindowed(body.src, body.dst, body.kernelH, body.kernelW, body.strideH, body.strideW, body.padding, body.feedback);
+      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');
+      const uniqueSources = region.connectLayersWindowed(body.src, body.dst, body.kernelH, body.kernelW, body.strideH, body.strideW, body.padding, body.feedback);
       reply.send({ uniqueSources });
     });
 
     instance.post('/api/v1/region/set-growth-policy', { schema: setGrowthPolicySchema }, async (request, reply) => {
       const body = request.body as { regionId?: string; enableLayerGrowth: boolean; maxLayers: number; avgSlotsThreshold: number; percentNeuronsAtCapacityThreshold?: number; layerCooldownTicks: number; rngSeed: number };
-      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');      region.setGrowthPolicy(body);
+      const region = body.regionId ? (RegionRegistry.instance.get(body.regionId) ?? new Region('server')) : new Region('server');
+      region.setGrowthPolicy(body);
       reply.send({ success: true });
     });
 
     // Topographic preset helper (pure geometry/weights)
     instance.post('/api/v1/region/connect-topographic', { schema: connectTopographicSchema }, async (request, reply) => {
       const body = request.body as { srcHeight: number; srcWidth: number; dstHeight: number; dstWidth: number; config: unknown };
-      const res = connectLayersTopographic(body.srcHeight, body.srcWidth, body.dstHeight, body.dstWidth, body.config as any);
+      // Narrow config to the helper's type instead of any
+      import type { TopographicConfig } from '../../wiring/TopographicWiring.js';
+      const res = connectLayersTopographic(body.srcHeight, body.srcWidth, body.dstHeight, body.dstWidth, body.config as TopographicConfig);
       reply.send({ uniqueSources: res.uniqueSources });
     });
 
@@ -83,4 +90,3 @@ export function registerWiringAndGrowthRoutes(server: FastifyInstance): void {
   };
   server.register(plugin);
 }
-
