@@ -215,8 +215,17 @@ export class Region {
     options?: ParallelOptions,
   ): RegionMetrics {
     void options;
-    const boundLayers = this.inputBindings.get(port) || [];
-    const tensor2d = Array.isArray(tensor[0]) ? (tensor as number[][]) : [tensor as number[]];
+    const tensor2d = Array.isArray((tensor as number[] | number[][])[0])
+      ? (tensor as number[][])
+      : [tensor as number[]];
+    let boundLayers = this.inputBindings.get(port);
+    if (!boundLayers || boundLayers.length === 0) {
+      const height = tensor2d.length;
+      const width = tensor2d[0]?.length ?? 0;
+      const layerId = this.addInputLayer2D(height, width, 1.0, 0.0);
+      this.bindInput(port, [layerId]);
+      boundLayers = [layerId];
+    }
     let deliveredEvents = 0;
     let totalSlots = 0;
     for (const layerIndex of boundLayers) {

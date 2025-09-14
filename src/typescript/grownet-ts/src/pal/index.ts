@@ -129,33 +129,13 @@ export async function parallelMapCounterRngSum(
   options?: ParallelOptions,
 ): Promise<number> {
   const workerCount = effectiveWorkers(options ?? defaultOptions);
-  if (workerCount <= 1 || length <= 0) {
-    let sum = 0.0;
-    for (let indexValue = 0; indexValue < length; indexValue += 1) {
-      sum += counterRng(seed, step, drawKind, layerIndex, indexValue, drawIndex);
-    }
-    return sum;
+  void workerCount;
+  if (length <= 0) return 0.0;
+  let sum = 0.0;
+  for (let indexValue = 0; indexValue < length; indexValue += 1) {
+    sum += counterRng(seed, step, drawKind, layerIndex, indexValue, drawIndex);
   }
-  const shardCount = Math.min(workerCount, Math.max(1, Math.floor(length / 1024)) || workerCount);
-  const shardSize = Math.ceil(length / shardCount);
-  const tasks: Array<Promise<number>> = [];
-  const pool = WorkerPool.getInstance(workerCount);
-  for (let shardIndex = 0; shardIndex < shardCount; shardIndex += 1) {
-    const startIndex = shardIndex * shardSize;
-    const endIndex = Math.min(length, startIndex + shardSize);
-    if (startIndex >= endIndex) continue;
-    const task = { kind: 'counterRngSum', startIndex, endIndex, seed: String(BigInt(seed)), step: String(BigInt(step)), drawKind, layerIndex, drawIndex };
-    const promise = pool.run(task).then((msg) => {
-      const response = msg as WorkerResponse;
-      if (response && response.success) return response.result as number;
-      throw new Error(String(response && response.error));
-    });
-    tasks.push(promise);
-  }
-  const partials = await Promise.all(tasks);
-  let total = 0.0;
-  for (const partial of partials) total += partial;
-  return total;
+  return sum;
 }
 
 export async function mapFloat64ArrayAddScalar(

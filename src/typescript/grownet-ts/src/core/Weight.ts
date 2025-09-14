@@ -22,13 +22,12 @@ export class Weight {
   }
 
   updateThreshold(effectiveInput: number): boolean {
-    // Simple rule: fire if effectiveInput + strength exceeds threshold; then adapt threshold unless frozen
+    // Skip firing and updates while frozen
+    if (this.isFrozen) return false;
     const fired = (effectiveInput + this.strength) > this.threshold;
-    if (!this.isFrozen) {
-      const target = fired ? (effectiveInput + this.strength) : this.threshold * 0.99;
-      // move threshold slowly toward target
-      this.threshold = 0.9 * this.threshold + 0.1 * target;
-    }
+    const target = fired ? (effectiveInput + this.strength) : this.threshold * 0.99;
+    // Move threshold slowly toward target
+    this.threshold = 0.9 * this.threshold + 0.1 * target;
     return fired;
   }
 
