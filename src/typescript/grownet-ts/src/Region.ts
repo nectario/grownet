@@ -180,7 +180,7 @@ export class Region {
     const bboxColMax = activePixels > 0 ? Math.floor(colMax) : -1;
 
     // preferOutput is accepted for parity; this minimal implementation ignores the flag.
-    (void)preferOutput;
+    void preferOutput;
 
     return new RegionMetrics(
       deliveredEvents,
@@ -201,7 +201,7 @@ export class Region {
     tensor: number[] | number[][] | number[][][],
     options?: ParallelOptions,
   ): RegionMetrics {
-    (void)options;
+    void options;
     const boundLayers = this.inputBindings.get(port) || [];
     const tensor2d = Array.isArray(tensor[0]) ? (tensor as number[][]) : [tensor as number[]];
     let deliveredEvents = 0;

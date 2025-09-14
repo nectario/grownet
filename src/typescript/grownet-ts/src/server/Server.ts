@@ -42,5 +42,4 @@ export async function createServer() {
     if (WorkerPool.instance) await WorkerPool.instance.close();
   });
   return app;
-}
-import fastify from 'fastify';
+  }

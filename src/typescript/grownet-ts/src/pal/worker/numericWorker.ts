@@ -4,8 +4,8 @@ if (!parentPort) {
   throw new Error('numericWorker must be run as a worker');
 }
 
-function mix64(x: bigint): bigint {
-  let mixed = x + 0x9e3779b97f4a7c15n;
+function mix64(value: bigint): bigint {
+  let mixed = value + 0x9e3779b97f4a7c15n;
   mixed ^= mixed >> 30n;
   mixed *= 0xbf58476d1ce4e5b9n;
   mixed ^= mixed >> 27n;
@@ -63,7 +63,7 @@ parentPort.on('message', (task: CounterRngSumTask | MapArrayAddScalarTask | MapA
     for (let index = task.startIndex; index < task.endIndex; index += 1) {
       sum += counterRng(seed, step, drawKind, layerIndex, BigInt(index), drawIndex);
     }
-    parentPort!.postMessage({ ok: true, result: sum });
+    parentPort!.postMessage({ success: true, result: sum });
     return;
   }
 
@@ -71,7 +71,7 @@ parentPort.on('message', (task: CounterRngSumTask | MapArrayAddScalarTask | MapA
     const input = new Float64Array(task.buffer);
     const out = new Float64Array(input.length);
     for (let offset = 0; offset < input.length; offset += 1) out[offset] = input[offset] + task.scalar;
-    parentPort!.postMessage({ ok: true, result: out.buffer }, [out.buffer]);
+    parentPort!.postMessage({ success: true, result: out.buffer }, [out.buffer]);
     return;
   }
 
@@ -79,9 +79,9 @@ parentPort.on('message', (task: CounterRngSumTask | MapArrayAddScalarTask | MapA
     const input = new Float64Array(task.buffer);
     const out = new Float64Array(input.length);
     for (let offset = 0; offset < input.length; offset += 1) out[offset] = input[offset] * task.factor;
-    parentPort!.postMessage({ ok: true, result: out.buffer }, [out.buffer]);
+    parentPort!.postMessage({ success: true, result: out.buffer }, [out.buffer]);
     return;
   }
 
-  parentPort!.postMessage({ ok: false, error: 'Unknown task kind' });
+  parentPort!.postMessage({ success: false, error: 'Unknown task kind' });
 });

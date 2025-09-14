@@ -9,9 +9,9 @@ describe('Topographic preset', () => {
     expect(res.uniqueSources).toBe(25);
     // Each window (center) should have weights summing to ~1
     for (let i = 0; i < res.incomingPerCenter.length; i += 1) {
-      let s = 0;
-      for (let j = 0; j < res.incomingPerCenter[i].weights.length; j += 1) s += res.incomingPerCenter[i].weights[j].w;
-      expect(s).toBeCloseTo(1.0, 9);
+      let sum = 0;
+      for (let j = 0; j < res.incomingPerCenter[i].weights.length; j += 1) sum += res.incomingPerCenter[i].weights[j].weight;
+      expect(sum).toBeCloseTo(1.0, 9);
     }
   });
 });
