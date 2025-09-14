@@ -26,20 +26,21 @@ export const computeSpatialMetricsSchema = {
     },
   },
   response: {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     200: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        delivered_events: { type: 'integer' },
-        total_slots: { type: 'integer' },
-        total_synapses: { type: 'integer' },
-        active_pixels: { type: 'integer' },
-        centroid_row: { type: 'number' },
-        centroid_col: { type: 'number' },
-        bbox_row_min: { type: 'integer' },
-        bbox_row_max: { type: 'integer' },
-        bbox_col_min: { type: 'integer' },
-        bbox_col_max: { type: 'integer' },
+        deliveredEvents: { type: 'integer' },
+        totalSlots: { type: 'integer' },
+        totalSynapses: { type: 'integer' },
+        activePixels: { type: 'integer' },
+        centroidRow: { type: 'number' },
+        centroidCol: { type: 'number' },
+        bboxRowMin: { type: 'integer' },
+        bboxRowMax: { type: 'integer' },
+        bboxColMin: { type: 'integer' },
+        bboxColMax: { type: 'integer' },
       },
     },
   },
@@ -77,20 +78,21 @@ export const tickNdSchema = {
     },
   },
   response: {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
     200: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        delivered_events: { type: 'integer' },
-        total_slots: { type: 'integer' },
-        total_synapses: { type: 'integer' },
-        active_pixels: { type: 'integer' },
-        centroid_row: { type: 'number' },
-        centroid_col: { type: 'number' },
-        bbox_row_min: { type: 'integer' },
-        bbox_row_max: { type: 'integer' },
-        bbox_col_min: { type: 'integer' },
-        bbox_col_max: { type: 'integer' },
+        deliveredEvents: { type: 'integer' },
+        totalSlots: { type: 'integer' },
+        totalSynapses: { type: 'integer' },
+        activePixels: { type: 'integer' },
+        centroidRow: { type: 'number' },
+        centroidCol: { type: 'number' },
+        bboxRowMin: { type: 'integer' },
+        bboxRowMax: { type: 'integer' },
+        bboxColMin: { type: 'integer' },
+        bboxColMax: { type: 'integer' },
       },
     },
   },
@@ -109,7 +111,8 @@ export const addInputLayer2DSchema = {
     },
   },
   response: {
-    200: { type: 'object', properties: { layer_id: { type: 'integer' } }, additionalProperties: false },
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    200: { type: 'object', properties: { layerId: { type: 'integer' } }, additionalProperties: false },
   },
 };
 
@@ -125,7 +128,8 @@ export const addOutputLayer2DSchema = {
     },
   },
   response: {
-    200: { type: 'object', properties: { layer_id: { type: 'integer' } }, additionalProperties: false },
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    200: { type: 'object', properties: { layerId: { type: 'integer' } }, additionalProperties: false },
   },
 };
 
@@ -139,7 +143,10 @@ export const bindInputSchema = {
       layers: { type: 'array', items: { type: 'integer' } },
     },
   },
-  response: { 200: { type: 'object', properties: { ok: { type: 'boolean' } }, additionalProperties: false } },
+  response: {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    200: { type: 'object', properties: { success: { type: 'boolean' } }, additionalProperties: false },
+  },
 };
 
 export const connectWindowedSchema = {
@@ -158,7 +165,10 @@ export const connectWindowedSchema = {
       feedback: { type: 'boolean' },
     },
   },
-  response: { 200: { type: 'object', properties: { unique_sources: { type: 'integer' } }, additionalProperties: false } },
+  response: {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    200: { type: 'object', properties: { uniqueSources: { type: 'integer' } }, additionalProperties: false },
+  },
 };
 
 export const setGrowthPolicySchema = {
@@ -175,5 +185,8 @@ export const setGrowthPolicySchema = {
       rngSeed: { type: 'integer' },
     },
   },
-  response: { 200: { type: 'object', properties: { ok: { type: 'boolean' } }, additionalProperties: false } },
+  response: {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    200: { type: 'object', properties: { success: { type: 'boolean' } }, additionalProperties: false },
+  },
 };

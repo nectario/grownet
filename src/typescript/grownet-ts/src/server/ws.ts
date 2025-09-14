@@ -11,11 +11,11 @@ export async function registerWebSocket(app: FastifyInstance) {
   await app.register(websocket);
 
   app.get('/ws', { websocket: true }, (connection) => {
-    const ws = connection.socket as unknown as Subscriber & { on(event: string, cb: (...args: any[]) => void): void };
-    subscribers.push(ws);
-    ws.on('close', () => {
-      const idx = subscribers.indexOf(ws);
-      if (idx >= 0) subscribers.splice(idx, 1);
+    const socket = connection.socket as unknown as Subscriber & { on(event: string, cb: (...args: unknown[]) => void): void };
+    subscribers.push(socket);
+    socket.on('close', () => {
+      const index = subscribers.indexOf(socket);
+      if (index >= 0) subscribers.splice(index, 1);
     });
   });
 }

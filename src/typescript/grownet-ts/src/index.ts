@@ -6,4 +6,3 @@ export { Weight } from './core/Weight.js';
 export { Neuron } from './core/Neuron.js';
 export { fixedSlotConfig } from './core/SlotConfig.js';
 export { connectLayersTopographic, defaultTopographicConfig } from './wiring/TopographicWiring.js';
-export { Region } from './Region.js';

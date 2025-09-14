@@ -46,7 +46,7 @@ export class Layer {
     this.bus.decay();
   }
 
-  tryGrowNeuron(seedIndex?: number): number {
+  tryGrowNeuron(): number {
     if (this.neuronLimit >= 0 && this.neurons.length >= this.neuronLimit) return -1;
     const newIndex = this.neurons.length;
     const neuron = new Neuron(`${this.name}.${newIndex}`, this.bus, this.slotConfig);
