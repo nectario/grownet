@@ -3,7 +3,7 @@ import { SlotConfig } from './SlotConfig.js';
 import { Weight } from './Weight.js';
 
 export class Neuron {
-  private id: string;
+  private neuronId: string;
   private slots: Map<number, Weight> = new Map();
   private slotLimit: number;
   private bus: LateralBus;
@@ -22,14 +22,14 @@ export class Neuron {
   private lastGrowthTick: number = 0;
   private config: SlotConfig;
 
-  constructor(id: string, bus: LateralBus, config: SlotConfig) {
-    this.id = id;
+  constructor(neuronId: string, bus: LateralBus, config: SlotConfig) {
+    this.neuronId = neuronId;
     this.bus = bus;
     this.config = config;
     this.slotLimit = config.slotLimit;
   }
 
-  getId(): string { return this.id; }
+  getNeuronId(): string { return this.neuronId; }
   getBus(): LateralBus { return this.bus; }
   getSlotLimit(): number { return this.slotLimit; }
   setSlotLimit(limit: number): void { this.slotLimit = limit; }
@@ -83,16 +83,16 @@ export class Neuron {
   freezeLastSlot(): boolean {
     const lastKey = this.findLastSlotKey();
     if (lastKey === null) return false;
-    const w = this.slots.get(lastKey)!;
-    w.freeze();
+    const weight = this.slots.get(lastKey)!;
+    weight.freeze();
     return true;
   }
 
   unfreezeLastSlot(): boolean {
     const lastKey = this.findLastSlotKey();
     if (lastKey === null) return false;
-    const w = this.slots.get(lastKey)!;
-    w.unfreeze();
+    const weight = this.slots.get(lastKey)!;
+    weight.unfreeze();
     // Prefer once logic can be modeled externally; here we just unfreeze.
     return true;
   }
@@ -105,18 +105,18 @@ export class Neuron {
     if (capacity >= 0 && this.slots.size >= capacity) {
       // fallback: reuse deterministic existing slot (e.g., smallest key)
       let chosenKey: number | null = null;
-      for (const k of this.slots.keys()) { if (chosenKey === null || k < chosenKey) chosenKey = k; }
-      if (chosenKey === null) { const w = new Weight(); this.slots.set(key, w); this.lastSelectedKey = key; return w; }
+      for (const slotKey of this.slots.keys()) { if (chosenKey === null || slotKey < chosenKey) chosenKey = slotKey; }
+      if (chosenKey === null) { const weight = new Weight(); this.slots.set(key, weight); this.lastSelectedKey = key; return weight; }
       this.lastSlotUsedFallback = true;
       this.fallbackStreak += 1;
       this.lastSelectedKey = chosenKey;
       return this.slots.get(chosenKey)!;
     }
-    const w = new Weight();
-    this.slots.set(key, w);
+    const weight = new Weight();
+    this.slots.set(key, weight);
     this.lastSlotUsedFallback = false;
     this.lastSelectedKey = key;
-    return w;
+    return weight;
   }
 
   private findLastSlotKey(): number | null {

@@ -14,20 +14,19 @@ export function registerTickNdRoute(server: FastifyInstance): void {
       const region = new Region('server');
       const metrics = region.tickND(body.port, body.tensor, body.options);
       reply.send({
-        delivered_events: metrics.getDeliveredEvents(),
-        total_slots: metrics.getTotalSlots(),
-        total_synapses: metrics.getTotalSynapses(),
-        active_pixels: metrics.getActivePixels(),
-        centroid_row: metrics.getCentroidRow(),
-        centroid_col: metrics.getCentroidCol(),
-        bbox_row_min: metrics.getBboxRowMin(),
-        bbox_row_max: metrics.getBboxRowMax(),
-        bbox_col_min: metrics.getBboxColMin(),
-        bbox_col_max: metrics.getBboxColMax(),
+        deliveredEvents: metrics.getDeliveredEvents(),
+        totalSlots: metrics.getTotalSlots(),
+        totalSynapses: metrics.getTotalSynapses(),
+        activePixels: metrics.getActivePixels(),
+        centroidRow: metrics.getCentroidRow(),
+        centroidCol: metrics.getCentroidCol(),
+        bboxRowMin: metrics.getBboxRowMin(),
+        bboxRowMax: metrics.getBboxRowMax(),
+        bboxColMin: metrics.getBboxColMin(),
+        bboxColMax: metrics.getBboxColMax(),
       });
     });
     done();
   };
   server.register(handler);
 }
-import { FastifyInstance, FastifyPluginCallback } from 'fastify';
