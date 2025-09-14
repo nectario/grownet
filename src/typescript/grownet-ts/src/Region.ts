@@ -89,6 +89,8 @@ export class Region {
           const rowEnd = Math.min(srcHeight, rowStart + kernelHeight);
           const colEnd = Math.min(srcWidth, colStart + kernelWidth);
           const centerIndex = dstLayer.indexAt(dstRow, dstCol);
+          const dstNeuron = dstNeurons[centerIndex];
+          if (!dstNeuron) continue;
           for (let row = rowStart; row < rowEnd; row += 1) {
             for (let col = colStart; col < colEnd; col += 1) {
               const srcIndex = srcLayer.indexAt(row, col);
@@ -96,23 +98,26 @@ export class Region {
               centerMap.set(srcIndex, centerIndex);
               const key = `${srcIndex}->${centerIndex}`;
               if (!connections.has(key)) {
-                srcNeurons[srcIndex].connect(dstNeurons[centerIndex], feedback);
-                connections.add(key);
+                const srcNeuron = srcNeurons[srcIndex];
+                if (srcNeuron) {
+                  srcNeuron.connect(dstNeuron, feedback);
+                  connections.add(key);
+                }
               }
             }
           }
         }
       }
     } else {
-      for (let rowStartIndex = 0; rowStartIndex < rowStartOffsets.length; rowStartIndex += 1) {
-        const rowStart = rowStartOffsets[rowStartIndex];
-        for (let colStartIndex = 0; colStartIndex < colStartOffsets.length; colStartIndex += 1) {
-          const colStart = colStartOffsets[colStartIndex];
+      for (const rowStart of rowStartOffsets) {
+        for (const colStart of colStartOffsets) {
           const rowEnd = rowStart + kernelHeight;
           const colEnd = colStart + kernelWidth;
           const centerRow = Math.floor(rowStart + kernelHeight / 2);
           const centerCol = Math.floor(colStart + kernelWidth / 2);
           const centerIndex = dstLayer.indexAt(centerRow, centerCol);
+          const dstNeuron = dstNeurons[centerIndex];
+          if (!dstNeuron) continue;
           for (let row = rowStart; row < rowEnd; row += 1) {
             for (let col = colStart; col < colEnd; col += 1) {
               const srcIndex = srcLayer.indexAt(row, col);
@@ -120,8 +125,11 @@ export class Region {
               centerMap.set(srcIndex, centerIndex);
               const key = `${srcIndex}->${centerIndex}`;
               if (!connections.has(key)) {
-                srcNeurons[srcIndex].connect(dstNeurons[centerIndex], feedback);
-                connections.add(key);
+                const srcNeuron = srcNeurons[srcIndex];
+                if (srcNeuron) {
+                  srcNeuron.connect(dstNeuron, feedback);
+                  connections.add(key);
+                }
               }
             }
           }
@@ -132,7 +140,7 @@ export class Region {
     tract.setCenterMap(centerMap);
     this.tracts.push(tract);
     let uniqueSourcesCount = 0;
-    for (let coveredIndex = 0; coveredIndex < coveredIndices.length; coveredIndex += 1) if (coveredIndices[coveredIndex]) uniqueSourcesCount += 1;
+    for (const covered of coveredIndices) if (covered) uniqueSourcesCount += 1;
     return uniqueSourcesCount;
   }
 
@@ -160,7 +168,7 @@ export class Region {
     for (let rowIndex = 0; rowIndex < height; rowIndex += 1) {
       for (let colIndex = 0; colIndex < width; colIndex += 1) {
         const idx = rowIndex * width + colIndex;
-        const value = data[idx];
+        const value = data[idx] ?? 0;
         if (value > 0) {
           activePixels += 1;
           sum += value;
@@ -211,8 +219,8 @@ export class Region {
     const tensor2d = Array.isArray(tensor[0]) ? (tensor as number[][]) : [tensor as number[]];
     let deliveredEvents = 0;
     let totalSlots = 0;
-    for (let bindIndex = 0; bindIndex < boundLayers.length; bindIndex += 1) {
-      const layerIndex = boundLayers[bindIndex];
+    for (const layerIndex of boundLayers) {
+      if (layerIndex === undefined) continue;
       const layer = this.layers[layerIndex];
       if (!layer) continue;
       const height = layer.getHeight();
@@ -225,8 +233,10 @@ export class Region {
           const value = row[colIndex] || 0;
           if (value <= 0) continue;
           const idx = layer.indexAt(rowIndex, colIndex);
-          const fired = neurons[idx].onInput2D(value, rowIndex, colIndex);
-          if (fired) { deliveredEvents += 1; neurons[idx].onOutput(value); }
+          const neuron = neurons[idx];
+          if (!neuron) continue;
+          const fired = neuron.onInput2D(value, rowIndex, colIndex);
+          if (fired) { deliveredEvents += 1; neuron.onOutput(value); }
         }
       }
     }
@@ -239,9 +249,8 @@ export class Region {
     let rowMax = Number.NEGATIVE_INFINITY;
     let colMin = Number.POSITIVE_INFINITY;
     let colMax = Number.NEGATIVE_INFINITY;
-    for (let layerIndex = 0; layerIndex < this.layers.length; layerIndex += 1) {
-      const layer = this.layers[layerIndex];
-      if (layer.getKind() !== LayerKind.Output2D) continue;
+    for (const layer of this.layers) {
+      if (!layer || layer.getKind() !== LayerKind.Output2D) continue;
       const height = layer.getHeight();
       const width = layer.getWidth();
       const neurons = layer.getNeurons();
@@ -265,24 +274,26 @@ export class Region {
     }
 
     // Phase B: end tick + growth check (one growth per tick)
-    for (let i = 0; i < this.layers.length; i += 1) this.layers[i].endTick();
+    for (const layer of this.layers) layer?.endTick();
     if (this.growthPolicy) {
       const policy = this.growthPolicy;
-      const currentStep = (this.layers[0]?.getBus().getCurrentStep()) || 0;
+      const currentStep = this.layers[0]?.getBus().getCurrentStep() || 0;
       let growthDone = false;
       for (let layerIdx = 0; layerIdx < this.layers.length && !growthDone; layerIdx += 1) {
-        const neurons = this.layers[layerIdx].getNeurons();
+        const layer = this.layers[layerIdx];
+        if (!layer) continue;
+        const neurons = layer.getNeurons();
         for (let neuronIdx = 0; neuronIdx < neurons.length && !growthDone; neuronIdx += 1) {
           const neuron = neurons[neuronIdx];
+          if (!neuron) continue;
           if (neuron.getFallbackStreak() >= 3) {
             const last = neuron.getLastGrowthTick();
             if (currentStep - last >= (policy.layerCooldownTicks || 100)) {
-              const newIndex = this.layers[layerIdx].tryGrowNeuron(neuronIdx);
+              const newIndex = layer.tryGrowNeuron();
               if (newIndex >= 0) {
                 // Autowire new neuron for tracts where this layer is source
-                for (let tractIdx = 0; tractIdx < this.tracts.length; tractIdx += 1) {
-                  const tract = this.tracts[tractIdx];
-                  if (tract.getSource() === this.layers[layerIdx]) tract.attachSourceNeuron(newIndex);
+                for (const tract of this.tracts) {
+                  if (tract && tract.getSource() === layer) tract.attachSourceNeuron(newIndex);
                 }
                 neuron.setLastGrowthTick(currentStep);
                 growthDone = true;
@@ -316,15 +327,15 @@ export class Region {
     image2d: number[][] | Float64Array | { data: Float64Array; height: number; width: number },
   ): { data: Float64Array; height: number; width: number } {
     if (Array.isArray(image2d)) {
-      const height = image2d.length;
-      const width = height > 0 ? image2d[0].length : 0;
+        const height = image2d.length;
+        const width = height > 0 ? (image2d[0]?.length ?? 0) : 0;
       const data = new Float64Array(height * width);
-      for (let rowIndex = 0; rowIndex < height; rowIndex += 1) {
-        const row = image2d[rowIndex];
-        for (let colIndex = 0; colIndex < width; colIndex += 1) {
-          data[rowIndex * width + colIndex] = row[colIndex] ?? 0;
+        for (let rowIndex = 0; rowIndex < height; rowIndex += 1) {
+          const row = image2d[rowIndex] || [];
+          for (let colIndex = 0; colIndex < width; colIndex += 1) {
+            data[rowIndex * width + colIndex] = row[colIndex] ?? 0;
+          }
         }
-      }
       return { data, height, width };
     }
     if (image2d instanceof Float64Array) {

@@ -27,7 +27,8 @@ export class Tract {
     const dstNeurons = this.dest.getNeurons();
     if (newSourceIndex < 0 || newSourceIndex >= srcNeurons.length) return;
     const targetNeuron = dstNeurons[centerIndex];
-    const srcNeuron: Neuron = srcNeurons[newSourceIndex];
+    const srcNeuron = srcNeurons[newSourceIndex];
+    if (!srcNeuron || !targetNeuron) return;
     srcNeuron.connect(targetNeuron, this.feedback);
   }
 }

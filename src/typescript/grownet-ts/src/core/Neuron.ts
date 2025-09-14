@@ -69,8 +69,7 @@ export class Neuron {
   }
 
   onOutput(amplitude: number): void {
-    for (let idx = 0; idx < this.outgoing.length; idx += 1) {
-      const edge = this.outgoing[idx];
+    for (const edge of this.outgoing) {
       // Scalar propagation for now; in a more complete system, context would decide 2D vs scalar
       edge.target.onInput(amplitude);
     }
