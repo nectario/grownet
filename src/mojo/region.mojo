@@ -149,7 +149,7 @@ struct Region:
     # ---------------- spatial metrics (helper) ----------------
     fn compute_spatial_metrics(self, img: list[list[Float64]], prefer_output: Bool = true) -> RegionMetrics:
         var metrics = RegionMetrics()
-        var chosen = img
+        var chosen = img.copy()
         if prefer_output and self.output_layer_indices.len > 0:
             var pick = self.output_layer_indices[self.output_layer_indices.len - 1]
             if pick >= 0 and pick < self.layers.len:

@@ -1,0 +1,8 @@
+# Forecast Card Template
+version: 1
+model_name: GrowNet
+model_version: 0.1
+task: <dataset>
+metrics:
+  accuracy: 0.0
+  ece: 0.0

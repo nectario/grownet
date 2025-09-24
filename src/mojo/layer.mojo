@@ -112,7 +112,7 @@ struct Layer:
 
     # Same-kind neuron growth helper (E/I/M), returns unified neuron index and autowires it
     fn try_grow_neuron(mut self, seed: Neuron) -> Int:
-        var slot_config = seed.slot_cfg
+        var slot_config = seed.slot_cfg.copy()
         # Determine seed kind by membership
         var group_index = 0
         while group_index < self.neurons_inh.len:

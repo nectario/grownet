@@ -1,0 +1,23 @@
+# Config for morse
+dataset: morse
+mode: dummy   # or 'torch' if you wire up training
+save_dir: outputs/morse
+random_seed: 1337
+
+training:
+  epochs: 1
+  batch_size: 64
+  lr: 1.0e-3
+
+evaluate:
+  primary_metrics: [accuracy, ece]
+  acceptance:
+    accuracy: 0.90
+    ece: 0.10
+
+grownet:
+  use_anchor_adjustment: true
+  horizon_curriculum: [128, 256, 784]
+
+sample_rate: 8000
+

@@ -67,22 +67,22 @@ fn gpu_parallel_map(domain: list[Float64], kernel: fn(Float64) -> Float64,
     # Detect simple kernels: identity, add-constant, or scale. Otherwise CPU.
     var probe_a: Float64 = 0.0
     var probe_b: Float64 = 1.2345
-    let a_out = kernel(probe_a)
-    let b_out = kernel(probe_b)
-    let eps: Float64 = 1e-12
+    var a_out = kernel(probe_a)
+    var b_out = kernel(probe_b)
+    var eps: Float64 = 1e-12
     # Identity: k(x) == x for two probes
     if (abs(a_out - probe_a) <= eps) and (abs(b_out - probe_b) <= eps):
         var mapped_id = gpu_map_identity_f64(domain)
         return reduce_in_order(mapped_id)
     # Add-constant: k(x) - x is (approximately) constant
-    let d0 = a_out - probe_a
-    let d1 = b_out - probe_b
+    var d0 = a_out - probe_a
+    var d1 = b_out - probe_b
     if abs(d0 - d1) <= 1e-9:
         var mapped_add = gpu_map_add_scalar_f64(domain, d0)
         return reduce_in_order(mapped_add)
     # Scale: k(x) / x is constant (avoid division by zero using probe_b)
     if abs(probe_b) > eps:
-        let r1 = b_out / probe_b
+        var r1 = b_out / probe_b
         # For probe_a==0, use the offset at b to infer scale; ensure k(0)≈0 for pure scaling
         if abs(a_out) <= 1e-9:
             var mapped_scale = gpu_map_scale_f64(domain, r1)

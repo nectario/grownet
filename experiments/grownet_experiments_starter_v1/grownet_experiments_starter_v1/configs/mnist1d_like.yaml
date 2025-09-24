@@ -1,0 +1,23 @@
+# Config for mnist1d_like
+dataset: mnist1d_like
+mode: dummy   # or 'torch' if you wire up training
+save_dir: outputs/mnist1d_like
+random_seed: 1337
+
+training:
+  epochs: 1
+  batch_size: 64
+  lr: 1.0e-3
+
+evaluate:
+  primary_metrics: [accuracy, ece]
+  acceptance:
+    accuracy: 0.90
+    ece: 0.10
+
+grownet:
+  use_anchor_adjustment: true
+  horizon_curriculum: [128, 256, 784]
+
+sequence_length: 128
+
