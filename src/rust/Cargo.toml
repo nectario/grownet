@@ -1,0 +1,8 @@
+[workspace]
+members = ["grownet-core", "grownet-pal", "grownet-policy", "grownet-demos"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+authors = ["GrowNet Team"]
