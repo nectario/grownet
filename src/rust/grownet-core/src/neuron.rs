@@ -1,14 +1,9 @@
-use crate::bus::LateralBus;
 use crate::slot_config::SlotConfig;
 use crate::slot_engine::{SlotEngine, SlotDomain};
 use crate::ids::{NeuronId, SlotId};
 
 #[derive(Copy, Clone, Debug)]
-pub enum NeuronKind {
-    Excitatory,
-    Inhibitory,
-    Modulatory,
-}
+pub enum NeuronKind { Excitatory, Inhibitory, Modulatory }
 
 #[derive(Debug)]
 pub struct Neuron {
@@ -42,27 +37,20 @@ impl Neuron {
     pub fn observe_scalar(&mut self, value: f64) -> SlotId {
         let selection = self.slot_engine.observe_scalar(value);
         self.last_slot_used_fallback = selection.used_fallback;
-        if self.last_slot_used_fallback {
-            self.fallback_streak = self.fallback_streak.saturating_add(1);
-        } else {
-            self.fallback_streak = 0;
-        }
+        if selection.used_fallback { self.fallback_streak = self.fallback_streak.saturating_add(1); }
+        else { self.fallback_streak = 0; }
         selection.slot_id
     }
 
     pub fn observe_two_d(&mut self, row: f64, col: f64) -> SlotId {
         let selection = self.slot_engine.observe_two_d(row, col);
         self.last_slot_used_fallback = selection.used_fallback;
-        if self.last_slot_used_fallback {
-            self.fallback_streak = self.fallback_streak.saturating_add(1);
-        } else {
-            self.fallback_streak = 0;
-        }
+        if selection.used_fallback { self.fallback_streak = self.fallback_streak.saturating_add(1); }
+        else { self.fallback_streak = 0; }
         selection.slot_id
     }
 
-    pub fn end_tick(&mut self, _bus: &mut LateralBus) {
-        // In Phase-B propagation we would accumulate effects;
-        // end_tick hook available for decay of per-neuron state if needed.
+    pub fn end_tick(&mut self) {
+        // placeholder for per-neuron decay hooks if needed
     }
 }

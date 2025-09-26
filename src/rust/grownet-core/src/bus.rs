@@ -11,7 +11,7 @@ impl LateralBus {
         Self { inhibition: 0.0, modulation: 1.0, current_step: 0, decay_factor }
     }
 
-    /// End-of-tick decay: inhibition decays multiplicatively; modulation resets to 1.0;
+    /// End-of-tick decay: inhibition decays multiplicatively; modulation resets;
     /// and current_step increments by one.
     pub fn decay(&mut self) {
         self.inhibition *= self.decay_factor;

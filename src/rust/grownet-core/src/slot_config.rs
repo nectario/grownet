@@ -1,7 +1,7 @@
 #[derive(Clone, Debug)]
 pub struct SlotConfig {
     pub slot_limit: usize,
-    pub bin_width_pct: f64, // for scalar or row/col if using TwoD with same width
+    pub bin_width_pct: f64,
     pub epsilon_scale: f64,
     pub fallback_growth_threshold: u32,
     pub neuron_growth_cooldown_ticks: u64,

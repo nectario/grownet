@@ -1,13 +1,14 @@
-# GrowNet — Rust Port (Phase 1)
+# GrowNet — Rust Port (Phase 2)
 
-This workspace contains the initial Rust port of GrowNet focusing on **core data structures, 
-tick discipline, slot selection, strict capacity with deterministic fallback, and growth scaffolding**.
+Phase 2 implements: event propagation, windowed wiring (SAME/VALID center rule),
+tract re-attach, neuron growth triggers (fallback streak + cooldown), region
+growth (OR-trigger: avg-slots or percent at-cap+fallback), spatial metrics (bbox
+and centroid), and a deterministic PAL (single-thread ordered with optional
+threaded ordered reduction for larger workloads).
 
-> Invariants preserved:
-> - Slots → Neurons → Layers → Region hierarchy
-> - Strict capacity + deterministic fallback (`last_slot_used_fallback` as the *only* pressure signal)
-> - Fallback-streak + cooldown → **neuron growth** (same kind, copy config, share bus)
-> - **One growth per region per tick** at region level
-> - Windowed wiring scaffolding with **center rule** and **unique source subscriptions**
-> - Two-phase tick and bus decay: inhibition *= decay, modulation = 1.0, current_step += 1
-> - Deterministic RNG seeded in `Region`
+Command:
+```bash
+cargo build -p grownet-demos
+cargo run -p grownet-demos
+cargo test -p grownet-core
+```
