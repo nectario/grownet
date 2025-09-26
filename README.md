@@ -1,6 +1,6 @@
 # GrowNet
 
-**GrowNet** is a growth‑based, event‑driven learning system inspired by how humans develop capability over time. Instead of large end‑to‑end gradients, GrowNet learns *locally*, adds capacity *incrementally*, and wires itself *deterministically*. The goal is to provide a credible alternative path toward general intelligence—one that can be configured as a **world model**, a **language model**, a **reasoning/thinking module**, or any other skill‑acquisition pipeline your application demands. *This is an active research project; claims are aspirational and under empirical validation.*
+**GrowNet** is a growth‑based, event‑driven learning system inspired by how humans develop capability over time. Instead of large end‑to‑end gradients, GrowNet learns *locally*, adds capacity *incrementally*, and wires itself *deterministically*. The goal is to provide a credible alternative path toward general intelligence—one that can be configured as a **world model**, a **language model**, a **reasoning/thinking module**, or any other skill‑acquisition pipeline your application demands. *This is an active research project. Claims are forward-looking and awaiting empirical evidence..*
 
 ------
 
