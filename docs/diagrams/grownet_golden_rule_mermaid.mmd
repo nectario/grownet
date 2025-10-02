@@ -1,0 +1,33 @@
+flowchart TD
+  subgraph Tick["Tick t"]
+    A["Phase A: Neuron integrates input x"]
+    B["Compute delta_pct(x, Reference Anchor=FIRST)"]
+    note1["Focus Anchor (conceptual) = last committed slot/input"]
+    C{"Quantize to slot bin (scalar or 2D)"}
+    D{Capacity for this bin?}
+    E["Adapt: reinforce slot (honor freeze/unfreeze & prefer-once)"]
+    F["Allocate new slot (if below per-neuron slot capacity)"]
+    G["At capacity & new bin → use deterministic fallback; set last_slot_used_fallback=true"]
+    H["Phase B: propagate events"]
+    I["End-of-tick growth checks"]
+    J{"Neuron: fallback_streak ≥ fallback_growth_threshold AND cooldown OK?"}
+    K["Grow 1 same-kind neuron; copy slot policy/config/bus/owner"]
+    K2["Autowire deterministically: mesh rules / windowed tracts"]
+    L{"Region: (avg slots ≥ τ) OR (% at-cap + fallback ≥ τ) AND cooldown OK?"}
+    M["Add 1 spillover Layer; wire saturated → new with p=1.0 (deterministic)"]
+    N["bus.decay(): inhibition *= λ; modulation = 1.0; current_step += 1"]
+  end
+
+  A --> B --> C --> D
+  B --- note1
+  D -- "yes (existing bin or free slot)" --> E
+  D -- "no (new bin but full)" --> G
+  C -->|new bin & below capacity| F --> H
+  E --> H
+  G --> H
+  H --> I
+  I --> J
+  J -- "yes" --> K --> K2 --> N
+  J -- "no" --> L
+  L -- "yes" --> M --> N
+  L -- "no" --> N

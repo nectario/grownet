@@ -1,0 +1,8 @@
+docs(core): State the Golden Rule at neuron-slot level; map to layer/region; clarify anchors
+
+- Add docs/GOLDEN_RULE.md (Adapt vs Allocate with strict capacity + fallback streak + cooldown)
+- Clarify anchor semantics: Focus (conceptual, “last input we choose to focus on”) vs Reference (FIRST)
+- Document determinism & wiring: mesh rules, windowed tracts, p=1.0 spillover, PAL v2
+- Reiterate invariants: one-growth-per-tick, cooldowns tied to bus clock, best-effort growth
+- Provide metrics/tests checklist and a digits→letters worked example
+- READ_ORDER patch note to include GOLDEN_RULE.md after architecture overview

@@ -1,0 +1,37 @@
+             +----------------------------------+
+             | Phase A: integrate input x       |
+             +-------------------+--------------+
+                                 |
+                 compute delta_pct(x, anchor_FIRST)
+                                 |
+                           quantize to slot k
+                                 |
+              +------------------+-------------------+
+              |                                      |
+   capacity?  | yes (existing/free bin)              | no (new bin but full)
+              |                                      |
+              v                                      v
+   Adapt: reinforce slot                  Use deterministic fallback
+ (honor freeze/unfreeze,                  -> set last_slot_used_fallback = true
+  prefer_last_slot_once)
+              |                                      |
+              +------------------+-------------------+
+                                 v
+                     Phase B: propagate events
+                                 v
+                      End-of-tick growth checks
+                                 |
+           +---------------------+------------------------+
+           |                      |                        |
+           v                      v                        v
+Neuron growth?          Region OR-trigger?           Otherwise
+(fallback_streak        (avg slots >= τ OR           no growth;
+ >= threshold AND         % at-cap+fallback >= τ)    proceed
+ cooldown OK)             AND cooldown OK            to decay
+   |                          | 
+   v                          v
+Grow 1 same-kind          Add 1 spillover Layer
+neuron; copy config;      (p=1.0 spillover wiring)
+deterministic autowiring
+                                 v
+        bus.decay(): inhibition *= λ; modulation=1.0; step++
