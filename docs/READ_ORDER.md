@@ -4,6 +4,15 @@
 
 ## The reading sequence (top → down)
 
+```
+02_architecture_overview.md
+03_golden_rule.md   # NEW: Slot→Neuron→Layer→Region growth, anchor semantics, invariants
+04_tick_discipline.md
+05_autowiring_and_tracts.md
+06_language_parity_and_style.md
+...
+```
+
 1. **Coding style & parity first (short)**
    - `CODING_STYLE_MUST_READ.md` and `STYLE_AND_PARITY.md`
       *Why:* norms Codex must follow (no leading underscores in public Python/Mojo, `struct`+`fn` in Mojo, no 1–2 char names, deterministic RNG, doc rules).
