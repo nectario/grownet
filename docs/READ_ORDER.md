@@ -5,11 +5,12 @@
 ## The reading sequence (top → down)
 
 ```
-02_architecture_overview.md
-03_golden_rule.md   # NEW: Slot→Neuron→Layer→Region growth, anchor semantics, invariants
-04_tick_discipline.md
-05_autowiring_and_tracts.md
-06_language_parity_and_style.md
+01 architecture_overview.md
+02 golden_rule.md   # NEW: Slot→Neuron→Layer→Region growth, anchor semantics, invariants
+03 GrowNet_Golden_Rule_In_Plain_English.md
+04 tick_discipline.md
+05 autowiring_and_tracts.md
+06 language_parity_and_style.md
 ...
 ```
 
