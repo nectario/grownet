@@ -1,82 +1,94 @@
-> **Rule of thumb:** when two versions exist (e.g., V4 vs V5), read the **newest** (highest version) and treat the older one as historical context only.
+# GrowNet – Reading Order (authoritative)
 
-------
+> **When documents disagree:** the **Contract v5** and the **Design Spec V5** win for public APIs and behavior.  
+> **Style & determinism:** Coding style, naming, and determinism/growth invariants are **non-negotiable** across languages.  
+> **Version rule:** prefer the newest version (e.g., V5 over V4), treat older ones as history only.
 
-## The reading sequence (top → down)
+---
 
-```
-01 architecture_overview.md
-02 golden_rule.md   # NEW: Slot→Neuron→Layer→Region growth, anchor semantics, invariants
-03 GrowNet_Golden_Rule_In_Plain_English.md
-04 tick_discipline.md
-05 autowiring_and_tracts.md
-06 language_parity_and_style.md
-...
-```
+## Reading sequence (with “why”)
 
-1. **Coding style & parity first (short)**
-   - `CODING_STYLE_MUST_READ.md` and `STYLE_AND_PARITY.md`
-      *Why:* norms Codex must follow (no leading underscores in public Python/Mojo, `struct`+`fn` in Mojo, no 1–2 char names, deterministic RNG, doc rules).
-2. **Big-picture design**
-   - `GrowNet_Design_Spec_V5.md`
-      *Why:* end-to-end architecture (Region/Layer/Neuron/Slot), two-phase ticks, focus, growth, windowed wiring. 
-3. **Project Memory**
-   - PROJECT_MEMORY.md
-4. **Authoritative API surface**
-   - `GrowNet_Contract_v5_master.yaml` *(or)* `GrowNet_Contract_v4_master.yaml`
-      *Why:* public methods, fields, naming per language; the source of truth for signatures.
-5. **Growth (how + when)**
-   - `GROWTH.md` and `The_conditions_of_growth_in_simple_terms_for_all_parts.md` and `What_is_a_cooldown.md` and `GROWTH_CHEATSHEET.md`
-      *Why:* strict slot capacity + fallback, frozen slots, **fallback streak** → neuron growth, layer/region growth, cooldowns, deterministic auto-wiring.
-6. **Spatial Focus / Windowed wiring**
-   - `SPATIAL_FOCUS.md`
-      *Why:* 2D bins, VALID/SAME padding, **center rule (floor + clamp)**, **return = unique source subscriptions**, tract re-attachment on growth.
-7. **Testing & invariants**
-   - `TESTING.md`
-      *Why:* how to run tests, special env flags (e.g., delivered events, spatial metrics), what “pass” means.
-   - *(If present)* `Readiness_autogrowth_what_complete_looks_like.md`
-      *Why:* the exact **checklist** Codex must satisfy/verify (slots→neurons→layers→region).
-8. **Project overview (context)**
-   - `What_this_codebase_is_about.md` *(or)* `PROJECT_OVERVIEW.md`
-      *Why:* narrative “why” + terminology; helps Codex write better PR messages.
-9. **FAQ / Cheatsheets**
-   - `FAQ.md` *(and)* `FOCUS_AND_GROWTH_CHEATSHEET.md` (if present)
-      *Why:* quick clarifications on ticks, buses, frozen slots, cooldowns, growth order.
-10. **Demo / Runbooks**
-   - `DEMO_RUN.md` *(or)* `Demos.md`
-      *Why:* how to exercise focus, windowed wiring, growth; useful for Codex to validate patches.
-11. **PR & CR packs (if you plan to drive Codex via change requests)**
+1) **Overview & narrative context**  
+   - `What_This_Codebase_is_About_v2.md`  
+   - `GrowNet_in_Plain_Language_v2.md`  
+   - `GrowNet_Overview.md`  
+   *Why:* the “why” and the big picture for non-experts, PMs, and PR notes.
 
-- `codex/PR_*.md` *(in docs root or codex/docs)*
-- `codex/cr/PHASE_A.yaml`, `codex/cr/PHASE_B.yaml`, and individual `CR-*.yaml`
-   *Why:* procedural instructions Codex can apply; read after the spec/contract so it understands *why* each change exists.
+2) **Golden Rule (principle → behavior)**  
+   - `golden_rule.md`  
+   - `GrowNet_Golden_Rule_In_Plain_English.md`  
+   *Why:* anchors the line — **“When the world looks truly new, GrowNet makes room.”** Maps novelty → targeted, bounded growth at each rung (Slot → Neuron → Layer → Region).
 
-1. **Changelogs / Migration notes**
+3) **Tick & deterministic wiring fundamentals**  
+   - `tick_discipline.md`  
+   - `autowiring_and_tracts.md`  
+   *Why:* two-phase clock (A then B → end-tick + decay) and deterministic wiring (mesh rules; windowed tracts; re-attach on source growth).
 
-- `CHANGELOG.md` *and* `MIGRATION_NOTES.md`
-   *Why:* highlights semantic shifts (e.g., strict slot capacity, fencepost fixes in windowed wiring).
+4) **Language parity & style**  
+   - `language_parity_and_style.md` *(if present)*  
+   - `CODING_STYLE_MUST_READ.md`, `STYLE_AND_PARITY.md`  
+   *Why:* align naming, determinism, and public API shapes before reading code.
 
-1. **Language-specific READMEs (if present)**
+5) **Growth (how & when)**  
+   - `GROWTH.md`  
+   - `The_conditions_of_growth_in_simple_terms_for_all_parts.md`  
+   - `What_is_a_cooldown.md`  
+   - `GROWTH_CHEATSHEET.md`  
+   *Why:* strict slot capacity + deterministic fallback; freeze/unfreeze (prefer once); **fallback streak + cooldown ⇒ same-kind neuron growth**; region OR-trigger (avg-slots or % at-cap+fallback) with cooldown; **≤1 region growth per tick**; spillover **p = 1.0**.
 
-- `README_Java.txt`, `README_Cpp.txt`, `README_Mojo.md`, `README_Python.md`
-   *Why:* build/run instructions Codex needs to compile and test locally.
+6) **Spatial Focus / 2D windowed wiring**  
+   - `2D_Bins.md`  
+   - `2D_Bins_Spatial_Focus.md`  
+   - `SPATIAL_FOCUS.md`  
+   *Why:* FIRST-anchor 2D binning; SAME/VALID **center rule (floor + clamp)**; cross-window dedupe; **return = unique source count**; `Tract.attachSourceNeuron(...)` on source growth.
 
-------
+7) **Parallelism & determinism (PAL)**  
+   - `introducing_parallelism_concurrency_in_grownet.md`  
+   - `BENCHMARKS.md`  
+   *Why:* ordered reduction & stable tiling so results match across worker counts/devices.
 
-## Simple “stop rules” for Codex
+8) **Testing & “done” checklist**  
+   - `TESTING.md` *(if present)*  
+   - `Readiness_autogrowth_what_complete_looks_like.md` *(if present)*  
+   *Why:* what to run, env toggles (delivered events, spatial metrics), and exactly what “complete” means for growth parity.
 
-- **Version preference:** prefer `*_V5.*` over V4 (read V4 only if V5 missing or for history).
-- **Conflicts:** when doc and contract disagree, **contract wins** for signatures; **design spec** wins for behavior.
-- **Deprecated notes:** if a README contradicts `GROWTH.md` or `SPATIAL_FOCUS.md`, follow those two docs (they’re current).
+9) **Contract & Design (source of truth)**  
+   - `contracts/GrowNet_Contract_v5_master.yaml`  
+   - `GrowNet_Design_Spec_V5.md`  
+   *Why:* public surfaces + behavior spec. Use these to resolve any doc drift.
 
-------
+10) **Demos & bench**  
+    - `DEMO_RUN.md`  
+    - `src/bench/README.md`  
+    *Why:* quick validation paths (focus, windowed wiring, growth smoke).
 
-## Why this order works
+11) **FAQ / Cheatsheets**  
+    - `FAQ.md`  
+    - `FOCUS_AND_GROWTH_CHEATSHEET.md`
 
-- Codex learns **style** and **parity rules** first → fewer noisy diffs.
-- Then the **design** and **contract** give it the “what” and “how”.
-- **Growth** and **Spatial** detail the tricky parts.
-- **Testing** and the **readiness checklist** tell Codex how to **prove** it’s correct.
-- The **overview, FAQ, demos** improve patch rationale and commit messages.
-- Finally, **PR/CR packs** give it procedural steps to apply the changes safely.
+12) **Changelogs / Migration notes / PR packs**  
+    - `CHANGELOG.md`, `MIGRATION_NOTES.md`  
+    - `PRs/*`, `changelog/*`
 
+---
+
+## Cross-document invariants (pin these)
+
+- **Windowed wiring return:** *unique source count* (deduped), **not** raw edges.  
+- **Center rule:** SAME/VALID with **floor + clamp** centers.  
+- **Strict slot capacity & fallback:** fallback is the **only** pressure flag; allow empty-bootstrap exception.  
+- **Freeze/unfreeze:** `freeze_last_slot()`; `unfreeze_last_slot()` → *prefer last slot once*.  
+- **Neuron growth:** consecutive fallback streak ≥ `fallback_growth_threshold` **and** cooldown passed → grow **same kind**; **copy slot config**; **share bus**; deterministic (mesh-rule) rewiring.  
+- **Region growth (OR-trigger):** `avg_slots_threshold` **or** `percent_at_cap_fallback_threshold` + cooldown; **≤1 growth per region per tick**; spillover **p = 1.0**.  
+- **Bus decay:** inhibition *= decay; modulation = 1.0; `current_step += 1`.  
+- **PAL determinism:** ordered reductions; stable tiling; identical results across worker counts.  
+- **TypeScript-specific:** one growth **per layer per tick**; `percentAtCapFallbackThreshold` alias supported.  
+- **Mojo-specific:** no `let`; use `var`; **explicit `.copy()`** for containers/config; iterators yield references; avoid file-scope mutable globals.
+
+---
+
+## Stop rules (tie-breakers)
+
+- **Version preference:** prefer V5 over V4; read older versions for history only.  
+- **Contract vs. docs:** when procedure notes or READMEs conflict with Contract/Design Spec, **Contract (signatures)** + **Design Spec (behavior)** win.  
+- **Deprecated examples:** if any example contradicts `GROWTH.md` or `SPATIAL_FOCUS.md`, follow those two.
