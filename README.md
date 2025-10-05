@@ -185,6 +185,12 @@ A Rust workspace for Phase 1 (core data model + tick discipline + strict capac
 - Spatial Focus / 2D binning: `docs/2D_Bins.md`, `docs/2D_Bins_Spatial_Focus.md`
 - Benchmarks: `src/bench/README.md`
 
+### Creation & Growth quick reference
+
+For code‑level entry points showing when slots are allocated, when neurons/layers/regions grow, and the exact growth conditions and defaults, see:
+
+- `docs/CREATION_AND_GROWTH_POINTS.md`
+
 
 ------
 

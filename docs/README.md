@@ -25,6 +25,16 @@
 
 ------
 
+## Where creation and growth happen (quick reference)
+
+For code‑level entry points showing when slots are allocated, when neurons/layers/regions grow, and the exact conditions that trigger growth (with defaults), see:
+
+- docs/CREATION_AND_GROWTH_POINTS.md — Creation and Growth Points (Python, TypeScript, C++, Java, Mojo)
+
+This guide links directly to the core files and highlights the “strict capacity + fallback” semantics, fallback‑streak neuron growth, spillover layer adds (p=1.0), and region‑level policy triggers with cooldowns.
+
+------
+
 ## What you can build
 
 - **World models.** Stream structured sensory frames into 2D layers, wire via windowed/connect rules, and let growth allocate representational capacity where pressure is highest. 
