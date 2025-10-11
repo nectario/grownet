@@ -1,21 +1,21 @@
 # GrowNet Benchmark Kit
 
-This kit lets you benchmark your **Java, C++, Python, and Mojo** implementations of GrowNet with a
+This kit lets you benchmark your **Python, C++, Java, Mojo, Rust, and TypeScript** implementations of GrowNet with a
 consistent protocol and produce **rankings** across implementations. It is intentionally minimalistic
 (no external dependencies) and relies on each language runner to print a single JSON line per run.
 
 ## Quick start
 
-1. Adjust the runner commands in `bench/config.yaml` to match your project layout and build outputs.
-2. (Optional) Drop in your language-specific benchmark **runner files** from `bench/templates` into
+1. Adjust the runner commands in `src/bench/config.yaml` (or `src/bench/config.json`) to match your project layout and build outputs.
+2. (Optional) Drop in your language-specific benchmark **runner files** from `src/bench/templates` into
    your project (they are self-contained and only use public APIs).
 3. Run the orchestrator:
    
    ```bash
-   python bench/run_all.py --config bench/config.yaml
+   python src/bench/run_all.py --config src/bench/config.yaml
    ```
 
-4. See outputs in `bench/results/`:
+4. See outputs in `src/bench/results/`:
    * Raw JSON for each run
    * A consolidated JSON
    * A Markdown summary and a CSV
@@ -87,5 +87,10 @@ We include **template runners** for each language under `bench/templates/`. They
 touch public APIs. Copy them into your project (the comments at the top show suggested locations)
 and wire into your build.
 
-Then update `bench/config.yaml` commands to execute those runners.
+Then update `src/bench/config.yaml` (or `src/bench/config.json`) commands to execute those runners.
 
+Notes:
+- The orchestrator supports a simple schema (see `src/bench/config_blank.yaml`). If PyYAML is not installed, use a JSON config instead (we include `src/bench/config.json`).
+- We are moving toward per-language bench runners under each language directory (e.g., `src/python/bench/bench_py.py`, `src/cpp/bench/bench_main.cpp`, `src/java/ai/nektron/grownet/bench/BenchJava.java`, `src/mojo/bench/bench_mojo.mojo`, `src/rust/grownet-bench`, and `src/typescript/grownet-ts/src/bench/bench.ts`). Update the commands accordingly.
+- TypeScript runner uses ts-node (ESM loader). Ensure dev dependencies are installed (`npm ci && npm run build` or use the dev loader command in config).
+- Rust runner is a Cargo binary crate in the workspace (`grownet-bench`). Build with `cargo build -p grownet-bench --release`.

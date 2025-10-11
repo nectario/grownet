@@ -28,7 +28,7 @@ scenarios:
 language_targets:
   python:
     enabled: true
-    command: "python bench/py/bench_py.py --scenario {scenario} --json --params '{params_json}'"
+    command: "python src/python/bench/bench_py.py --scenario {scenario} --json --params '{params_json}'"
     cwd: "."
   cpp:
     enabled: false
@@ -40,5 +40,13 @@ language_targets:
     cwd: "."
   mojo:
     enabled: false
-    command: "mojo run bench/templates/mojo/bench_mojo.mojo --scenario {scenario} --json --params '{params_json}'"
+    command: "mojo run src/mojo/bench/bench_mojo.mojo --scenario {scenario} --json --params '{params_json}'"
     cwd: "."
+  rust:
+    enabled: true
+    command: "cargo run -q -p grownet-bench --release -- --scenario {scenario} --json --params '{params_json}'"
+    cwd: "src/rust"
+  typescript:
+    enabled: true
+    command: "npm run -s bench -- --scenario {scenario} --json --params '{params_json}'"
+    cwd: "src/typescript/grownet-ts"

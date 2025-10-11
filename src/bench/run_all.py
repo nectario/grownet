@@ -28,8 +28,8 @@ def fmt_ms(ns: int) -> float:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", default="bench/config.yaml")
-    ap.add_argument("--outdir", default="bench/results")
+    ap.add_argument("--config", default="src/bench/config.yaml")
+    ap.add_argument("--outdir", default="src/bench/results")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -70,7 +70,7 @@ def main():
                     "session_id": session_id,
                     "lang": lang,
                     "scenario": scenario_name,
-                    "wall_ms_including_driver": _fmt_ms(t1 - t0),
+                    "wall_ms_including_driver": fmt_ms(t1 - t0),
                     "raw_stdout": out,
                     "raw_stderr": err,
                     "ok": rc == 0,
@@ -87,9 +87,10 @@ def main():
                 all_rows.append(row)
 
                 # Persist per-run JSON
-                per_run_path = Path(args.outdir) / f"run_{session_id}_{lang}_{scenario_name}_{i+1}.json"
+                run_index = loop_index + 1
+                per_run_path = Path(args.outdir) / f"run_{session_id}_{lang}_{scenario_name}_{run_index}.json"
                 per_run_path.write_text(json.dumps(row, indent=2), encoding="utf-8")
-                print(f"[{lang} · {scenario_name}] run {i+1}/{runs}: {'OK' if rc==0 else 'FAIL'}")
+                print(f"[{lang} · {scenario_name}] run {run_index}/{runs}: {'OK' if rc==0 else 'FAIL'}")
 
     # Aggregate & rank
     def extract_ms(row):
@@ -104,7 +105,7 @@ def main():
 
     ranking = []
     for (lang, scenario), vals in summary.items():
-        good = [v for v_var in vals if isinstance(v, (int, float))]
+        good = [v for v in vals if isinstance(v, (int, float))]
         if not good:
             continue
         avg = sum(good)/len(good)
@@ -120,7 +121,7 @@ def main():
     # Markdown summary
     lines = ["# GrowNet Benchmark Summary", "", f"Session: `{session_id}`", ""]
     cur_sc = None
-    for row_index in ranking:
+    for r in ranking:
         if r["scenario"] != cur_sc:
             cur_sc = r["scenario"]
             lines += [f"## Scenario: {cur_sc}", "", "| Lang | avg (ms) | p50 (ms) | best (ms) | n |", "|---|---:|---:|---:|---:|"]
@@ -130,12 +131,12 @@ def main():
 
     # CSV
     csv_lines = ["lang,scenario,avg_ms,p50_ms,best_ms,n"]
-    for row_index in ranking:
+    for r in ranking:
         csv_lines.append(f"{r['lang']},{r['scenario']},{r['avg_ms']:.6f},{r['p50_ms']:.6f},{r['best_ms']:.6f},{r['n']}")
     (Path(args.outdir) / f"summary_{session_id}.csv").write_text("\n".join(csv_lines), encoding="utf-8")
 
     print("\n=== Ranking ===")
-    for row_index in ranking:
+    for r in ranking:
         print(f"{r['scenario']:>14} | {r['lang']:>6} | avg={r['avg_ms']:.3f} ms (p50={r['p50_ms']:.3f}, best={r['best_ms']:.3f}, n={r['n']})")
 
 if __name__ == "__main__":

@@ -1,0 +1,51 @@
+{
+  "runs": 5,
+  "warmup": 1,
+  "scenarios": {
+    "scalar_small": {
+      "description": "Single mixed layer; scalar tick; 50k ticks",
+      "params": {
+        "ticks": 50000,
+        "excitatory": 512,
+        "inhibitory": 64,
+        "modulatory": 16,
+        "input_value": 0.42,
+        "input_port": "analog"
+      }
+    },
+    "image_64x64": {
+      "description": "InputLayer2D -> mixed Layer -> OutputLayer2D; 100 frames",
+      "params": {
+        "frames": 100,
+        "height": 64,
+        "width": 64,
+        "excitatory": 512,
+        "inhibitory": 64,
+        "modulatory": 16,
+        "input_port": "pixels"
+      }
+    }
+  },
+  "language_targets": {
+    "python": {
+      "enabled": true,
+      "command": "python src/python/bench/bench_py.py --scenario {scenario} --json --params '{params_json}'",
+      "cwd": "."
+    },
+    "cpp": {
+      "enabled": false,
+      "command": "./cmake-build-release/bench_grownet --scenario {scenario} --json --params '{params_json}'",
+      "cwd": "."
+    },
+    "java": {
+      "enabled": false,
+      "command": "java -cp build/classes/java/main ai.nektron.grownet.bench.BenchJava --scenario {scenario} --json --params '{params_json}'",
+      "cwd": "."
+    },
+    "mojo": {
+      "enabled": false,
+      "command": "mojo run src/mojo/bench/bench_mojo.mojo --scenario {scenario} --json --params '{params_json}'",
+      "cwd": "."
+    }
+  }
+}

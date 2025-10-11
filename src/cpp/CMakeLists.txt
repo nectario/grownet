@@ -11,8 +11,10 @@ add_library(grownet
         InhibitoryNeuron.cpp
         ModulatoryNeuron.cpp
         Layer.cpp
-        demo/region_demo.cpp
+        Region.cpp
+        Tract.cpp
         src/TopographicWiring.cpp
+        src/TractWindowed.cpp
 )
 target_include_directories(grownet PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -29,3 +31,7 @@ target_link_libraries(topographic_demo PRIVATE grownet)
 # 2D tick demo
 add_executable(two_dim_tick_demo TwoDimTickDemo.cpp)
 target_link_libraries(two_dim_tick_demo PRIVATE grownet)
+
+# Bench: Input2D -> mixed layer -> Output2D, JSON output
+add_executable(bench_grownet bench/bench_main.cpp)
+target_link_libraries(bench_grownet PRIVATE grownet)

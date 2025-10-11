@@ -20,7 +20,9 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "vitest run",
     "dev": "node --loader ts-node/esm src/server/Server.ts",
-    "start": "node dist/server/Server.js"
+    "start": "node dist/server/Server.js",
+    "bench": "node --loader ts-node/esm src/bench/bench.ts",
+    "bench:dist": "npm run -s build && node dist/bench/bench.js"
   },
   "engines": {
     "node": ">=18"

@@ -1,0 +1,32 @@
+{
+  "runs": 1,
+  "warmup": 0,
+  "scenarios": {
+    "image_64x64": {
+      "description": "Quick sanity: 8x8 frames x2",
+      "params": { "frames": 2, "height": 8, "width": 8, "excitatory": 8, "inhibitory": 2, "modulatory": 1, "input_port": "pixels" }
+    }
+  },
+  "language_targets": {
+    "python": {
+      "enabled": true,
+      "command": "python src/python/bench/bench_py.py --scenario {scenario} --json --params '{params_json}'",
+      "cwd": "."
+    },
+    "rust": {
+      "enabled": true,
+      "command": "cargo run -q -p grownet-bench --release -- --scenario {scenario} --json --params '{params_json}'",
+      "cwd": "src/rust"
+    },
+    "java": {
+      "enabled": true,
+      "command": "bash src/java/tools/bench_run.sh --scenario {scenario} --json --params '{params_json}'",
+      "cwd": "."
+    },
+    "typescript": {
+      "enabled": true,
+      "command": "npm run -s bench:dist -- --scenario {scenario} --json --params '{params_json}'",
+      "cwd": "src/typescript/grownet-ts"
+    }
+  }
+}

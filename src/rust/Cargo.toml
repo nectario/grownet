@@ -1,5 +1,5 @@
 [workspace]
-members = ["grownet-core", "grownet-pal", "grownet-policy", "grownet-demos"]
+members = ["grownet-core", "grownet-pal", "grownet-policy", "grownet-demos", "grownet-bench"]
 resolver = "2"
 
 [workspace.package]
