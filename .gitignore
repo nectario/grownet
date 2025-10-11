@@ -1,21 +1,36 @@
-# pixi environments
-.pixi/*
-!.pixi/config.toml
-/cmake-build-*/
+# Build artifacts
+build/
+cmake-build-*/
 **/cmake-build-*/
-CMakeCache.txt
-CMakeFiles/
-JavaProject/
+target/
 
-# Maven build output
-/target/
+# Java
+**/.javac-sources.txt
+.javac-sources.txt
 
-# Python cache files
-__pycache__/
-*.pyc
-.idea
-*.iml
+# Python
+**/__pycache__/
 
+# Bench run outputs
+src/bench/results/
+src/bench/results_*/
 
-# Node
+# Node/TypeScript
 node_modules/
+src/typescript/grownet-ts/node_modules/
+src/typescript/grownet-ts/dist/
+
+# Lockfiles at repo root (package-level lockfiles should live next to package.json)
+package-lock.json
+
+# Archives
+*.zip
+
+# Tests mirror/symlinks
+src/test/
+
+# IDE project files
+.idea/
+**/.idea/
+*.iml
+src/bench/bench.iml
