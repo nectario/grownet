@@ -84,3 +84,29 @@ fn region_growth_or_trigger() {
     // Should have added at least one layer via region growth
     assert!(region.layers.len() >= 2);
 }
+
+#[test]
+fn region_one_growth_per_tick() {
+    let mut region = Region::new(1234);
+    let src = region.add_input_layer_2d(4, 4, 0.95);
+    let dst = region.add_output_layer_2d(4, 4, 0.95);
+    region.connect_layers_windowed(src, dst, 3, 3, 1, 1, Padding::Same);
+
+    region.growth_policy = GrowthPolicy {
+        avg_slots_threshold: 0.0,
+        percent_at_cap_fallback_threshold: 2.0, // off
+        max_layers: 64,
+        layer_cooldown_ticks: 0,
+    };
+
+    let frame = vec![1.0; 16];
+    let mut prev_layer_count = region.layers.len();
+    for _ in 0..5 {
+        let metrics = region.tick_2d(&frame, 4, 4);
+        assert!(metrics.delivered_events > 0);
+        let now_layer_count = region.layers.len();
+        assert!(now_layer_count >= prev_layer_count);
+        assert!(now_layer_count - prev_layer_count <= 1);
+        prev_layer_count = now_layer_count;
+    }
+}
