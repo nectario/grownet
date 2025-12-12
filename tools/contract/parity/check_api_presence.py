@@ -88,17 +88,23 @@ def scan_files_for_tokens(paths: Iterable[Path], tokens: list[str], repo_root: P
 
 def list_source_files(language: str, repo_root: Path) -> list[Path]:
     if language == "python":
-        return list((repo_root / "src/python").rglob("*.py"))
+        paths = list((repo_root / "src/python").rglob("*.py"))
+        return sorted(paths, key=lambda path: path.as_posix())
     if language == "cpp":
-        return list((repo_root / "src/cpp").rglob("*.h")) + list((repo_root / "src/cpp").rglob("*.cpp"))
+        paths = list((repo_root / "src/cpp").rglob("*.h")) + list((repo_root / "src/cpp").rglob("*.cpp"))
+        return sorted(paths, key=lambda path: path.as_posix())
     if language == "java":
-        return list((repo_root / "src/java").rglob("*.java"))
+        paths = list((repo_root / "src/java").rglob("*.java"))
+        return sorted(paths, key=lambda path: path.as_posix())
     if language == "mojo":
-        return list((repo_root / "src/mojo").rglob("*.mojo"))
+        paths = list((repo_root / "src/mojo").rglob("*.mojo"))
+        return sorted(paths, key=lambda path: path.as_posix())
     if language == "typescript":
-        return list((repo_root / "src/typescript/grownet-ts/src").rglob("*.ts"))
+        paths = list((repo_root / "src/typescript/grownet-ts/src").rglob("*.ts"))
+        return sorted(paths, key=lambda path: path.as_posix())
     if language == "rust":
-        return list((repo_root / "src/rust").rglob("*.rs"))
+        paths = list((repo_root / "src/rust").rglob("*.rs"))
+        return sorted(paths, key=lambda path: path.as_posix())
     return []
 
 

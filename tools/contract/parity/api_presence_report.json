@@ -22,17 +22,17 @@
         "Region": {
           "findings": [
             {
-              "evidence": "src/cpp/Region.h",
+              "evidence": "src/cpp/Region.cpp",
               "present": true,
               "required": "connectLayersWindowed"
             },
             {
-              "evidence": "src/cpp/Region.h",
+              "evidence": "src/cpp/Region.cpp",
               "present": true,
               "required": "requestLayerGrowth"
             },
             {
-              "evidence": "src/cpp/Region.h",
+              "evidence": "src/cpp/Region.cpp",
               "present": true,
               "required": "maybeGrowRegion"
             }
@@ -43,12 +43,12 @@
         "SlotEngine": {
           "findings": [
             {
-              "evidence": "src/cpp/SlotEngine.h",
+              "evidence": "src/cpp/Neuron.cpp",
               "present": true,
               "required": "selectOrCreateSlot"
             },
             {
-              "evidence": "src/cpp/SlotEngine.h",
+              "evidence": "src/cpp/SlotEngine.cpp",
               "present": true,
               "required": "selectOrCreateSlot2D"
             }
@@ -59,7 +59,7 @@
         "Tract": {
           "findings": [
             {
-              "evidence": "src/cpp/Tract.h",
+              "evidence": "src/cpp/Region.cpp",
               "present": true,
               "required": "attachSourceNeuron"
             }
