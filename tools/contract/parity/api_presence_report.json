@@ -6,12 +6,12 @@
         "Layer": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Layer.h",
+              "evidence": "src/cpp/Layer.h",
               "present": true,
               "required": "endTick"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Layer.h",
+              "evidence": "src/cpp/Layer.h",
               "present": true,
               "required": "tryGrowNeuron"
             }
@@ -22,17 +22,17 @@
         "Region": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Region.h",
+              "evidence": "src/cpp/Region.h",
               "present": true,
               "required": "connectLayersWindowed"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Region.h",
+              "evidence": "src/cpp/Region.h",
               "present": true,
               "required": "requestLayerGrowth"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Region.h",
+              "evidence": "src/cpp/Region.h",
               "present": true,
               "required": "maybeGrowRegion"
             }
@@ -43,12 +43,12 @@
         "SlotEngine": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/SlotEngine.h",
+              "evidence": "src/cpp/SlotEngine.h",
               "present": true,
               "required": "selectOrCreateSlot"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/SlotEngine.h",
+              "evidence": "src/cpp/SlotEngine.h",
               "present": true,
               "required": "selectOrCreateSlot2D"
             }
@@ -59,7 +59,7 @@
         "Tract": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Tract.h",
+              "evidence": "src/cpp/Tract.h",
               "present": true,
               "required": "attachSourceNeuron"
             }
@@ -75,12 +75,12 @@
         "Layer": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/LateralBus.java",
+              "evidence": "src/java/ai/nektron/grownet/LateralBus.java",
               "present": true,
               "required": "endTick"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Layer.java",
+              "evidence": "src/java/ai/nektron/grownet/Layer.java",
               "present": true,
               "required": "tryGrowNeuron"
             }
@@ -91,17 +91,17 @@
         "Region": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Region.java",
+              "evidence": "src/java/ai/nektron/grownet/Region.java",
               "present": true,
               "required": "connectLayersWindowed"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Layer.java",
+              "evidence": "src/java/ai/nektron/grownet/Layer.java",
               "present": true,
               "required": "requestLayerGrowth"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Region.java",
+              "evidence": "src/java/ai/nektron/grownet/Region.java",
               "present": true,
               "required": "maybeGrowRegion"
             }
@@ -112,12 +112,12 @@
         "SlotEngine": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Neuron.java",
+              "evidence": "src/java/ai/nektron/grownet/Neuron.java",
               "present": true,
               "required": "selectOrCreateSlot"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Neuron.java",
+              "evidence": "src/java/ai/nektron/grownet/Neuron.java",
               "present": true,
               "required": "getConfig"
             }
@@ -128,7 +128,7 @@
         "Tract": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Region.java",
+              "evidence": "src/java/ai/nektron/grownet/Region.java",
               "present": true,
               "required": "attachSourceNeuron"
             }
@@ -144,12 +144,12 @@
         "Layer": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/layer.mojo",
+              "evidence": "src/mojo/layer.mojo",
               "present": true,
               "required": "fn end_tick"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/layer.mojo",
+              "evidence": "src/mojo/layer.mojo",
               "present": true,
               "required": "fn try_grow_neuron"
             }
@@ -160,12 +160,12 @@
         "Region": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/region.mojo",
+              "evidence": "src/mojo/region.mojo",
               "present": true,
               "required": "fn connect_layers_windowed"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/region.mojo",
+              "evidence": "src/mojo/region.mojo",
               "present": true,
               "required": "fn request_layer_growth"
             }
@@ -176,12 +176,12 @@
         "SlotEngine": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/slot_engine.mojo",
+              "evidence": "src/mojo/slot_engine.mojo",
               "present": true,
               "required": "fn select_or_create_slot"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/slot_engine.mojo",
+              "evidence": "src/mojo/slot_engine.mojo",
               "present": true,
               "required": "fn select_or_create_slot_2d"
             }
@@ -192,7 +192,7 @@
         "Tract": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/tract.mojo",
+              "evidence": "src/mojo/tract.mojo",
               "present": true,
               "required": "fn attach_source_neuron"
             }
@@ -208,12 +208,12 @@
         "Layer": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/layer.py",
+              "evidence": "src/python/layer.py",
               "present": true,
               "required": "def end_tick"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/layer.py",
+              "evidence": "src/python/layer.py",
               "present": true,
               "required": "def try_grow_neuron"
             }
@@ -224,32 +224,32 @@
         "Region": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "evidence": "src/python/region.py",
               "present": true,
               "required": "def add_layer"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "evidence": "src/python/region.py",
               "present": true,
               "required": "def add_input_layer_2d"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "evidence": "src/python/region.py",
               "present": true,
               "required": "def add_output_layer_2d"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "evidence": "src/python/region.py",
               "present": true,
               "required": "def connect_layers_windowed"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "evidence": "src/python/region.py",
               "present": true,
               "required": "def set_growth_policy"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "evidence": "src/python/region.py",
               "present": true,
               "required": "def tick_2d"
             }
@@ -260,12 +260,12 @@
         "SlotEngine": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/slot_engine.py",
+              "evidence": "src/python/slot_engine.py",
               "present": true,
               "required": "def select_or_create_slot"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/slot_engine.py",
+              "evidence": "src/python/slot_engine.py",
               "present": true,
               "required": "def select_or_create_slot_2d"
             }
@@ -276,7 +276,7 @@
         "Tract": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/tract.py",
+              "evidence": "src/python/tract.py",
               "present": true,
               "required": "def attach_source_neuron"
             }
@@ -292,7 +292,7 @@
         "Layer": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-core/src/layer.rs",
+              "evidence": "src/rust/grownet-core/src/layer.rs",
               "present": true,
               "required": "end_tick"
             }
@@ -303,12 +303,12 @@
         "Region": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-bench/src/main.rs",
+              "evidence": "src/rust/grownet-bench/src/main.rs",
               "present": true,
               "required": "connect_layers_windowed"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-bench/src/main.rs",
+              "evidence": "src/rust/grownet-bench/src/main.rs",
               "present": true,
               "required": "tick_2d"
             }
@@ -319,12 +319,12 @@
         "SlotEngine": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-core/src/neuron.rs",
+              "evidence": "src/rust/grownet-core/src/neuron.rs",
               "present": true,
               "required": "observe_scalar"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-core/src/neuron.rs",
+              "evidence": "src/rust/grownet-core/src/neuron.rs",
               "present": true,
               "required": "observe_two_d"
             }
@@ -335,7 +335,7 @@
         "Tract": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-core/src/tract.rs",
+              "evidence": "src/rust/grownet-core/src/tract.rs",
               "present": true,
               "required": "attach_source_neuron"
             }
@@ -351,12 +351,12 @@
         "Layer": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "evidence": "src/typescript/grownet-ts/src/Region.ts",
               "present": true,
               "required": "endTick"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/core/Layer.ts",
+              "evidence": "src/typescript/grownet-ts/src/core/Layer.ts",
               "present": true,
               "required": "tryGrowNeuron"
             }
@@ -367,22 +367,22 @@
         "Region": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "evidence": "src/typescript/grownet-ts/src/Region.ts",
               "present": true,
               "required": "connectLayersWindowed"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "evidence": "src/typescript/grownet-ts/src/Region.ts",
               "present": true,
               "required": "setGrowthPolicy"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "evidence": "src/typescript/grownet-ts/src/Region.ts",
               "present": true,
               "required": "tick2D"
             },
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "evidence": "src/typescript/grownet-ts/src/Region.ts",
               "present": true,
               "required": "tickND"
             }
@@ -398,7 +398,7 @@
         "Tract": {
           "findings": [
             {
-              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "evidence": "src/typescript/grownet-ts/src/Region.ts",
               "present": true,
               "required": "attachSourceNeuron"
             }

@@ -63,7 +63,7 @@ def snake_to_camel(snake_name: str) -> str:
     return head + "".join(tail_parts)
 
 
-def scan_files_for_tokens(paths: Iterable[Path], tokens: list[str]) -> dict[str, PresenceFinding]:
+def scan_files_for_tokens(paths: Iterable[Path], tokens: list[str], repo_root: Path) -> dict[str, PresenceFinding]:
     findings: dict[str, PresenceFinding] = {}
     for token in tokens:
         findings[token] = PresenceFinding(required=token, present=False, evidence=None)
@@ -78,7 +78,11 @@ def scan_files_for_tokens(paths: Iterable[Path], tokens: list[str]) -> dict[str,
             if findings[token].present:
                 continue
             if compiled[token].search(text) is not None:
-                findings[token] = PresenceFinding(required=token, present=True, evidence=str(path))
+                try:
+                    evidence_path = path.relative_to(repo_root).as_posix()
+                except ValueError:
+                    evidence_path = path.as_posix()
+                findings[token] = PresenceFinding(required=token, present=True, evidence=evidence_path)
     return findings
 
 
@@ -213,7 +217,7 @@ def main(argv: list[str]) -> int:
         for tokens in categories.values():
             all_tokens.extend(tokens)
 
-        findings = scan_files_for_tokens(source_files, all_tokens)
+        findings = scan_files_for_tokens(source_files, all_tokens, repo_root)
         report_language: dict[str, Any] = {"categories": {}, "pass": True}
 
         for category_name, tokens in categories.items():
