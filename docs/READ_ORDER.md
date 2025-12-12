@@ -1,94 +1,123 @@
-# GrowNet – Reading Order (authoritative)
+# GrowNet — Reading Order (GPT‑5.2 / Codex memory transfer)
 
-> **When documents disagree:** the **Contract v5** and the **Design Spec V5** win for public APIs and behavior.  
-> **Style & determinism:** Coding style, naming, and determinism/growth invariants are **non-negotiable** across languages.  
-> **Version rule:** prefer the newest version (e.g., V5 over V4), treat older ones as history only.
+This file defines the **authoritative reading sequence** for internalizing GrowNet quickly and correctly.
 
----
+## Tie‑breakers (when docs disagree)
 
-## Reading sequence (with “why”)
+1. **GrowNet_Contract_v5_master.yaml** — source of truth for **public APIs** and **cross‑language invariants**.
+2. **GrowNet_Design_Spec_V5.md** — source of truth for **behavior** (growth rules, determinism, tick phases).
+3. **CODING_STYLE_MUST_READ.md** — source of truth for **style rules** (naming, determinism, clean code).
+4. Everything else — helpful guidance, but must not contradict the above.
 
-1) **Overview & narrative context**  
-   - `What_This_Codebase_is_About_v2.md`  
-   - `GrowNet_in_Plain_Language_v2.md`  
-   - `GrowNet_Overview.md`  
-   *Why:* the “why” and the big picture for non-experts, PMs, and PR notes.
-
-2) **Golden Rule (principle → behavior)**  
-   - `golden_rule.md`  
-   - `GrowNet_Golden_Rule_In_Plain_English.md`  
-   *Why:* anchors the line — **“When the world looks truly new, GrowNet makes room.”** Maps novelty → targeted, bounded growth at each rung (Slot → Neuron → Layer → Region).
-
-3) **Tick & deterministic wiring fundamentals**  
-   - `tick_discipline.md`  
-   - `autowiring_and_tracts.md`  
-   *Why:* two-phase clock (A then B → end-tick + decay) and deterministic wiring (mesh rules; windowed tracts; re-attach on source growth).
-
-4) **Language parity & style**  
-   - `language_parity_and_style.md` *(if present)*  
-   - `CODING_STYLE_MUST_READ.md`, `STYLE_AND_PARITY.md`  
-   *Why:* align naming, determinism, and public API shapes before reading code.
-
-5) **Growth (how & when)**  
-   - `GROWTH.md`  
-   - `The_conditions_of_growth_in_simple_terms_for_all_parts.md`  
-   - `What_is_a_cooldown.md`  
-   - `GROWTH_CHEATSHEET.md`  
-   *Why:* strict slot capacity + deterministic fallback; freeze/unfreeze (prefer once); **fallback streak + cooldown ⇒ same-kind neuron growth**; region OR-trigger (avg-slots or % at-cap+fallback) with cooldown; **≤1 region growth per tick**; spillover **p = 1.0**.
-
-6) **Spatial Focus / 2D windowed wiring**  
-   - `2D_Bins.md`  
-   - `2D_Bins_Spatial_Focus.md`  
-   - `SPATIAL_FOCUS.md`  
-   *Why:* FIRST-anchor 2D binning; SAME/VALID **center rule (floor + clamp)**; cross-window dedupe; **return = unique source count**; `Tract.attachSourceNeuron(...)` on source growth.
-
-7) **Parallelism & determinism (PAL)**  
-   - `introducing_parallelism_concurrency_in_grownet.md`  
-   - `BENCHMARKS.md`  
-   *Why:* ordered reduction & stable tiling so results match across worker counts/devices.
-
-8) **Testing & “done” checklist**  
-   - `TESTING.md` *(if present)*  
-   - `Readiness_autogrowth_what_complete_looks_like.md` *(if present)*  
-   *Why:* what to run, env toggles (delivered events, spatial metrics), and exactly what “complete” means for growth parity.
-
-9) **Contract & Design (source of truth)**  
-   - `contracts/GrowNet_Contract_v5_master.yaml`  
-   - `GrowNet_Design_Spec_V5.md`  
-   *Why:* public surfaces + behavior spec. Use these to resolve any doc drift.
-
-10) **Demos & bench**  
-    - `DEMO_RUN.md`  
-    - `src/bench/README.md`  
-    *Why:* quick validation paths (focus, windowed wiring, growth smoke).
-
-11) **FAQ / Cheatsheets**  
-    - `FAQ.md`  
-    - `FOCUS_AND_GROWTH_CHEATSHEET.md`
-
-12) **Changelogs / Migration notes / PR packs**  
-    - `CHANGELOG.md`, `MIGRATION_NOTES.md`  
-    - `PRs/*`, `changelog/*`
+> **Version rule:** prefer the newest document (e.g., v5 over v3). Older versions belong in docs/archive/.
 
 ---
 
-## Cross-document invariants (pin these)
+## Fast path (recommended first pass)
 
-- **Windowed wiring return:** *unique source count* (deduped), **not** raw edges.  
-- **Center rule:** SAME/VALID with **floor + clamp** centers.  
-- **Strict slot capacity & fallback:** fallback is the **only** pressure flag; allow empty-bootstrap exception.  
-- **Freeze/unfreeze:** `freeze_last_slot()`; `unfreeze_last_slot()` → *prefer last slot once*.  
-- **Neuron growth:** consecutive fallback streak ≥ `fallback_growth_threshold` **and** cooldown passed → grow **same kind**; **copy slot config**; **share bus**; deterministic (mesh-rule) rewiring.  
-- **Region growth (OR-trigger):** `avg_slots_threshold` **or** `percent_at_cap_fallback_threshold` + cooldown; **≤1 growth per region per tick**; spillover **p = 1.0**.  
-- **Bus decay:** inhibition *= decay; modulation = 1.0; `current_step += 1`.  
-- **PAL determinism:** ordered reductions; stable tiling; identical results across worker counts.  
-- **TypeScript-specific:** one growth **per layer per tick**; `percentAtCapFallbackThreshold` alias supported.  
-- **Mojo-specific:** no `let`; use `var`; **explicit `.copy()`** for containers/config; iterators yield references; avoid file-scope mutable globals.
+Read these in order to load the correct mental model fast:
+
+1) **Overview & narrative context**
+   - `What_This_Codebase_is_About_v2.md`
+   - `GrowNet_in_Plain_Language_v2.md`
+   - `GrowNet_Overview.md`
+   - `CONTEXT_GrowNet_Vision.md`
+   - `README.md`
+   *Why:* big picture, motivation, and non‑expert framing.
+
+2) **The Golden Rule (principle → mechanism)**
+   - `GOLDEN_RULE.md`
+   - `GrowNet_Golden_Rule_In_Plain_English.md`
+   *Why:* anchors the core promise: **“When the world looks truly new, GrowNet makes room.”**
+
+3) **Contract + Design Spec (authoritative)**
+   - `GrowNet_Contract_v5_master.yaml`
+   - `GrowNet_Design_Spec_V5.md`
+   *Why:* defines the public surface and the exact invariants (growth, determinism, tick discipline).
+
+4) **Style, parity, and “don’t break determinism” rules**
+   - `CODING_STYLE_MUST_READ.md`
+   - `STYLE_AND_PARITY.md`
+   *Why:* keeps implementations consistent across **Python / C++ / Java / Mojo / TypeScript / Rust**.
+
+5) **Growth (Slots → Neurons → Layers → Regions)**
+   - `GROWTH.md`
+   - `GROWTH_CHEATSHEET.md`
+   - `FOCUS_AND_GROWTH_CHEATSHEET.md`
+   - `CREATION_AND_GROWTH_POINTS.md`
+   - `The_conditions_of_growth_in_simple_terms_for_all_parts.md`
+   - `What_is_a_cooldown.md`
+   *Why:* exact triggers, cooldowns, and the “one growth per region per tick” safety invariant.
+
+6) **Spatial focus / 2D windowed wiring**
+   - `SPATIAL_FOCUS.md`
+   - `2D_Bins.md`
+   - `ANCHOR_GUIDELINES.md`
+   - `2D_Bins_Spatial_Focus.md`
+   - `ProximityPolicy.md` (optional policy)
+   *Why:* FIRST‑anchor 2D binning; SAME/VALID **center mapping**; **dedupe semantics**; return value is **unique source count**; and `Tract.attach_source_neuron(...)` / `attachSourceNeuron(...)` on source growth.
+
+7) **Parallelism (PAL) + determinism**
+   - `Parallelism_Concurrency_Abstraction.md`
+   - `introducing_parallelism_concurrency_in_grownet.md`
+   - `BENCHMARKS.md`
+   *Why:* ordered reductions + stable tiling so results match across worker counts/devices.
+
+8) **Quality gates**
+   - `TESTING.md`
+   - `Readiness_autogrowth_what_complete_looks_like.md`
+   *Why:* defines “done” for parity and regression safety.
+
+9) **Learning yield metrics (new)**
+   - `Knowledge_Units_in_GrowNet.md`
+   - `KU_BKU_Evaluation_Protocol.md`
+   *Why:* KU/BKU are a language‑agnostic way to talk about **per‑sample learning yield** and **bad knowledge** (hallucination/bias) separately.
 
 ---
 
-## Stop rules (tie-breakers)
+## Deep path (second pass)
 
-- **Version preference:** prefer V5 over V4; read older versions for history only.  
-- **Contract vs. docs:** when procedure notes or READMEs conflict with Contract/Design Spec, **Contract (signatures)** + **Design Spec (behavior)** win.  
-- **Deprecated examples:** if any example contradicts `GROWTH.md` or `SPATIAL_FOCUS.md`, follow those two.
+These are “operator docs” and are recommended once the fast path is loaded:
+
+10) **Hands‑on engineering guides**
+   - `GrowNet_Quick_Start_for_Engineers.md`
+   - `GrowNet_Tutorial.md`
+   - `GrowNet_API_One_Pager.md`
+   - `DEMO_RUN.md`
+
+11) **Debugging and interpretation**
+   - `GrowNet_Debugging.md`
+   - `INTERPRETATION_GUIDE.md`
+   - `GLOSSARY.md`
+   - `FAQ.md`
+
+12) **Contribution workflow**
+   - `CONTRIBUTING.md`
+   - `CHANGELOG.md`
+
+---
+
+## Code reading pointers (after docs)
+
+Once the above is read, review code per language:
+
+- **Python:** `src/python/`
+- **C++:** `src/cpp/`
+- **Java:** `src/java/`
+- **Mojo:** `src/mojo/`
+- **TypeScript:** `src/typescript/`
+- **Rust:** `src/rust/`
+
+Then review benchmarks + stress harness:
+
+- `src/bench/`
+- scripts/ (if present in your tree)
+- `BENCHMARKS.md`
+
+---
+
+## Stop rules
+
+- If any README/tutorial disagrees with the contract/spec, **contract + design spec win**.
+- If any doc implies non‑determinism or “random growth,” it is stale—fix or archive it.
+- If any doc references files that no longer exist, update the references immediately.

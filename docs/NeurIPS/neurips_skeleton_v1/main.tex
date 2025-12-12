@@ -1,0 +1,61 @@
+\documentclass{article}
+
+% Use the official NeurIPS 2025 style file placed in this directory.
+% IMPORTANT: For anonymous submission, DO NOT pass [preprint] or [final].
+% Line numbers are added automatically during submission.
+\usepackage{neurips_2025}
+
+% Common packages (keep minimal and template-compliant)
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{amsmath, amssymb}
+\usepackage{enumitem}
+
+\title{GrowNet: Learning-first, self-growing neural networks with slot-gated neurons}
+
+% Anonymous by default; fill only for camera-ready
+\author{Anonymous Authors}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We introduce GrowNet, an online, locally learned architecture whose neurons contain independent slots with adaptive thresholds (T0+T2) and bounded reinforcement. GrowNet supports growth on out-of-distribution stimuli and relies on lateral buses for inhibition and modulation, without backpropagation. On few-shot image tasks, GrowNet aims to match baselines with substantially less data. We detail the mechanism and provide evidence across controlled benchmarks.
+\end{abstract}
+
+\section{Introduction}
+\input{sections/intro}
+
+\section{Related Work}
+\input{sections/related}
+
+\section{Method}
+\input{sections/method}
+
+\section{Experiments}
+\input{sections/experiments}
+
+\section{Results}
+\input{sections/results}
+
+\section{Limitations and Broader Impact}
+\input{sections/limitations}
+
+\section{Conclusion}
+\input{sections/conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{main}
+
+% The official NeurIPS checklist is included via the style; keep it enabled.
+% Follow the NeurIPS CFP and checklist guidance precisely.
+
+\end{document}

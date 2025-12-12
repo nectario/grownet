@@ -1,0 +1,5 @@
+\paragraph{Problem.} Modern deep learning relies on large IID datasets and offline training; continual, online learning with data-efficiency remains challenging.
+
+\paragraph{Idea.} \textbf{GrowNet} is an event-driven architecture where each neuron contains multiple slot-like subunits with adaptive thresholds (T0 imprint + T2 homeostasis). Learning is local and bounded; capacity grows when stimuli fall outside covered regimes.
+
+\paragraph{Contributions.} (i) A unified onInput/onOutput neuron contract enabling clean actuator boundaries; (ii) a hybrid T0+T2 threshold update rule that stabilizes spike rates near a target; (iii) a simple growth/pruning policy; (iv) cross-language reference implementations (Python/Java/C++/Mojo) and image I/O demos.

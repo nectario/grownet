@@ -1,0 +1,97 @@
+# GROWTH.md — How GrowNet grows
+
+GrowNet follows a simple escalation rule:
+ 
+1. Grow slots until the per‑neuron `slot_limit` is reached.
+2. If novelty still pushes into the fallback bin repeatedly, grow a neuron in that layer.
+3. If a layer reaches its neuron limit and novelty pressure persists, grow a new layer (optional, off by default).
+
+## When do we add a neuron?
+
+On each input, the neuron selects/creates a slot. If capacity is saturated, the engine reuses a deterministic fallback bin.
+If the neuron hits that fallback bin `fallback_growth_threshold` times in a row (default 3), and growth is enabled, the
+layer will add a new neuron.
+
+- Cooldown: `neuron_growth_cooldown_ticks` (default 10) to avoid thrash.
+- Toggles: `growth_enabled=True`, `neuron_growth_enabled=True` (defaults).
+- Limits: `Layer.neuron_limit` (or `SlotConfig.layer_neuron_limit_default`) can cap the layer’s size.
+
+### Optional stricter neuron-growth guards
+
+Two opt-in knobs provide additional control without changing defaults:
+
+- `fallback_growth_requires_same_missing_slot` (bool, default `False`)
+  - Only count toward the growth streak when the same missing slot id is requested on consecutive ticks.
+- `min_delta_pct_for_growth` (float, default `0.0`)
+  - Gate growth by novelty magnitude; only fallback events with a delta percentage at or above this threshold contribute to the streak.
+  - For 2D slots the gate uses `max(row_delta_pct, col_delta_pct)`.
+
+These guards reset the fallback streak whenever the conditions are not met. Ordinary mid-range slots (like 10–20%) never trigger growth on their own; capacity and fallback streak are still required.
+
+## Wiring the new neuron
+
+- For random mesh connections created via `Region.connect_layers(...)`, the region stores a rule.
+  When a neuron is added, we wire:
+  - Outbound: new source → all neurons in each recorded dest layer (Bernoulli with recorded probability).
+  - Inbound: all neurons in each recorded src layer → new target (same probability).
+- For tract/windowed pipelines created via `Region.connect_layers_windowed(...)`, the region stores the `Tract` object
+  and calls `attach_source_neuron(new_idx)` so events flow into downstream exactly like peers if the layer was a source.
+
+This keeps growth deterministic and transparent.
+
+## Layer growth (optional)
+
+If `layer_growth_enabled=True` and the layer hits `neuron_limit`, the region calls `request_layer_growth(...)`. The default
+implementation adds a small spillover layer and wires `saturated → new` with a modest probability. You can refine this
+in follow‑ups (e.g., duplicate inbound mesh rules to the new layer).
+
+## Knobs (per‑neuron via `slot_cfg`)
+
+- `growth_enabled` (bool, default True)
+- `neuron_growth_enabled` (bool, default True)
+- `fallback_growth_threshold` (int, default 3)
+- `neuron_growth_cooldown_ticks` (int, default 10)
+- `layer_growth_enabled` (bool, default False)
+- `layer_neuron_limit_default` (int, default -1 = unlimited)
+- Layers may override `neuron_limit` at construction.
+
+Parity notes
+- C++ and Java mirror Python semantics: strict slot capacity (never allocate at cap), fallback streak triggers neuron growth with cooldown using the bus step counter, and new neurons are auto‑wired using recorded mesh rules. Region pruning remains a no‑op stub in C++/Java until full pruning lands.
+
+## Region Growth (automatic layer creation)
+
+After slot and neuron growth, GrowNet can add a new layer automatically when novelty pressure remains high.
+
+Triggers (either):
+- `avg_slots_per_neuron ≥ avg_slots_threshold`, or
+- `%{ neurons at capacity AND using fallback } ≥ percent_neurons_at_cap_threshold`.
+
+Safety:
+- `layer_cooldown_ticks` ensures layers aren’t added too frequently.
+- `max_total_layers` caps total layers in the region.
+
+Action:
+- Add a small E‑only spillover layer (`new_layer_excitatory_count`, default 4).
+- Wire previous → new with probability `wire_probability` (default 1.0, deterministic).
+- Reuse the same deterministic rules as `connect_layers(...)`.
+
+Enable (Python):
+```python
+from growth import GrowthPolicy
+policy = GrowthPolicy(
+    enable_layer_growth=True,
+    max_total_layers=16,
+    avg_slots_threshold=2.0,
+    percent_neurons_at_cap_threshold=50.0,
+    layer_cooldown_ticks=5,
+    new_layer_excitatory_count=4,
+    wire_probability=1.0,
+)
+region.set_growth_policy(policy)
+```
+
+### Parity & tract re‑attachment
+
+- C++ / Java parity: regions now evaluate a simple pressure signal at end‑of‑tick (share of neurons that were at capacity and were forced to reuse a fallback bin on this tick). When above the policy threshold and after a cooldown, a small spillover layer is added and auto‑wired using the recorded mesh rules.
+- Tract re‑attachment on neuron growth: when a layer grows a neuron, windowed projections (or any Tracts bridging that layer) must subscribe the new source neuron so its spikes flow downstream. Python has done this via `Tract.attach_source_neuron(...)`. C++ and Java add `attachSourceNeuron(int)` and call it from `Region.autowireNewNeuron(...)`. Without this step, grown sources would not participate in existing Tract deliveries.
+- Mojo scaffold: `growth_policy.mojo` + `growth_engine.mojo` mirror the Python semantics; call `maybe_grow(...)` from Region’s end‑of‑tick path.

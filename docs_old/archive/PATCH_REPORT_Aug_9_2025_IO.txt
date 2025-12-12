@@ -1,0 +1,21 @@
+Detected roots -> python: /mnt/data/refactor_work/python, java: /mnt/data/refactor_work/java, cpp: /mnt/data/refactor_work/cpp, mojo: /mnt/data/refactor_work/mojo
+Python: Added Neuron.onOutput no-op
+Python: layer.py unchanged (onOutput likely already called)
+Python: input_neuron.py already present; left as-is
+Python: output_neuron.py already present; left as-is
+Python: input_layer_2d.py already present; left as-is
+Python: output_layer_2d.py already present; left as-is
+Java: Added Neuron.onOutput no-op
+Java: Layer.java unchanged (onOutput likely already called or pattern not found)
+Java: InputNeuron.java present; left as-is
+Java: OutputNeuron.java present; left as-is
+Java: InputLayer2D.java present; left as-is
+Java: OutputLayer2D.java present; left as-is
+Mojo: Added Neuron.onOutput no-op
+Mojo: layer.mojo unchanged (pattern not found or onOutput already present)
+C++: Added virtual onInput/onOutput to Neuron.h (heuristic)
+C++: Layer.h unchanged (pattern not found)
+C++: InputNeuron.h present; left as-is
+C++: OutputNeuron.h present; left as-is
+C++: InputLayer2D.h present; left as-is
+C++: OutputLayer2D.h present; left as-is

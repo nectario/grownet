@@ -1,6 +1,6 @@
 # GrowNet — What This Codebase Is About
 
-GrowNet is an event‑driven, neuron‑centric research codebase. Neurons don’t hold a single scalar “activation” with a bias; instead, each neuron manages a set of *slots* that specialize to different input regimes over time. Learning is local (no backprop), and capacity can grow as distributions drift. Cross‑language implementations (Python, C++, Java, Mojo) expose nearly identical public APIs around regions, layers, neuron types, lateral buses, and shape‑aware I/O. 
+GrowNet is an event‑driven, neuron‑centric research codebase. Neurons don’t hold a single scalar “activation” with a bias; instead, each neuron manages a set of *slots* that specialize to different input regimes over time. Learning is local (no backprop), and capacity can grow as distributions drift. Cross‑language implementations (Python, C++, Java, Mojo, TypeScript, and Rust) expose nearly identical public APIs around regions, layers, neuron types, lateral buses, and shape‑aware I/O. 
 
 ------
 

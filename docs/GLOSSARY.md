@@ -1,4 +1,4 @@
-# GrowNet Glossary (v3)
+# GrowNet Glossary (v3.2)
 
 ## Core graph concepts
 
@@ -314,6 +314,8 @@
 - **Reinforcement** — weight update with modulation/inhibition scaling.
 - **Region** — top‑level orchestrator of layers, tick, wiring, prune.
 - **RegionMetrics** — per‑tick counters (deliveredEvents, totalSlots, totalSynapses).
+- **Knowledge Units (KU)** — per‑sample learning yield: how much **correct, generalizable structure** is gained beyond literal memorization.
+- **Bad Knowledge Units (BKU)** — per‑sample bad learning yield: how much **incorrect or harmful generalization** (hallucination/bias) is induced.
 - **Slot** — per‑neuron “bin” entry storing a **Weight**.
 - **SlotConfig / SlotEngine** — policy + logic for selecting/creating slots.
 - **Slot Limit** — cap on how many slots a neuron can keep (ADAPTIVE).

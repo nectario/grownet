@@ -45,11 +45,11 @@ This guide links directly to the core files and highlights the “strict capacit
 
 ## Cross‑language contract (v5)
 
-GrowNet’s **public surface and invariants** are defined by a language‑agnostic contract so Python, C++, Java, and Mojo behave the same. Highlights:
+GrowNet’s **public surface and invariants** are defined by a language‑agnostic contract so Python, C++, Java, Mojo, TypeScript, and Rust behave the same. Highlights:
 
 - **Invariants:** local, event‑driven learning; strict slot capacity & fallback marking; two‑phase tick; deterministic wiring; best‑effort growth; public APIs are no‑throw on normal ticks. 
 - **Windowed wiring (2D):** center‑mapping rule, dedupe semantics, **unique source count** return value, and `attach_source_neuron(new_src)` for deterministic re‑wiring after growth. 
-- **Naming/style:** snake_case in Python/Mojo, camelCase in Java, descriptive identifiers (avoid single‑ or double‑char names), and **no leading underscores** in public APIs. 
+- **Naming/style:** snake_case in Python/Mojo; camelCase/PascalCase in Java/C++/TypeScript; idiomatic snake_case/PascalCase in Rust; descriptive identifiers (avoid 1–2 character names), and **no leading underscores** in public APIs.
 
 > See the contract for the full API lists (Region/Layers/Neuron/Weight/Bus types and methods) and testable behaviors. 
 
@@ -85,7 +85,7 @@ Window wiring follows the **center rule** and returns the number of unique sourc
 GrowNet ships with a **Parallelism Abstraction Layer (PAL)** so call‑sites keep the same surface while we add backends:
 
 - **Deterministic reductions** (ordered or fixed tree) and **counter‑based RNG** keep results stable across worker counts/devices.
-- **Backends:** C++ (OpenMP when available), Java (bounded executors; Virtual Threads for orchestration), Python/Mojo façades with CPU tiling, Mojo hook for **GPU** in future work.
+- **Backends:** C++ (OpenMP when available), Java (bounded executors; Virtual Threads for orchestration), Python (ThreadPool-backed PAL), Mojo (CPU tiling with guarded GPU path), TypeScript (WorkerPool), Rust (ordered reduction PAL).
 - All PAL integration respects the two‑phase tick and *one‑growth‑per‑tick* invariant. 
 
 > Determinism gates: same seed + same inputs ⇒ identical state across `{max_workers ∈ {1,2,8}}` with ordered reduction. (See tests in your tree once enabled.)
@@ -100,12 +100,21 @@ GrowNet ships with a **Parallelism Abstraction Layer (PAL)** so call‑sites kee
 
 ------
 
+## Learning yield metrics (KU/BKU)
+
+GrowNet also introduces two evaluation concepts to reason about *per‑sample learning yield*:
+
+- **KU (Knowledge Units):** how much **correct, generalizable structure** is gained per training sample beyond literal memorization.
+- **BKU (Bad Knowledge Units):** how much **incorrect or harmful generalization** is induced per sample (hallucinations and bias).
+
+These are reported separately so we can target **high KU / low BKU** (more real understanding per sample with fewer spurious beliefs). See `docs/Knowledge_Units_in_GrowNet.md` and `docs/KU_BKU_Evaluation_Protocol.md`.
+
 ## Getting started
 
 ### Build & dependencies (sketch)
 
 - **CMake (C++ core):** OpenMP is optional; if found, it’s used by PAL backends. (`-DGROWNET_WITH_OPENMP=ON` recommended.)
-- **Python/Java/Mojo:** Follow your language’s standard build; the public API names mirror the contract so examples port cleanly. 
+- **Python/Java/Mojo/TypeScript/Rust:** Follow your language’s standard build; the public API names mirror the contract so examples port cleanly. 
 
 ### First experiments
 

@@ -1,0 +1,20 @@
+Java 1D Slot Formation Demo — Notes
+
+File:
+- src/java/ai/nektron/grownet/demo/OneDimSlotDemo.java
+
+Behavior:
+- Builds a Region with a single excitatory neuron layer.
+- Binds scalar input port "x" to that layer.
+- Drives values [100.0, 110.0, 120.0, 130.0, 140.0].
+  With FIRST anchor and 10% bin width, this creates five slots (bins 0..4).
+- Prints per-tick metrics and final slot count + slot IDs.
+
+Suggested breakpoints (step-through debugging):
+- Region.tick(...)                  // drive scalar into edge and route
+- Layer.forward(...)                // fan into neurons for this tick
+- Neuron.onInput(...)               // slot selection + local learning
+- SlotEngine.selectOrCreateSlot(...)// bin computation + strict capacity fallback
+
+Notes:
+- src/java is the canonical Java source root (Maven/IntelliJ).

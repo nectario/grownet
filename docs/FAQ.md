@@ -43,7 +43,7 @@ Below is a complete, reorganized **`docs/FAQ.md`** you can drop into your repo. 
 
 **Parity, troubleshooting, demos**
 
-17. [Language parity notes (Python, C++, Java, Mojo)](https://chatgpt.com/g/g-p-68921663c4f881918135999b40a61416-grownet/c/68a3703b-d498-832a-8eba-9167923770cd#language-parity-notes-python-c-java-mojo)
+17. [Language parity notes (Python, C++, Java, Mojo, TypeScript, and Rust)](https://chatgpt.com/g/g-p-68921663c4f881918135999b40a61416-grownet/c/68a3703b-d498-832a-8eba-9167923770cd#language-parity-notes-python-c-java-mojo)
 18. [Troubleshooting: common C++ build errors/warnings](https://chatgpt.com/g/g-p-68921663c4f881918135999b40a61416-grownet/c/68a3703b-d498-832a-8eba-9167923770cd#troubleshooting-common-c-build-errorswarnings)
 19. [Demos & tests: how do I run them quickly?](https://chatgpt.com/g/g-p-68921663c4f881918135999b40a61416-grownet/c/68a3703b-d498-832a-8eba-9167923770cd#demos--tests-how-do-i-run-them-quickly)
 
@@ -192,7 +192,7 @@ GrowNet isn’t a deep CNN; we avoid hard‑coded pooling to keep the model clos
 
 ------
 
-## Language parity notes (Python, C++, Java, Mojo)
+## Language parity notes (Python, C++, Java, Mojo, TypeScript, and Rust)
 
 - **Python**: reference path with Spatial Focus, windowed wiring, demos, tests.
 - **C++**: mirrors core features, deterministic windowed wiring, optional spatial metrics; designed for speed.

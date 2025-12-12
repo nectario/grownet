@@ -6,7 +6,7 @@ meta:
   status: "active"
   replaces: "GrowNet_Contract_v4_master.yaml"
   purpose: >
-    Define the cross-language public surface (Python, C++, Java, Mojo) and
+    Define the cross-language public surface (Python, C++, Java, Mojo, TypeScript, Rust) and
     the behavioral invariants for slot selection, frozen slots, two-phase ticking,
     and automatic growth across Slots → Neurons → Layers → Regions.
 
@@ -19,8 +19,12 @@ language_conventions:
     style: "method names as in headers; concepts mirror Java/Python"
   mojo:
     style: "struct + fn; all parameters typed; no leading underscores in public API"
+  typescript:
+    style: "camelCase public APIs; PascalCase types"
+  rust:
+    style: "snake_case functions/fields; PascalCase types; keep public API descriptive"
   general:
-    variable_naming: "use descriptive names; avoid single- or double-character names"
+    variable_naming: "use descriptive names; avoid single- or double-character names (except i/j loop indices)"
 
 core_invariants:
   - "Learning is local and event-driven; no backpropagation."

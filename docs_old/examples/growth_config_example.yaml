@@ -1,0 +1,17 @@
+# docs/examples/growth_config_example.yaml
+slot_selection:
+  anchor_mode: FIRST          # default; binning uses FIRST as reference
+  scalar:
+    epsilon_scale: 1e-6
+    bin_width_pct: 5          # example; tune per project
+
+growth_rules:
+  slots_to_neuron:
+    fallback_growth_threshold: 3
+    neuron_growth_cooldown_ticks: 0
+
+  neuron_to_layer:
+    avg_slots_threshold: 6              # example value
+    percent_at_cap_fallback_threshold: 0.25  # 25% example
+    layer_cooldown_ticks: 500           # example
+    max_layers: 4                       # example

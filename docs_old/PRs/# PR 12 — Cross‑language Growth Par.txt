@@ -1,0 +1,906 @@
+# **PR 12 — Cross‑language Growth Parity (C++ & Java)**
+
+**Scope:** Growth knobs & logic (strict slot capacity, fallback marking, neuron growth escalation, optional layer growth), deterministic auto‑wiring, bus step counter, frozen‑slot niceties, C++ header fix, and no‑op `Region::prune` to keep demos building.
+
+## Why this PR
+
+* Everything you added in **Python** (slot fallback detection, **strict capacity**—no new slots at cap, **fallback streak → grow neuron**, one‑shot **unfreeze preference**, **auto‑wiring** new neurons, **bus `current_step`**, optional **layer growth**) is now available in **C++** and **Java** with the **same knobs and defaults**.
+* Fixes the C++ “**invalid use of incomplete type `Neuron`**” by moving inline bodies out of `SlotEngine.h`.
+* Keeps existing demos compiling by adding a **no‑op `Region::prune`** stub (you can later replace it with the real thing or remove the calls).
+
+---
+
+## High‑level behavior parity (Python ⇄ C++ ⇄ Java)
+
+| Area                         | Behavior                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slot selection (scalar + 2D) | **Percent‑delta vs anchor**; **strict capacity** (never allocate new slot at cap); mark `lastSlotUsedFallback` when a new bin is desired but cap forces reuse           |
+| Growth                       | If `growth_enabled & neuron_growth_enabled` and **fallback streak** ≥ `fallback_growth_threshold`, ask layer to **add a neuron**; cool‑down uses **bus `current_step`** |
+| New neuron wiring            | **Outbound + inbound mesh rules** replayed; existing **windowed tract style** wiring uses persistent edges (C++), Java mirrors mesh rules                               |
+| Layer growth (optional)      | If `layer_growth_enabled` and layer is at `neuron_limit`, region adds a small spillover layer & connects saturated → new (modest prob)                                  |
+| Frozen slots                 | Still match/fire but ignore reinforcement & modulation; **unfreeze** setups a **one‑shot “prefer last slot”** on the next tick                                          |
+| Buses                        | Inhibition **multiplicative decay**; modulation **resets**; **`current_step`** increments at `endTick()` for cool‑downs                                                 |
+
+---
+
+# PATCHES
+
+> **Note:** These are “fuzzy” patches—Codex can apply by context; exact line numbers aren’t required. If a symbol already exists, the patch only amends/extends it.
+
+---
+
+## C++ changes
+
+### 1) **Fix the `SlotEngine.h` incomplete type error; add strict‑cap + fallback marking**
+
+**`src/cpp/SlotEngine.h`**
+
+```diff
+--- a/src/cpp/SlotEngine.h
++++ b/src/cpp/SlotEngine.h
+@@
+-#pragma once
+-#include <vector>
+-#include "Weight.h"
+-class Neuron; // forward decl
+-
+-class SlotEngine {
+-public:
+-    explicit SlotEngine(const SlotConfig& cfg) : cfg(cfg) {}
+-
+-    // SELECTORS (inline bodies referenced Neuron, causing incomplete-type errors)
+-    Weight& selectOrCreateSlot(Neuron& neuron, double inputValue, int tickCount=0) const;
+-    Weight& selectOrCreateSlot2D(Neuron& neuron, int row, int col) const;
+-
+-    // ...
+-private:
+-    const SlotConfig& cfg;
+-};
++#pragma once
++#include <vector>
++#include "Weight.h"
++class Neuron; // forward decl to break include cycles
++
++class SlotEngine {
++public:
++    explicit SlotEngine(const SlotConfig& cfg) : cfg(cfg) {}
++
++    // Implemented in SlotEngine.cpp (no direct Neuron member access in header)
++    Weight& selectOrCreateSlot(Neuron& neuron, double inputValue, int tickCount=0) const;
++    Weight& selectOrCreateSlot2D(Neuron& neuron, int row, int col) const;
++
++private:
++    const SlotConfig& cfg;
++};
+```
+
+**`src/cpp/SlotEngine.cpp`**
+
+```diff
+--- a/src/cpp/SlotEngine.cpp
++++ b/src/cpp/SlotEngine.cpp
+@@
++#include "SlotEngine.h"
++#include "Neuron.h"        // OK in .cpp, solves incomplete type
++#include "MathUtils.h"
++#include <algorithm>
++
++// Helper: effective slot limit (per-neuron override wins over cfg)
++static inline int effective_limit(const SlotConfig& cfg, const Neuron& n) {
++    int perNeuron = n.getSlotLimit();
++    if (perNeuron >= 0) return perNeuron;
++    return cfg.slotLimit; // assume SlotConfig has slotLimit; else adapt getter
++}
++
++Weight& SlotEngine::selectOrCreateSlot(Neuron& neuron, double inputValue, int /*tickCount*/) const {
++    const auto& C = cfg;
++    // FIRST anchor baseline
++    const double anchor = neuron.haveLastInput() ? neuron.getLastInputValue()
++                                                 : inputValue; // imprint
++    if (!neuron.haveLastInput()) {
++        neuron.setLastInputValue(anchor);
++    }
++    const double denom = std::max(std::abs(anchor), 1e-12);
++    const double deltaPct = 100.0 * std::abs(inputValue - anchor) / denom;
++    const double binW = std::max(0.1, C.binWidthPct);
++    const int sidDesired = static_cast<int>(deltaPct / binW);
++
++    auto& slots = neuron.getSlots();
++    const int limit = effective_limit(C, neuron);
++    const bool atCapacity = (limit > 0 && static_cast<int>(slots.size()) >= limit);
++    const bool outOfDomain = (limit > 0 && sidDesired >= limit);
++    const bool wantNew = (slots.find(sidDesired) == slots.end());
++    const bool useFallback = outOfDomain || (atCapacity && wantNew);
++
++    int sid;
++    if (useFallback && limit > 0) {
++        sid = limit - 1;
++        // respect strict capacity: do not allocate a brand-new slot when at capacity
++        if (!atCapacity && slots.find(sid) == slots.end()) {
++            slots.emplace(sid, Weight{});
++        } else if (slots.empty()) {
++            slots.emplace(sid, Weight{});
++        }
++    } else {
++        sid = sidDesired;
++        if (slots.find(sid) == slots.end()) {
++            // not at capacity: create
++            slots.emplace(sid, Weight{});
++        }
++    }
++    neuron.setLastSlotUsedFallback(useFallback);
++    return slots.at(sid);
++}
++
++Weight& SlotEngine::selectOrCreateSlot2D(Neuron& neuron, int row, int col) const {
++    const auto& C = cfg;
++    // FIRST anchor on (row,col). For ORIGIN mode, anchor is (0,0).
++    if (!neuron.hasAnchor2D()) {
++        neuron.setAnchor2D(row, col); // FIRST
++    }
++    auto [ar, ac] = neuron.getAnchor2D();
++    const double eps = std::max(1.0, C.epsilonScale); // spatial epsilon
++    const double denomR = std::max(std::abs(static_cast<double>(ar)), eps);
++    const double denomC = std::max(std::abs(static_cast<double>(ac)), eps);
++    const double dPr = 100.0 * std::abs(static_cast<double>(row - ar)) / denomR;
++    const double dPc = 100.0 * std::abs(static_cast<double>(col - ac)) / denomC;
++    const int rBin = static_cast<int>(dPr / std::max(0.1, C.rowBinWidthPct));
++    const int cBin = static_cast<int>(dPc / std::max(0.1, C.colBinWidthPct));
++
++    const int limit = effective_limit(C, neuron);
++    auto& slots = neuron.getSlots2D(); // map<pair<int,int>, Weight>
++    const bool atCapacity = (limit > 0 && static_cast<int>(slots.size()) >= limit);
++    const bool wantNew = (slots.find({rBin,cBin}) == slots.end());
++    const bool useFallback = (limit > 0 && (rBin >= limit || cBin >= limit)) || (atCapacity && wantNew);
++
++    std::pair<int,int> key;
++    if (useFallback && limit > 0) {
++        key = {limit - 1, limit - 1};
++        if (!atCapacity && slots.find(key) == slots.end()) {
++            slots.emplace(key, Weight{});
++        } else if (slots.empty()) {
++            slots.emplace(key, Weight{});
++        }
++    } else {
++        key = {rBin, cBin};
++        if (slots.find(key) == slots.end()) {
++            slots.emplace(key, Weight{});
++        }
++    }
++    neuron.setLastSlotUsedFallback(useFallback);
++    return slots.at(key);
++}
+```
+
+### 2) **Neuron: growth fields, growth escalation, one‑shot unfreeze preference**
+
+**`src/cpp/Neuron.h`**
+
+```diff
+--- a/src/cpp/Neuron.h
++++ b/src/cpp/Neuron.h
+@@
+ class Layer; // fwd
+ class LateralBus;
+ class SlotEngine;
+ struct SlotConfig;
+ 
+ class Neuron {
+ public:
+     virtual ~Neuron() = default;
+@@
+-    int slotLimit {-1};
+-    std::map<int, Weight> slots;
++    // Capacity & slots
++    int slotLimit {-1}; // per-neuron override, -1 = unlimited
++    std::map<int, Weight> slots;                       // scalar slots
++    std::map<std::pair<int,int>, Weight> slots2d;      // spatial slots
+ 
+     // basic last-input tracking
+     bool haveLast { false };
+     double lastInput { 0.0 };
+@@
++    // Spatial anchor (FIRST/ORIGIN)
++    int anchorRow { -1 }, anchorCol { -1 };
++
++    // Growth bookkeeping
++    Layer* owner { nullptr };
++    bool lastSlotUsedFallback { false };
++    int fallbackStreak { 0 };
++    long long lastGrowthTick { -1 };
++    bool preferLastSlotOnce { false }; // one-shot reuse after unfreeze
++
++    // Frozen-slot convenience
++    Weight* lastSelected { nullptr };
++    Weight* lastFrozen { nullptr };
+@@
+     // API (existing + additions)
+     virtual bool onInput(double value);
+     virtual bool onInput2D(double value, int row, int col);
+     virtual void onOutput(double value) {}
+     virtual void endTick() {}
+@@
++    // Accessors used by SlotEngine.cpp
++    bool haveLastInput() const { return haveLast; }
++    double getLastInputValue() const { return lastInput; }
++    void setLastInputValue(double v) { haveLast = true; lastInput = v; }
++    int getSlotLimit() const { return slotLimit; }
++    auto& getSlots() { return slots; }
++    auto& getSlots2D() { return slots2d; }
++    void setLastSlotUsedFallback(bool b) { lastSlotUsedFallback = b; }
++    bool hasAnchor2D() const { return anchorRow >= 0 && anchorCol >= 0; }
++    void setAnchor2D(int r, int c) { anchorRow = r; anchorCol = c; }
++    std::pair<int,int> getAnchor2D() const { return {anchorRow, anchorCol}; }
++    void setOwner(Layer* o) { owner = o; }
++    Layer* getOwner() const { return owner; }
+@@
++    bool freezeLastSlot();
++    bool unfreezeLastSlot();
++private:
++    void maybeRequestNeuronGrowth();
+ };
+```
+
+**`src/cpp/Neuron.cpp`**
+
+```diff
+--- a/src/cpp/Neuron.cpp
++++ b/src/cpp/Neuron.cpp
+@@
+ #include "Neuron.h"
+ #include "SlotEngine.h"
+ #include "LateralBus.h"
+ #include "Layer.h"
++#include "SlotConfig.h"
+ 
+ bool Neuron::onInput(double value) {
+-    Weight& slot = slotEngine.selectOrCreateSlot(*this, value);
++    Weight* slotPtr = nullptr;
++    if (preferLastSlotOnce && lastSelected) {
++        slotPtr = lastSelected;
++        preferLastSlotOnce = false;
++    } else {
++        slotPtr = &slotEngine.selectOrCreateSlot(*this, value);
++    }
++    Weight& slot = *slotPtr;
+     lastSelected = &slot;
+     const double mod = bus ? bus->getModulationFactor() : 1.0;
+     slot.reinforce(mod);
+     const bool fired = slot.updateThreshold(value);
+     haveLast = true; lastInput = value;
+     if (fired) {
+-        onOutput(value);
++        // notify hooks, then local output
++        fire(value);
++        onOutput(value);
+     }
++    maybeRequestNeuronGrowth();
+     return fired;
+ }
+ 
+ bool Neuron::onInput2D(double value, int row, int col) {
+-    Weight& slot = slotEngine.selectOrCreateSlot2D(*this, row, col);
++    Weight* slotPtr = nullptr;
++    if (preferLastSlotOnce && lastSelected) {
++        slotPtr = lastSelected;
++        preferLastSlotOnce = false;
++    } else {
++        slotPtr = &slotEngine.selectOrCreateSlot2D(*this, row, col);
++    }
++    Weight& slot = *slotPtr;
+     lastSelected = &slot;
+     const double mod = bus ? bus->getModulationFactor() : 1.0;
+     slot.reinforce(mod);
+     const bool fired = slot.updateThreshold(value);
+     haveLast = true; lastInput = value;
+     if (fired) {
+-        onOutput(value);
++        fire(value);
++        onOutput(value);
+     }
++    maybeRequestNeuronGrowth();
+     return fired;
+ }
+ 
++bool Neuron::freezeLastSlot() {
++    if (!lastSelected) return false;
++    lastFrozen = lastSelected;
++    lastSelected->freeze();
++    return true;
++}
++bool Neuron::unfreezeLastSlot() {
++    if (!lastFrozen) return false;
++    lastFrozen->unfreeze();
++    lastSelected = lastFrozen;
++    preferLastSlotOnce = true; // reuse on next tick
++    lastFrozen = nullptr;
++    return true;
++}
++
++void Neuron::maybeRequestNeuronGrowth() {
++    const auto* C = slotEngine.getConfig(); // assume accessor; else inject cfg pointer at ctor
++    if (!C) return;
++    if (!C->growthEnabled || !C->neuronGrowthEnabled) { fallbackStreak = 0; return; }
++    const bool atCapacity = (slotLimit >= 0 && static_cast<int>(slots.size() + slots2d.size()) >= slotLimit);
++    if (atCapacity && lastSlotUsedFallback) ++fallbackStreak; else fallbackStreak = 0;
++    if (!owner) return;
++    const int threshold = std::max(1, C->fallbackGrowthThreshold);
++    if (fallbackStreak < threshold) return;
++    long long now = 0;
++    if (bus) now = bus->getCurrentStep();
++    const int cooldown = std::max(0, C->neuronGrowthCooldownTicks);
++    if (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown) {
++        owner->tryGrowNeuron(*this);
++        lastGrowthTick = now;
++    }
++    fallbackStreak = 0;
++}
+```
+
+*(If `SlotEngine::getConfig()` doesn’t exist, add a trivial accessor returning the stored `SlotConfig&`.)*
+
+### 3) **Layer: region back‑ref, neuron limit, tryGrowNeuron, endTick, set owner on new neurons**
+
+**`src/cpp/Layer.h`**
+
+```diff
+--- a/src/cpp/Layer.h
++++ b/src/cpp/Layer.h
+@@
+ class Region; // fwd
+ class Layer {
+ public:
+     Layer(int e, int i, int m);
+     virtual ~Layer() = default;
+@@
++    void setRegion(Region* r) { region = r; }
++    int  getNeuronLimit() const { return neuronLimit; }
++    void setNeuronLimit(int limit) { neuronLimit = limit; }
++    int  tryGrowNeuron(const Neuron& seed); // returns new index or -1
+@@
+     virtual void endTick();
+@@
+ private:
+     LateralBus bus;
+     std::vector<std::unique_ptr<Neuron>> neurons;
++    Region* region { nullptr };
++    int neuronLimit { -1 }; // -1 = unlimited
++    int excitatoryCount {0}, inhibitoryCount{0}, modulatoryCount{0};
+ };
+```
+
+**`src/cpp/Layer.cpp`**
+
+```diff
+--- a/src/cpp/Layer.cpp
++++ b/src/cpp/Layer.cpp
+@@
+ Layer::Layer(int e, int i, int m)
+-: bus(), neurons()
++: bus(), neurons(), excitatoryCount(e), inhibitoryCount(i), modulatoryCount(m)
+ {
+     // construct neurons and set owner
+     for (int k=0;k<e;++k) {
+         auto n = std::make_unique<ExcitatoryNeuron>(/*id*/);
+         n->setBus(&bus);
++        n->setOwner(this);
+         neurons.push_back(std::move(n));
+     }
+     for (int k=0;k<i;++k) {
+         auto n = std::make_unique<InhibitoryNeuron>();
+         n->setBus(&bus);
++        n->setOwner(this);
+         neurons.push_back(std::move(n));
+     }
+     for (int k=0;k<m;++k) {
+         auto n = std::make_unique<ModulatoryNeuron>();
+         n->setBus(&bus);
++        n->setOwner(this);
+         neurons.push_back(std::move(n));
+     }
+ }
+ 
+ void Layer::endTick() {
+     for (auto& n : neurons) n->endTick();
+-    bus.decay();
++    bus.decay(); // also increments current_step
+ }
+ 
++int Layer::tryGrowNeuron(const Neuron& seed) {
++    if (neuronLimit >= 0 && static_cast<int>(neurons.size()) >= neuronLimit) {
++        // escalate to region-level layer growth if enabled; safe no-op if region==nullptr
++        if (region) region->requestLayerGrowth(this);
++        return -1;
++    }
++    // Instantiate same "kind" as seed when possible, else default to excitatory
++    std::unique_ptr<Neuron> nu;
++    if (dynamic_cast<const ModulatoryNeuron*>(&seed)) {
++        nu = std::make_unique<ModulatoryNeuron>();
++    } else if (dynamic_cast<const InhibitoryNeuron*>(&seed)) {
++        nu = std::make_unique<InhibitoryNeuron>();
++    } else {
++        nu = std::make_unique<ExcitatoryNeuron>();
++    }
++    nu->setBus(&bus);
++    nu->setOwner(this);
++    // copy primary slot config/limits if available
++    nu->setSlotConfig(seed.getSlotConfig());
++    nu->setSlotLimit(seed.getSlotLimit());
++    const int idx = static_cast<int>(neurons.size());
++    neurons.push_back(std::move(nu));
++    // region auto-wiring based on recorded mesh rules
++    if (region) region->autowireNewNeuron(this, idx);
++    return idx;
++}
+```
+
+### 4) **Bus: add `current_step` and getters; keep unified decay**
+
+**`src/cpp/LateralBus.h`**
+
+```diff
+--- a/src/cpp/LateralBus.h
++++ b/src/cpp/LateralBus.h
+@@
+ class LateralBus {
+ public:
+     double inhibitionFactor {0.0};
+     double modulationFactor {1.0};
+     double inhibitionDecay  {0.90};
++    long long currentStep   {0};
+@@
+     void decay() {
+-        inhibitionFactor = 0.0;
+-        modulationFactor = 1.0;
++        inhibitionFactor *= inhibitionDecay;
++        modulationFactor = 1.0;
++        ++currentStep;
+     }
++    long long getCurrentStep() const { return currentStep; }
++    long long getStep() const { return currentStep; } // compat alias
+ };
+```
+
+*(Mirror the same in `RegionBus` if you have one.)*
+
+### 5) **Region: record mesh rules, auto‑wire new neurons, optional no‑op prune**
+
+**`src/cpp/Region.h`**
+
+```diff
+--- a/src/cpp/Region.h
++++ b/src/cpp/Region.h
+@@
+ struct MeshRule { int src, dst; double prob; bool feedback; };
++struct PruneSummary { int droppedEdges{0}; int droppedNeurons{0}; };
+ 
+ class Region {
+ public:
+     // existing API ...
++    // No-op prune stub so demos compile unchanged; replace later
++    PruneSummary prune(int /*staleWindow*/, double /*minStrength*/) { return {}; }
+@@
+-    int connectLayers(int sourceIndex, int destIndex, double probability, bool feedback);
++    int connectLayers(int sourceIndex, int destIndex, double probability, bool feedback);
+     int connectLayersWindowed(...);
+@@
+-    // ...
++    // growth wiring
++    void autowireNewNeuron(Layer* layer, int newIdx);
++    int requestLayerGrowth(Layer* saturated);
+ private:
+     std::vector<std::unique_ptr<Layer>> layers;
++    std::vector<MeshRule> meshRules;
+ };
+```
+
+**`src/cpp/Region.cpp`**
+
+```diff
+--- a/src/cpp/Region.cpp
++++ b/src/cpp/Region.cpp
+@@
+ int Region::connectLayers(int s, int d, double p, bool fb) {
+     // ... existing edge creation ...
+     int edges = 0;
+     // (create edges, increment edges)
++    // Record mesh rule for deterministic auto-wiring on neuron growth
++    meshRules.push_back(MeshRule{ s, d, p, fb });
+     return edges;
+ }
+ 
++void Region::autowireNewNeuron(Layer* L, int newIdx) {
++    // Find layer index
++    int li = -1;
++    for (int i=0;i<(int)layers.size();++i) if (layers[i].get()==L) { li=i; break; }
++    if (li < 0) return;
++    // Outbound mesh: this layer -> others
++    for (const auto& r : meshRules) {
++        if (r.src != li) continue;
++        auto& srcN = layers[li]->getNeurons();
++        auto& dstN = layers[r.dst]->getNeurons();
++        if (newIdx < 0 || newIdx >= (int)srcN.size()) continue;
++        auto s = srcN[newIdx].get();
++        for (auto& t : dstN) {
++            if (rng.uniform() <= r.prob) s->connect(t.get(), r.feedback);
++        }
++    }
++    // Inbound mesh: others -> this layer
++    for (const auto& r : meshRules) {
++        if (r.dst != li) continue;
++        auto& srcN = layers[r.src]->getNeurons();
++        auto& dstN = layers[li]->getNeurons();
++        if (newIdx < 0 || newIdx >= (int)dstN.size()) continue;
++        auto t = dstN[newIdx].get();
++        for (auto& s : srcN) {
++            if (rng.uniform() <= r.prob) s->connect(t, r.feedback);
++        }
++    }
++}
++
++int Region::requestLayerGrowth(Layer* saturated) {
++    // add small spillover E-only layer and wire saturated -> new
++    int idx = -1;
++    for (int i=0;i<(int)layers.size();++i) if (layers[i].get()==saturated) { idx=i; break; }
++    if (idx < 0) return -1;
++    const int newExc = 4; // conservative default
++    const int newIdx = addLayer(newExc, 0, 0);
++    connectLayers(idx, newIdx, /*prob*/0.15, /*feedback*/false);
++    return newIdx;
++}
+```
+
+*(Keep your existing random helper `rng.uniform()`. If absent, replace with `if (rand01() <= r.prob)`.)*
+
+### 6) **Input/Output 2D layers: set owner on created neurons**
+
+**`src/cpp/InputLayer2D.cpp` (or wherever you push pixels into neurons)**
+
+```diff
+ for (int r=0;r<H;++r) for (int c=0;c<W;++c) {
+     auto n = std::make_unique<InputNeuron>(...);
+     n->setBus(&bus);
++    n->setOwner(this);
+     neurons.push_back(std::move(n));
+ }
+```
+
+**`src/cpp/OutputLayer2D.cpp` similarly**
+
+```diff
+ n->setBus(&bus);
++n->setOwner(this);
+```
+
+---
+
+## Java changes
+
+> These mirror Python semantics exactly: strict slot cap, `lastSlotUsedFallback`, growth escalation, bus `currentStep`, layer neuronLimit + region auto‑wiring.
+
+### 1) **SlotEngine (strict cap + fallback marking)**
+
+**`src/java/ai/nektron/grownet/SlotEngine.java`**
+
+```diff
+--- a/.../SlotEngine.java
++++ b/.../SlotEngine.java
+@@
+-// selectOrCreateSlot(...)
+-// previous logic
++public Weight selectOrCreateSlot(Neuron neuron, double inputValue, int tickCount) {
++    final SlotConfig C = cfg;
++    final double anchor = neuron.haveLastInput ? neuron.lastInputValue : inputValue;
++    if (!neuron.haveLastInput) { neuron.lastInputValue = anchor; neuron.haveLastInput = true; }
++    final double denom = Math.max(Math.abs(anchor), 1e-12);
++    final double deltaPct = 100.0 * Math.abs(inputValue - anchor) / denom;
++    final double binW = Math.max(0.1, C.binWidthPct);
++    final int sidDesired = (int)Math.floor(deltaPct / binW);
++
++    final int limit = neuron.slotLimit >= 0 ? neuron.slotLimit : C.slotLimit;
++    final boolean atCapacity = (limit > 0 && neuron.slots.size() >= limit);
++    final boolean outOfDomain = (limit > 0 && sidDesired >= limit);
++    final boolean wantNew = !neuron.slots.containsKey(sidDesired);
++    final boolean useFallback = outOfDomain || (atCapacity && wantNew);
++
++    final int sid = (useFallback && limit > 0) ? (limit - 1) : sidDesired;
++    if (!neuron.slots.containsKey(sid)) {
++        if (atCapacity) {
++            if (neuron.slots.isEmpty()) neuron.slots.put(sid, new Weight());
++        } else {
++            neuron.slots.put(sid, new Weight());
++        }
++    }
++    neuron.lastSlotUsedFallback = useFallback;
++    return neuron.slots.get(sid);
++}
+@@
++public Weight selectOrCreateSlot2D(Neuron neuron, int row, int col) {
++    final SlotConfig C = cfg;
++    if (!neuron.hasAnchor2D()) neuron.setAnchor2D(row, col); // FIRST
++    final int ar = neuron.anchorRow, ac = neuron.anchorCol;
++    final double eps = Math.max(1.0, C.epsilonScale);
++    final double dPr = 100.0 * Math.abs(row - ar) / Math.max(Math.abs(ar), eps);
++    final double dPc = 100.0 * Math.abs(col - ac) / Math.max(Math.abs(ac), eps);
++    final int rBin = (int)Math.floor(dPr / Math.max(0.1, C.rowBinWidthPct));
++    final int cBin = (int)Math.floor(dPc / Math.max(0.1, C.colBinWidthPct));
++
++    final int limit = neuron.slotLimit >= 0 ? neuron.slotLimit : C.slotLimit;
++    final boolean atCapacity = (limit > 0 && neuron.slots2d.size() >= limit);
++    final boolean wantNew = !neuron.slots2d.containsKey(new Rc(rBin, cBin));
++    final boolean useFallback = (limit > 0 && (rBin >= limit || cBin >= limit)) || (atCapacity && wantNew);
++
++    final Rc key = (useFallback && limit > 0) ? new Rc(limit-1, limit-1) : new Rc(rBin, cBin);
++    if (!neuron.slots2d.containsKey(key)) {
++        if (atCapacity) {
++            if (neuron.slots2d.isEmpty()) neuron.slots2d.put(key, new Weight());
++        } else {
++            neuron.slots2d.put(key, new Weight());
++        }
++    }
++    neuron.lastSlotUsedFallback = useFallback;
++    return neuron.slots2d.get(key);
++}
+```
+
+*(Replace `Rc` with your existing 2D key or `Pair<Integer,Integer>` helper as used in your codebase.)*
+
+### 2) **Neuron: growth fields, escalation, one‑shot unfreeze**
+
+**`src/java/ai/nektron/grownet/Neuron.java`**
+
+```diff
+--- a/.../Neuron.java
++++ b/.../Neuron.java
+@@
+-    public int slotLimit = -1;
++    public int slotLimit = -1;
+     public Map<Integer, Weight> slots = new HashMap<>();
++    public Map<Rc, Weight> slots2d = new HashMap<>();
+     public boolean haveLastInput = false;
+     public double lastInputValue = 0.0;
++    public int anchorRow = -1, anchorCol = -1;
++    public boolean hasAnchor2D() { return anchorRow >= 0 && anchorCol >= 0; }
++    public void setAnchor2D(int r, int c) { anchorRow = r; anchorCol = c; }
++
++    // growth bookkeeping
++    public Layer owner = null;
++    public boolean lastSlotUsedFallback = false;
++    public int fallbackStreak = 0;
++    public long lastGrowthTick = -1L;
++    public boolean preferLastSlotOnce = false;
++    private Weight lastSelected = null;
++    private Weight lastFrozen = null;
+@@
+-    public boolean onInput(double value) {
+-        final int slotId = slotEngine.selectOrCreateSlot(this, value, 0).id(); // pseudo
++    public boolean onInput(double value) {
++        final Weight slot = (preferLastSlotOnce && lastSelected != null)
++                ? lastSelected
++                : slotEngine.selectOrCreateSlot(this, value, 0);
++        preferLastSlotOnce = false;
++        lastSelected = slot;
+         slot.reinforce(bus.getModulationFactor());
+         boolean fired = slot.updateThreshold(value);
+         haveLastInput = true; lastInputValue = value;
+         if (fired) {
+-            onOutput(value);
++            fire(value);
++            onOutput(value);
+         }
++        maybeRequestNeuronGrowth();
+         return fired;
+     }
+@@
+-    public boolean onInput2D(double v, int r, int c) {
+-        // legacy path
++    public boolean onInput2D(double v, int r, int c) {
++        final Weight slot = (preferLastSlotOnce && lastSelected != null)
++                ? lastSelected
++                : slotEngine.selectOrCreateSlot2D(this, r, c);
++        preferLastSlotOnce = false;
++        lastSelected = slot;
+         slot.reinforce(bus.getModulationFactor());
+         boolean fired = slot.updateThreshold(v);
+         haveLastInput = true; lastInputValue = v;
+         if (fired) {
+-            onOutput(v);
++            fire(v);
++            onOutput(v);
+         }
++        maybeRequestNeuronGrowth();
+         return fired;
+     }
+@@
++    public boolean freezeLastSlot() {
++        if (lastSelected == null) return false;
++        lastFrozen = lastSelected;
++        lastFrozen.freeze();
++        return true;
++    }
++    public boolean unfreezeLastSlot() {
++        if (lastFrozen == null) return false;
++        lastFrozen.unfreeze();
++        lastSelected = lastFrozen;
++        preferLastSlotOnce = true;
++        lastFrozen = null;
++        return true;
++    }
++    private void maybeRequestNeuronGrowth() {
++        final SlotConfig C = slotEngine.getConfig();
++        if (!(C.growthEnabled && C.neuronGrowthEnabled)) { fallbackStreak = 0; return; }
++        final boolean atCapacity = (slotLimit >= 0) && (slots.size() + slots2d.size() >= slotLimit);
++        if (atCapacity && lastSlotUsedFallback) ++fallbackStreak; else fallbackStreak = 0;
++        if (owner == null) return;
++        final int threshold = Math.max(1, C.fallbackGrowthThreshold);
++        if (fallbackStreak < threshold) return;
++        final long now = bus.getCurrentStep();
++        final int cooldown = Math.max(0, C.neuronGrowthCooldownTicks);
++        if (lastGrowthTick < 0 || (now - lastGrowthTick) >= cooldown) {
++            owner.tryGrowNeuron(this);
++            lastGrowthTick = now;
++        }
++        fallbackStreak = 0;
++    }
+```
+
+### 3) **Layer: neuronLimit, region backref, tryGrowNeuron, endTick**
+
+**`src/java/ai/nektron/grownet/Layer.java`**
+
+```diff
+--- a/.../Layer.java
++++ b/.../Layer.java
+@@
+-    private final LateralBus bus = new LateralBus();
++    private final LateralBus bus = new LateralBus();
++    private Region region = null;
++    private int neuronLimit = -1;
+@@
++    public void setRegion(Region r) { this.region = r; }
++    public void setNeuronLimit(int limit) { this.neuronLimit = limit; }
++    public int tryGrowNeuron(Neuron seed) {
++        if (neuronLimit >= 0 && neurons.size() >= neuronLimit) {
++            if (region != null) region.requestLayerGrowth(this);
++            return -1;
++        }
++        final Neuron nu =
++            (seed instanceof ModulatoryNeuron) ? new ModulatoryNeuron("M"+neurons.size()) :
++            (seed instanceof InhibitoryNeuron) ? new InhibitoryNeuron("I"+neurons.size()) :
++                                                 new ExcitatoryNeuron("E"+neurons.size());
++        nu.setBus(bus);
++        nu.owner = this;
++        nu.slotLimit = seed.slotLimit;
++        nu.slotEngine = new SlotEngine(seed.slotEngine.getConfig());
++        neurons.add(nu);
++        if (region != null) region.autowireNewNeuron(this, neurons.size()-1);
++        return neurons.size()-1;
++    }
+@@
+     public void endTick() {
+         for (var n : neurons) n.endTick();
+         bus.decay(); // increments currentStep
+     }
+```
+
+### 4) **LateralBus: add `currentStep` and getters**
+
+**`src/java/ai/nektron/grownet/LateralBus.java`**
+
+```diff
+--- a/.../LateralBus.java
++++ b/.../LateralBus.java
+@@
+-    private long   currentStep      = 0L;
++    private long   currentStep      = 0L;
+@@
+     public void decay() {
+-        inhibitionFactor = 0.0;
+-        modulationFactor = 1.0;
+-        currentStep += 1;
++        inhibitionFactor *= inhibitionDecay;
++        modulationFactor  = 1.0;
++        currentStep      += 1;
+     }
++    public long getCurrentStep() { return currentStep; }
++    public long getStep()        { return currentStep; } // alias
+```
+
+### 5) **Region: record mesh rules; auto‑wire; no‑op prune**
+
+**`src/java/ai/nektron/grownet/Region.java`**
+
+```diff
+--- a/.../Region.java
++++ b/.../Region.java
+@@
+-    public int connectLayers(int src, int dst, double prob, boolean feedback) {
++    public int connectLayers(int src, int dst, double prob, boolean feedback) {
+         // existing edge creation...
+         int edges = 0;
+         // ...
++        meshRules.add(new MeshRule(src, dst, prob, feedback));
+         return edges;
+     }
+@@
++    // Wiring for newly created neuron at layer L
++    void autowireNewNeuron(Layer L, int newIdx) {
++        int li = layers.indexOf(L);
++        if (li < 0) return;
++        // Outbound
++        for (var r : meshRules) if (r.src == li) {
++            var s = layers.get(li).getNeurons().get(newIdx);
++            for (var t : layers.get(r.dst).getNeurons())
++                if (rng.nextDouble() <= r.prob) s.connect(t, r.feedback);
++        }
++        // Inbound
++        for (var r : meshRules) if (r.dst == li) {
++            var t = layers.get(li).getNeurons().get(newIdx);
++            for (var s : layers.get(r.src).getNeurons())
++                if (rng.nextDouble() <= r.prob) s.connect(t, r.feedback);
++        }
++    }
++    public int requestLayerGrowth(Layer saturated) {
++        int li = layers.indexOf(saturated); if (li < 0) return -1;
++        int newIdx = addLayer(4, 0, 0);
++        connectLayers(li, newIdx, 0.15, false);
++        return newIdx;
++    }
++    public static final class PruneSummary { public int droppedEdges=0, droppedNeurons=0; }
++    public PruneSummary prune(int staleWindow, double minStrength) { return new PruneSummary(); }
+```
+
+### 6) **Input/Output layers set `owner`**
+
+```diff
+// in InputLayer2D and OutputLayer2D constructors where neurons are created
+neuron.setBus(layerBus);
+neuron.owner = this;
+```
+
+---
+
+## (Optional) Mojo stubs
+
+If you maintain a Mojo runtime, mirror these fields and method signatures:
+
+* `Neuron`: `slot_limit: Int = -1`, `last_slot_used_fallback: Bool`, `fallback_streak: Int`, `last_growth_tick: Int`, `owner: Layer?`, `freeze_last_slot()`, `unfreeze_last_slot()`, `prefer_last_slot_once: Bool`.
+* `SlotEngine`: `select_or_create_slot(...)` and `select_or_create_slot_2d(...)` with **strict cap** and fallback marking.
+* `LateralBus`: `current_step: Int`, `decay()` increments it, getters.
+* `Layer`: `neuron_limit`, `try_grow_neuron(seed) -> Int`, `set_region(region)`.
+* `Region`: record mesh rules; `autowire_new_neuron(layer, idx)`, `request_layer_growth(layer)`, `prune(...) -> PruneSummary` no‑op.
+
+I can draft Mojo codeblocks if you want them included verbatim.
+
+---
+
+## Docs (tiny addendum)
+
+* In `docs/GROWTH.md` add a short **Parity** section: “C++ and Java mirror Python semantics for strict slot capacity, fallback streak growth, bus step cooldown, and auto‑wiring based on recorded mesh rules. `Region::prune` may be a no‑op stub until pruning is implemented.”
+
+---
+
+## Build & quick checks
+
+**C++**
+
+```bash
+# Regular build should now pass (no 'incomplete type' errors from SlotEngine.h).
+# optional: run the windowed wiring smoke test if you keep it guarded:
+g++ -std=c++17 -DGROWNET_WINDOWED_WIRING_SMOKE -Isrc/cpp \
+    src/cpp/*.cpp src/cpp/tests/WindowedWiringSmoke.cpp -o win_smoke && ./win_smoke
+```
+
+**Java**
+
+```bash
+# Your usual gradle/maven build; LateralBus, SlotEngine, Neuron, Layer, Region updated.
+```
+
+---
+
+## Notes / Non‑goals in this PR
+
+* **No RcBin struct** change (per your request).
+* The **no‑op `prune`** is deliberate to keep demos/tests compiling without behavior changes; replace later when you wire real pruning.
+* C++ still uses **persistent edges** (no Tract attach hooks) for windowed wiring; this is consistent with your current C++ path and sufficient for growth auto‑wiring via mesh rules.

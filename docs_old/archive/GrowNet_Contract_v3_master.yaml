@@ -1,0 +1,397 @@
+
+# ============================================================================
+# GrowNet Contract — MASTER SPEC (v3)
+# ============================================================================
+# Purpose
+#   Single source-of-truth contract that defines GrowNet’s cross-language API,
+#   behaviour, and file/layout conventions for Java (gold), C++, Python, and Mojo.
+# Audience
+#   Software engineers & data scientists implementing or binding GrowNet.
+# Notes
+#   - This contract is normative. If code diverges, bring implementations back
+#     to match this document (Java is the practical reference when in doubt).
+#   - Python & Mojo name all methods/functions with a leading underscore.
+#   - Python has no package folder under src/python (flat modules).
+#   - Mojo mirrors Python but uses `fn` and explicit types.
+# Versioning
+#   - contract.version increments for breaking changes or new features.
+#   - language.version tracks each binding’s maturity against this contract.
+# ============================================================================
+
+contract:
+  id: "ai.nektron.grownet.contract"
+  version: "3.0.0"
+  last_updated_utc: "__TO_FILL_BY_RELEASE_PIPELINE__"
+  gold_language: "java"
+
+languages:
+  java:
+    package_root: "ai.nektron.grownet"
+    version: "3.0.0"
+    style:
+      classes: "UpperCamelCase"
+      methods: "lowerCamelCase"
+      fields: "lowerCamelCase"
+  cpp:
+    namespace: "grownet"
+    version: "3.0.0"
+    style:
+      classes: "UpperCamelCase"
+      methods: "lowerCamelCase"
+      fields: "lowerCamelCase"
+  python:
+    module_root: "src/python"            # no 'grownet' package folder
+    version: "3.0.0"
+    style:
+      files: "snake_case.py"
+      classes: "UpperCamelCase"
+      methods: "leading_underscore_snake_case"   # e.g., _forward, _end_tick
+      fields: "snake_case"
+  mojo:
+    module_root: "src/mojo"
+    version: "3.0.0"
+    style:
+      files: "snake_case.mojo"
+      classes: "UpperCamelCase"
+      methods: "leading_underscore_snake_case"   # with `fn` and explicit types
+      fields: "snake_case"
+
+randomness:
+  deterministic_seed: 1234
+  rationale: "Reproducible connectivity and slot choices across runs."
+  apis:
+    java: "new Random(1234)"
+    cpp:  "std::mt19937 rng(1234)"
+    python: "random.Random(1234)"
+    mojo: "seeded RNG (explicit for each kernel)"
+
+enums:
+  NeuronType: ["EXCITATORY", "INHIBITORY", "MODULATORY"]
+  SlotPolicy: ["FIXED", "NONUNIFORM", "ADAPTIVE"]
+
+math:
+  epsilon_fire_default: 0.01
+  inhibition_decay_default: 0.10     # per tick decay toward 0.0 (layer bus)
+  modulation_reset_default: 1.0      # reset per tick to neutral
+  smooth_step_clamp: "Clamp weights to [-1, 1] via smoothstep-style easing"
+
+types:
+  Weight:
+    fields:
+      strength: {type: "double", range: "[-1, +1]"}
+      theta: {type: "double", doc: "adaptive threshold (per-slot)"}
+      hitCount: {type: "int", doc: "saturates at 10000 to freeze slot"}
+      firstSeen: {type: "bool", default: false}
+      last_update_tick: {type: "long", optional: true}
+    methods:
+      _reinforce:
+        args: [{name: "modulation_factor", type: "double"}]
+        effect: "Updates strength with modulation scaling and smooth clamp."
+      _update_threshold:
+        args: [{name: "input_value", type: "double"}, {name: "beta", type: "double"}, {name: "eta", type: "double"}, {name: "r_star", type: "double"}]
+        effect: "Hybrid T0 (imprint) + EMA adjustment; sets/updates theta."
+  Synapse:
+    fields:
+      source_id: {type: "string"}
+      target_id: {type: "string"}
+      weight_ref: {type: "Weight*", doc: "shares slot weight for learning"}
+      feedback: {type: "bool", default: false}
+      last_used_tick: {type: "long"}
+    methods:
+      _touch: {args: [], effect: "Update last_used_tick"}
+  SlotConfig:
+    fields:
+      policy: {type: "SlotPolicy"}
+      fixed_bin_percent: {type: "double", optional: true, doc: "e.g., 10.0 for 10% delta bins"}
+      nonuniform_breakpoints: {type: "double[]", optional: true}
+      adaptive_max_slots: {type: "int", optional: true, default: -1, doc: "-1 = unlimited"}
+  SlotEngine:
+    methods:
+      _slot_id:
+        args:
+          - {name: "last_input", type: "double"}
+          - {name: "current_input", type: "double"}
+          - {name: "known_slots", type: "int"}
+          - {name: "cfg", type: "SlotConfig"}
+        returns: "int (slot identifier)"
+        doc: "Maps percent delta to a discrete slot per cfg."
+      _select_or_create_slot:
+        args: [{name: "neuron", type: "Neuron&"}, {name: "input_value", type: "double"}]
+        returns: "Weight&"
+        doc: "Find or create a slot keyed by _slot_id and return its weight."
+
+buses:
+  LateralBus:
+    fields:
+      inhibition_factor: {type: "double", default: 0.0}
+      modulation_factor: {type: "double", default: 1.0}
+    methods:
+      _decay: {args: [], effect: "inhibition_factor decays toward 0; modulation resets to 1.0 each tick"}
+  RegionBus:
+    fields:
+      inhibition_factor: {type: "double"}
+      modulation_factor: {type: "double"}
+    methods:
+      _set_inhibition_factor: {args: [{name: "factor", type: "double"}]}
+      _set_modulation_factor: {args: [{name: "factor", type: "double"}]}
+      _decay: {args: [], effect: "same policy as LateralBus (region scope)"}
+
+classes:
+  # --------------------------------------------------------------------------
+  # Neurons
+  # --------------------------------------------------------------------------
+  Neuron:
+    fields:
+      neuron_id: {type: "string"}
+      bus_ref: {type: "LateralBus&"}
+      slot_engine: {type: "SlotEngine"}
+      slot_cfg: {type: "SlotConfig"}
+      slot_limit: {type: "int", default: -1}
+      slots: {type: "Map<int, Weight>"}
+      outgoing: {type: "List<Synapse>"}
+      have_last_input: {type: "bool", default: false}
+      last_input_value: {type: "double", default: 0.0}
+      fired_last: {type: "bool", default: false}
+      fire_hooks: {type: "List<fn(Neuron*, double)>", doc: "invoked when neuron fires"}
+    methods:
+      _on_input:
+        args: [{name: "value", type: "double"}]
+        returns: "bool (fired)"
+        effect: "Select slot, reinforce with bus modulation, update threshold; if slot crosses theta, call _on_output."
+      _on_output:
+        args: [{name: "amplitude", type: "double"}]
+        effect: "Default: push to outgoing synapses (Excitatory); subclasses override for Inhibitory/Modulatory."
+      _connect:
+        args: [{name: "target", type: "Neuron*"}, {name: "feedback", type: "bool"}]
+        returns: "Synapse&"
+        effect: "Create Synapse, share weight storage (slot) as needed."
+      _register_fire_hook:
+        args: [{name: "callback", type: "fn(Neuron*, double)"}]
+      _end_tick:
+        args: []
+        effect: "Per-neuron housekeeping (usually noop; OutputNeuron overrides)."
+  ExcitatoryNeuron:
+    extends: "Neuron"
+    overrides:
+      _on_output: "Propagate to downstream synapses; does not modify bus."
+  InhibitoryNeuron:
+    extends: "Neuron"
+    overrides:
+      _on_output: "Emit inhibition into bus: bus.inhibition_factor = gamma; downstream effect is multiplicative dampening."
+  ModulatoryNeuron:
+    extends: "Neuron"
+    overrides:
+      _on_output: "Emit neuromodulation into bus: bus.modulation_factor = kappa; downstream learning scales by this."
+
+  # --------------------------------------------------------------------------
+  # Layers
+  # --------------------------------------------------------------------------
+  Layer:
+    fields:
+      neurons: {type: "List<Neuron>"}
+      bus: {type: "LateralBus"}
+      rng_seed: {type: "int", default: 1234}
+    methods:
+      _wire_random_feedforward:
+        args: [{name: "probability", type: "double"}]
+      _wire_random_feedback:
+        args: [{name: "probability", type: "double"}]
+      _forward:
+        args: [{name: "value", type: "double"}]
+      _propagate_from:
+        args: [{name: "source_index", type: "int"}, {name: "value", type: "double"}]
+        doc: "Override in shape-aware layers (InputLayer2D/OutputLayer2D)."
+      _end_tick:
+        args: []
+        effect: "bus._decay() per tick."
+  input_layer_2d:
+    file: "input_layer_2d"
+    class: "InputLayer2D"
+    fields:
+      height: {type: "int"}
+      width:  {type: "int"}
+    methods:
+      _index:
+        args: [{name: "y", type: "int"}, {name: "x", type: "int"}]
+        returns: "int (flat index)"
+      _forward_image:
+        args: [{name: "frame", type: "double[height][width]"}]
+        effect: "Drives each InputNeuron with its pixel value."
+      _propagate_from:
+        args: [{name: "source_index", type: "int"}, {name: "value", type: "double"}]
+        effect: "No-op (inputs are driven externally)."
+  output_layer_2d:
+    file: "output_layer_2d"
+    class: "OutputLayer2D"
+    fields:
+      height: {type: "int"}
+      width:  {type: "int"}
+      smoothing: {type: "double", default: 0.2}
+      frame: {type: "double[height][width]"}
+    methods:
+      _index:
+        args: [{name: "y", type: "int"}, {name: "x", type: "int"}]
+        returns: "int"
+      _propagate_from:
+        args: [{name: "source_index", type: "int"}, {name: "value", type: "double"}]
+        effect: "Route value to the OutputNeuron at source_index."
+      _end_tick:
+        args: []
+        effect: "Call OutputNeuron._end_tick() and refresh frame[y][x] from neuron._get_output_value()."
+
+  # --------------------------------------------------------------------------
+  # Region graph (intra- and inter-layer wiring)
+  # --------------------------------------------------------------------------
+  Tract:
+    fields:
+      source_layer: {type: "Layer&"}
+      dest_layer:   {type: "Layer&"}
+      region_bus:   {type: "RegionBus&"}
+      feedback:     {type: "bool", default: false}
+      probability:  {type: "double", doc: "fan-out probability for random wiring"}
+    methods:
+      _on_source_fired:
+        args: [{name: "who", type: "Neuron*"}, {name: "value", type: "double"}]
+        effect: "Invoked via source neuron's fire hooks to deliver to dest layer."
+  Region:
+    fields:
+      name: {type: "string"}
+      layers: {type: "List<Layer>", doc: "addresses stable across growth"}
+      tracts: {type: "List<Tract>", doc: "inter-layer connections"}
+      bus: {type: "RegionBus"}
+      input_ports: {type: "Map<string, List<int>>"}
+      output_ports: {type: "Map<string, List<int>>"}
+    methods:
+      _add_layer:
+        args: [{name: "excitatory_count", type: "int"}, {name: "inhibitory_count", type: "int"}, {name: "modulatory_count", type: "int"}]
+        returns: "int (layer index)"
+      _connect_layers:
+        args: [{name: "source_index", type: "int"}, {name: "dest_index", type: "int"}, {name: "probability", type: "double"}, {name: "feedback", type: "bool"}]
+        returns: "Tract&"
+      _bind_input:
+        args: [{name: "port", type: "string"}, {name: "layer_indices", type: "List<int>"}]
+      _bind_output:
+        args: [{name: "port", type: "string"}, {name: "layer_indices", type: "List<int>"}]
+      _pulse_inhibition: {args: [{name: "factor", type: "double"}]}
+      _pulse_modulation: {args: [{name: "factor", type: "double"}]}
+      _tick:
+        args: [{name: "port", type: "string"}, {name: "value", type: "double"}]
+        returns: "RegionMetrics"
+      _tick_image:
+        args: [{name: "port", type: "string"}, {name: "frame", type: "double[H][W]"}]
+        returns: "RegionMetrics"
+      _prune:
+        args:
+          - {name: "synapse_stale_window", type: "long", default: 10000}
+          - {name: "synapse_min_strength", type: "double", default: 0.05}
+          - {name: "tract_stale_window",   type: "long", default: 10000}
+          - {name: "tract_min_strength",   type: "double", default: 0.05}
+        returns: "PruneSummary"
+  RegionMetrics:
+    fields:
+      deliveredEvents: {type: "int"}
+      totalSlots: {type: "int"}
+      totalSynapses: {type: "int"}
+    doc: "Aggregated per tick for dashboards."
+  PruneSummary:
+    fields:
+      prunedSynapses: {type: "int"}
+      prunedEdges: {type: "int", doc: "reserved for future inter-layer pruning"}
+
+algorithms:
+  slot_selection:
+    description: "Percent-delta binning; cfg.policy controls FIXED/NONUNIFORM/ADAPTIVE behaviour."
+  learning_rule:
+    description: "Local reinforcement scaled by bus.modulation_factor; smooth clamp to [-1, 1]."
+  thresholding:
+    description: "Per-slot adaptive θ (T0 imprint + EMA drift toward R*)."
+  neuron_spike:
+    excitatory: "Propagate to downstream if any slot crosses θ (OR-gate)."
+    inhibitory: "Set bus.inhibition_factor (dampening)."
+    modulatory: "Set bus.modulation_factor (learning-rate scaling)."
+  end_tick:
+    description: "All layers call _end_tick(); LateralBus decays inhibition, resets modulation; OutputLayer2D updates its frame."
+
+ports_and_io:
+  input_ports: "Map names to one or more entry layers for scalar or image inputs."
+  output_ports: "Map names to one or more exit layers for reading frames or aggregated spikes."
+  image_conventions: "2D arrays indexed [row][col] == [y][x], double precision."
+
+language_bindings:
+  java:
+    Region:
+      tick: "RegionMetrics tick(String port, double value)"
+      tickImage: "RegionMetrics tickImage(String port, double[][] frame)"
+      prune: "PruneSummary prune(long synapseStaleWindow, double synapseMinStrength, long tractStaleWindow, double tractMinStrength)"
+  cpp:
+    Region:
+      tick: "RegionMetrics tick(const std::string& port, double value)"
+      (notes): "RegionMetrics has deliveredEvents, totalSlots, totalSynapses"
+  python:
+    file_layout:
+      - "math_utils.py"
+      - "weight.py"
+      - "neuron_base.py"
+      - "neuron_excitatory.py"
+      - "neuron_inhibitory.py"
+      - "neuron_modulatory.py"
+      - "layer.py"
+      - "input_layer_2d.py"
+      - "output_layer_2d.py"
+      - "region_bus.py"
+      - "region.py"
+    Region:
+      _tick: "_tick(port: str, value: float) -> RegionMetrics"
+      _tick_image: "_tick_image(port: str, frame: List[List[float]]) -> RegionMetrics"
+      _prune: "_prune(...) -> PruneSummary"
+  mojo:
+    conventions:
+      methods: "use `fn` and explicit parameter types; mirror Python names."
+      example:
+        Region:
+          _tick: "fn _tick(port: String, value: Float64) -> RegionMetrics"
+          _tick_image: "fn _tick_image(port: String, frame: NDArray[Float64, 2]) -> RegionMetrics"
+
+pruning:
+  strategy:
+    synapse:
+      rule: "Remove synapses older than synapse_stale_window OR below synapse_min_strength."
+    tracts:
+      rule: "Remove tract edges with no activity over tract_stale_window OR aggregate strength below threshold."
+  metrics_update: "Return PruneSummary"
+
+errors_and_validation:
+  invalid_indices: "Throw/raise out-of-range errors with clear messages"
+  null_ports: "Binding to unknown ports is a no-op (warning-level log)"
+  frame_shape: "Validate HxW for Input/OutputLayer2D; raise if mismatched"
+
+determinism_and_tests:
+  seed: 1234
+  tests:
+    - "SlotEngine: FIXED, NONUNIFORM, ADAPTIVE mapping is deterministic given inputs."
+    - "Neuron: first slot crossing θ fires; OR-gate semantics."
+    - "Layer: _end_tick decays bus & OutputLayer2D frame refreshes from neuron values."
+    - "Region: tick & tick_image deliver events and aggregate RegionMetrics."
+    - "Pruning: drops stale/weak synapses; returns accurate PruneSummary."
+
+benchmarks:
+  latency:
+    - "end_to_end_tick_scalar"
+    - "end_to_end_tick_image"
+  micro:
+    - "slot_engine_slot_id"
+    - "weight_reinforce"
+    - "layer_end_tick"
+    - "tract_delivery"
+
+documentation:
+  spec_files:
+    - "docs/GrowNet_Design_Spec_v3.md"
+    - "docs/GrowNet_Contract_v3_master.yaml (this file)"
+
+release_checklist:
+  - "Java remains green as behavioural reference"
+  - "C++ headers and impl match signatures"
+  - "Python methods use leading underscore and flat module layout"
+  - "Mojo signatures use fn + explicit types"
+  - "Bench harness discovers all language runners via config.yaml"

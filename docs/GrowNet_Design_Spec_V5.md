@@ -18,7 +18,7 @@ What changed from V4
 
 Goals
 - Deterministic, minimal primitives that grow capacity by escalating the smallest necessary unit.
-- Clear, reproducible behavior across Python, C++, Java, Mojo (idiomatic naming per language).
+- Clear, reproducible behavior across Python, C++, Java, Mojo, TypeScript, and Rust (idiomatic naming per language).
 - Two‑phase ticks with bus decay and a monotonic step counter for cooldowns/metrics.
 - Deterministic tract/windowed wiring with re‑attachment after growth.
 

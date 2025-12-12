@@ -1,0 +1,8 @@
+*** Begin Patch
+*** Update File: READ_ORDER.md
+@@
+ 02_architecture_overview.md
++03_golden_rule.md      # NEW: Slot→Neuron→Layer→Region rule, anchor semantics, invariants
+ 04_tick_discipline.md
+ 05_autowiring_and_tracts.md
+*** End Patch

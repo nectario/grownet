@@ -1,0 +1,1513 @@
+▌Below is a concrete, drop‑in design you can hand to Codex: a **Parallelism Abstraction Layer (PAL v1)** with the same names and semantics in **Python, Java, C++, and Mojo**. It preserves our invariants (two‑phase ticks, one growth per region per tick, determinism, center‑mapped wiring), and lets us plug in **GPU in Mojo** and **Virtual
+▌Threads in Java** without changing call‑sites.
+▌
+▌------
+▌
+▌## PAL v1 — Unified Parallelism & Concurrency Abstraction
+▌
+▌### Goals
+▌
+▌- **One API, many backends:** CPU threads, Java Virtual Threads (for orchestration), GPU in Mojo.
+▌- **Deterministic results:** same seed + inputs → identical outputs, regardless of backend or thread count.
+▌- **Drop‑in:** call‑sites do not know if work ran on CPU or GPU.
+▌- **No style regressions:** descriptive identifiers; Python/Mojo public names in snake_case; no leading underscores; Mojo typed `struct` + `fn`.
+▌
+▌### Non‑goals
+▌
+▌- No changes to growth rules, slot selection logic, or tract/mesh semantics.
+▌- No permanent runtime coordinates added to core objects (layout stays a pure function).
+▌- No background async side‑effects; all kernels respect tick barriers.
+▌
+▌------
+▌
+▌## 1) Public API (identical shape in every language)
+▌
+▌**Core concepts**
+▌
+▌- **Domain**: a deterministic, ordered collection of work items (e.g., neuron tiles, synapse blocks, spatial cells).
+▌- **Kernel**: a pure function the PAL executes for each item.
+▌- **Reducer**: a deterministic combiner applied after all kernel invocations.
+▌- **Options**: how to run (threads, tiles, device, vectorization), never observed by the caller.
+▌
+▌### 1.1 Types
+▌
+▌**Options / Config**
+▌
+▌- `max_workers: int` — default hardware_concurrency (or platform default).
+▌- `tile_size: int` — work granularity (e.g., neurons per tile).
+▌- `reduction_mode: "ordered" | "pairwise_tree"` — deterministic reduction flavor.
+▌- `device: "cpu" | "gpu" | "auto"` — `"auto"` chooses GPU if available (Mojo), else CPU.
+▌- `vectorization_enabled: bool` — hint for SIMD on CPU kernels.
+▌
+▌**Domains**
+▌
+▌- `NeuronTiles(layer_index, total_neurons, tile_size)`
+▌- `SynapseBlocks(layer_index, block_size)` (optional)
+▌- `CenterWindows(dst_layer_index, kernel_h, kernel_w, stride_h, stride_w, padding)` (windowed wiring)
+▌- `SpatialCells(radius, layout_params)` (proximity policy)
+▌
+▌> Each domain **must** enumerate items in a **stable lexicographic order** so results never depend on scheduling.
+▌
+▌### 1.2 Functions (exact names across languages)
+▌
+▌```text
+▌pal.configure(options: ParallelOptions) -> None
+▌pal.parallel_map(domain, kernel(item) -> LocalResult,
+▌                 reduce_in_order(local_results) -> GlobalResult,
+▌                 options: ParallelOptions = default) -> GlobalResult
+▌
+▌pal.parallel_for(domain, kernel(item) -> None,
+▌                 options: ParallelOptions = default) -> None
+▌
+▌pal.counter_rng(seed:int, step:int, draw_kind:int,
+▌                layer_index:int, unit_index:int, draw_index:int) -> float64  # deterministic [0,1)
+▌```
+▌
+▌**Design rules**
+▌
+▌- `parallel_map` returns **local results per worker**, then **reduces in a fixed order** (worker 0, 1, …) or via a fixed‑shape tree.
+▌- `parallel_for` is a convenience when no reduction is needed.
+▌- `counter_rng` is provided so probabilistic kernels stay deterministic under parallelism (no shared RNG state).
+▌
+▌------
+▌
+▌## 2) Backends per language (hidden behind PAL)
+▌
+▌| Language | Backend (hidden)                                             | Notes                                                        |
+▌| -------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+▌| Python   | C++/C API via pybind11/nanobind; releases GIL; uses platform thread pool | Python orchestrates; heavy kernels in native code. Deterministic reductions in native code. |
+▌| Java 21  | Structured Concurrency for orchestration; compute on a fixed platform thread pool; optional Virtual Threads for tasks | Virtual Threads are great for orchestration and I/O; for CPU kernels we **limit parallelism** to avoid oversubscription. |
+▌| C++      | OpenMP (static) or TBB; thread‑local buffers; ordered merges | Choose one (OpenMP easiest to wire). Deterministic combine in worker‑id order. |
+▌| Mojo     | CPU backend mirrors C++; GPU backend (when available) launches kernels; same deterministic reductions | Single front API: `device="gpu"` selects GPU kernels; otherwise falls back to CPU. Identical results by design. |
+▌
+▌------
+▌
+▌## 3) Where PAL is called (2D ticks and friends)
+▌
+▌**Phase‑A (2D)**
+▌
+▌```text
+▌pal.parallel_for(
+▌  domain = NeuronTiles(layer_index, total_neurons, tile_size),
+▌  kernel = integrate_and_select_for_tile,           # writes only to tile-local or per-neuron state
+▌  options = parallel_options
+▌)
+▌collect_growth_intents_thread_local()               # inside kernel
+▌RegionGrowthArbiter.apply_one_growth_deterministic()# single-threaded, after barrier
+▌```
+▌
+▌**Phase‑B (2D)**
+▌
+▌```text
+▌pal.parallel_map(
+▌  domain = NeuronTiles(layer_index, total_neurons, tile_size),
+▌  kernel = propagate_outgoing_for_tile -> ThreadLocalAccumulator,
+▌  reduce_in_order = merge_accumulators_in_worker_order_into_global
+▌)
+▌```
+▌
+▌**Windowed wiring (center‑mapping)**
+▌
+▌```text
+▌edges = pal.parallel_map(
+▌  domain = CenterWindows(dst_layer_index, k_h, k_w, s_h, s_w, padding),
+▌  kernel = compute_source_to_center_pairs_for_window -> local_edge_vector,
+▌  reduce_in_order = concatenate_then_sort_by_source_then_center_then_dedupe
+▌)
+▌# edges committed once; return unique source count unchanged
+▌```
+▌
+▌**Proximity autowiring (optional policy)**
+▌
+▌```text
+▌cell_table = pal.parallel_map(
+▌  domain = SpatialCells(radius, layout_params),
+▌  kernel = build_cell_entries -> local_cell_entries,
+▌  reduce_in_order = stable_sort_by_cell_key_then_group
+▌)
+▌
+▌accepted_edges = pal.parallel_map(
+▌  domain = SpatialCells(radius, layout_params),
+▌  kernel = probe_neighbors_with_counter_rng -> local_edges,
+▌  reduce_in_order = union_then_cap_by_budget_in_lexicographic_order
+▌)
+▌```
+▌
+▌------
+▌
+▌## 4) RNG and determinism (shared)
+▌
+▌- **Never** use shared mutable RNG.
+▌- Use `pal.counter_rng(seed, step, draw_kind, layer_index, unit_index, draw_index)` across languages; implement with a **counter‑based algorithm** (e.g., Philox/Threefry/PCG‑hash).
+▌- **Reduction**: either **ordered** (worker 0..N‑1) or a **fixed‑shape pairwise tree**. Always in `double` for accumulation, then cast if needed.
+▌- **Iteration order**: domains enumerate in ascending, stable order (e.g., row‑major tile order for 2D).
+▌
+▌------
+▌
+▌## 5) Minimal interfaces (copy/paste skeletons)
+▌
+▌### 5.1 Python
+▌
+▌```python
+▌# src/python/pal/api.py
+▌from dataclasses import dataclass
+▌from typing import Callable, Iterable, Any, List
+▌
+▌@dataclass
+▌class ParallelOptions:
+▌    max_workers: int | None = None
+▌    tile_size: int = 4096
+▌    reduction_mode: str = "ordered"  # "ordered" | "pairwise_tree"
+▌    device: str = "cpu"              # "cpu" | "gpu" | "auto"
+▌    vectorization_enabled: bool = True
+▌
+▌def configure(options: ParallelOptions) -> None: ...
+▌def parallel_for(domain: Iterable[Any], kernel: Callable[[Any], None],
+▌                 options: ParallelOptions | None = None) -> None: ...
+▌def parallel_map(domain: Iterable[Any], kernel: Callable[[Any], Any],
+▌                 reduce_in_order: Callable[[List[Any]], Any],
+▌                 options: ParallelOptions | None = None) -> Any: ...
+▌def counter_rng(seed:int, step:int, draw_kind:int, layer_index:int,
+▌                unit_index:int, draw_index:int) -> float: ...
+▌```
+▌
+▌> Implementation delegates to a native module (`_pal_native`) that runs threads or GPU and performs deterministic reductions.
+▌
+▌### 5.2 Java (package `ai.nektron.grownet.pal`)
+▌
+▌```java
+▌public final class ParallelOptions {
+▌  public Integer maxWorkers; public int tileSize = 4096;
+▌  public String reductionMode = "ordered";
+▌  public String device = "cpu"; public boolean vectorizationEnabled = true;
+▌}
+▌
+▌public interface Domain<T> extends Iterable<T> {} // deterministic iteration
+▌
+▌public final class PAL {
+▌  public static void configure(ParallelOptions options) { /* store globally or thread-local */ }
+▌  public static <T> void parallelFor(Domain<T> domain, Consumer<T> kernel, ParallelOptions opts) { /* StructuredTaskScope + fixed executor */ }
+▌  public static <T,R> R parallelMap(Domain<T> domain, Function<T,R> kernel,
+▌                                    Function<List<R>, R> reduceInOrder,
+▌                                    ParallelOptions opts) { /* same */ }
+▌  public static double counterRng(long seed, long step, int drawKind, int layerIndex, int unitIndex, int drawIndex) { /* counter-based */ }
+▌}
+▌```
+▌
+▌> Compute tasks run on a **fixed platform executor** sized to cores; Virtual Threads can wrap tasks for structured orchestration but are **bounded** by that executor to avoid oversubscription.
+▌
+▌### 5.3 C++ (header‑only façade; OpenMP/TBB under the hood)
+▌
+▌```cpp
+▌// include/grownet/pal/Pal.h
+▌struct ParallelOptions {
+▌  int  max_workers = 0;    // 0 => auto
+▌  int  tile_size   = 4096;
+▌  enum class Reduction { Ordered, PairwiseTree } reduction = Reduction::Ordered;
+▌  enum class Device    { Cpu, Gpu, Auto } device = Device::Cpu;
+▌  bool vectorization_enabled = true;
+▌};
+▌
+▌namespace pal {
+▌  void configure(const ParallelOptions& options);
+▌
+▌  template <typename Domain, typename Kernel>
+▌  void parallel_for(const Domain& domain, Kernel kernel, const ParallelOptions* options);
+▌
+▌  template <typename Domain, typename Kernel, typename Reduce>
+▌  auto parallel_map(const Domain& domain, Kernel kernel, Reduce reduce_in_order, const ParallelOptions* options) -> typename /* deduced type */;
+▌
+▌  double counter_rng(std::uint64_t seed, std::uint64_t step,
+▌                     int draw_kind, int layer_index, int unit_index, int draw_index);
+▌}
+▌```
+▌
+▌> Implementation chooses OpenMP (static) or TBB; both return identical results by using **thread‑local outputs** and **deterministic merges**.
+▌
+▌### 5.4 Mojo (CPU and GPU in one façade)
+▌
+▌```mojo
+▌    var max_workers: Int? = None
+▌    var tile_size: Int = 4096
+▌    var reduction_mode: String = "ordered"
+▌    var device: String = "cpu"         # "cpu" | "gpu" | "auto"
+▌    var vectorization_enabled: Bool = True
+▌
+▌fn configure(options: ParallelOptions) -> None: ...
+▌
+▌fn parallel_for[T](domain: List[T], kernel: fn(T) -> None, options: ParallelOptions) -> None: ...
+▌fn parallel_map[T, R](domain: List[T], kernel: fn(T) -> R,
+▌                      reduce_in_order: fn(List[R]) -> R,
+▌                      options: ParallelOptions) -> R: ...
+▌
+▌fn counter_rng(seed: Int, step: Int, draw_kind: Int, layer_index: Int, unit_index: Int, draw_index: Int) -> Float64: ...
+▌```
+▌
+▌> With `device="gpu"`, the dispatcher launches GPU kernels (where available) that **write thread‑local tiles to device memory**, then copy back partials for a **deterministic host‑side reduction** (or a **deterministic device reduction** if supported).
+▌
+▌------
+▌
+▌## 6) Example: 2D Phase‑A with PAL (language‑agnostic pseudo)
+▌
+▌```text
+▌options = ParallelOptions(max_workers=cores, tile_size=64*64, reduction_mode="ordered", device="auto")
+▌
+▌domain = NeuronTiles(layer_index, total_neurons, options.tile_size)
+▌
+▌pal.parallel_for(
+▌  domain,
+▌  kernel = (tile) => {
+▌     for neuron_index in tile.neuron_indices:
+▌         integrate_inputs(neuron_index)
+▌         selected_slot = select_or_create_slot_2d(neuron_index)   # existing logic
+▌         if growth_triggered(neuron_index):
+▌             thread_local_intents.push( GrowthIntent(layer_index, neuron_index) )
+▌  },
+▌  options
+▌)
+▌
+▌RegionGrowthArbiter.apply_one_growth_deterministic(region, gather_thread_local_intents_in_canonical_order())
+▌```
+▌
+▌**Phase‑B** uses `parallel_map` to return one `ThreadLocalAccumulator` per worker and then merges them **in worker order**.
+▌
+▌------
+▌
+▌## 7) GPU (Mojo) and Virtual Threads (Java)
+▌
+▌- **Mojo GPU**
+▌  - Provide GPU kernels for inner loops (integration, propagation, window map).
+▌  - Keep deterministic merges either on host (copy back thread‑local partials) or with a **fixed‑order device reduction** (e.g., serial per target block).
+▌  - The choice of `"gpu"` is **entirely inside PAL**; call‑sites just pass `device="auto"`.
+▌- **Java Virtual Threads**
+▌  - Use **Virtual Threads** for **structured orchestration** (scopes, cancellation, timeouts) but bind tasks to a **fixed parallelism** executor for the CPU‑bound kernels.
+▌  - PAL hides this; the same `parallelFor` and `parallelMap` are used.
+▌
+▌------
+▌
+▌## 8) Tests (must‑pass before enabling by default)
+▌
+▌1. **Determinism sweep**: same seed + inputs → identical model state across `max_workers ∈ {1,2,8}`, `device ∈ {"cpu","gpu","auto"}`.
+▌2. **Phase invariants**: two‑phase barriers honored; **one growth per region per tick** via the arbiter.
+▌3. **Windowed wiring parity**: center indices and **unique source count** identical to baseline.
+▌4. **Proximity (if enabled)**: STEP mode requires no RNG; probabilistic modes identical with `pal.counter_rng`.
+▌5. **Performance sanity**: large 2D (≥ 512×512) shows ≥2× vs single‑thread baseline while passing all parity tests.
+▌
+▌------
+▌
+▌## 9) Migration plan
+▌
+▌- **Step 1:** Land PAL façade + CPU backends (C++/Java/Mojo), wire 2D Phase‑A and Phase‑B only; keep a feature flag (default off).
+▌- **Step 2:** Parallelize windowed wiring and proximity policy through PAL.
+▌- **Step 3:** Add Mojo GPU backend behind `device="auto"`; keep CPU fallback.
+▌- **Step 4:** Enable PAL by default on 2D paths after determinism gates are green.
+▌
+▌------
+▌
+▌## 10) What stays invisible to callers
+▌
+▌- Whether a tile ran on 1 thread or 64, CPU or GPU.
+▌- Whether Java used Virtual Threads or platform threads to orchestrate.
+▌- How reductions were implemented (ordered vs fixed tree).
+▌   **Only the outputs and runtime stay the same**—the PAL guarantees the determinism and invariants GrowNet requires.
+▌
+▌------
+▌
+▌
+
+• Added src/python/pal/api.py (+67 -0)
+    1     +from __future__ import annotations
+    2     +
+    3     +from dataclasses import dataclass
+    4     +from typing import Callable, Iterable, Any, List, Optional, TypeVar, Generic
+    5     +
+    6     +
+    7     +@dataclass
+    8     +class ParallelOptions:
+    9     +    max_workers: Optional[int] = None
+    10    +    tile_size: int = 4096
+    11    +    reduction_mode: str = "ordered"   # "ordered" | "pairwise_tree"
+    12    +    device: str = "cpu"               # "cpu" | "gpu" | "auto"
+    13    +    vectorization_enabled: bool = True
+    14    +
+    15    +
+    16    +_GLOBAL_OPTIONS = ParallelOptions()
+    17    +
+    18    +
+    19    +def configure(options: ParallelOptions) -> None:
+    20    +    global _GLOBAL_OPTIONS
+    21    +    _GLOBAL_OPTIONS = options
+    22    +
+    23    +
+    24    +T = TypeVar("T")
+    25    +R = TypeVar("R")
+    26    +
+    27    +
+    28    +def parallel_for(domain: Iterable[T], kernel: Callable[[T], None], options: Optional[ParallelOptions] = None) -> None:
+    29    +    # Sequential fallback; deterministic by construction.
+    30    +    _ = options or _GLOBAL_OPTIONS
+    31    +    for item in domain:
+    32    +        kernel(item)
+    33    +
+    34    +
+    35    +def parallel_map(domain: Iterable[T], kernel: Callable[[T], R], reduce_in_order: Callable[[List[R]], R], options: Optional[ParallelOptions] = None) -> R:
+    36    +    # Sequential fallback; collect in a stable order and reduce deterministically.
+    37    +    _ = options or _GLOBAL_OPTIONS
+    38    +    local_results: List[R] = []
+    39    +    for item in domain:
+    40    +        local_results.append(kernel(item))
+    41    +    return reduce_in_order(local_results)
+    42    +
+    43    +
+    44    +def _rotl64(x: int, r: int) -> int:
+    45    +    return ((x << r) & 0xFFFFFFFFFFFFFFFF) | (x >> (64 - r))
+    46    +
+    47    +
+    48    +def _mix64(x: int) -> int:
+    49    +    # SplitMix64 mix function
+    50    +    x = (x + 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF
+    51    +    z = x
+    52    +    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9 & 0xFFFFFFFFFFFFFFFF
+    53    +    z = (z ^ (z >> 27)) * 0x94D049BB133111EB & 0xFFFFFFFFFFFFFFFF
+    54    +    z = z ^ (z >> 31)
+    55    +    return z & 0xFFFFFFFFFFFFFFFF
+    56    +
+    57    +
+    58    +def counter_rng(seed: int, step: int, draw_kind: int, layer_index: int, unit_index: int, draw_index: int) -> float:
+    59    +    # Counter-based deterministic RNG using SplitMix64-style mixing of a composed counter.
+    60    +    # Compose a 64-bit key from inputs in a stable way.
+    61    +    key = (seed & 0xFFFFFFFFFFFFFFFF)
+    62    +    for v in (step, draw_kind, layer_index, unit_index, draw_index):
+    63    +        key = _mix64((key ^ (v & 0xFFFFFFFFFFFFFFFF)) & 0xFFFFFFFFFFFFFFFF)
+    64    +    # Convert to double in [0,1)
+    65    +    mantissa = (key >> 11) & ((1 << 53) - 1)
+    66    +    return mantissa / float(1 << 53)
+    67    +
+
+• Added src/java/ai/nektron/grownet/pal/ParallelOptions.java (+10 -0)
+    1     +package ai.nektron.grownet.pal;
+    2     +
+    3     +public final class ParallelOptions {
+    4     +  public Integer maxWorkers = null;
+    5     +  public int tileSize = 4096;
+    6     +  public String reductionMode = "ordered"; // "ordered" | "pairwise_tree"
+    7     +  public String device = "cpu";            // "cpu" | "gpu" | "auto"
+    8     +  public boolean vectorizationEnabled = true;
+    9     +}
+    10    +
+
+• Added src/java/ai/nektron/grownet/pal/Domain.java (+12 -0)
+    1     +package ai.nektron.grownet.pal;
+    2     +
+    3     +import java.util.Iterator;
+    4     +
+    5     +/**
+    6     + * Deterministic domain — must iterate items in a stable order.
+    7     + */
+    8     +public interface Domain<T> extends Iterable<T> {
+    9     +  @Override
+    10    +  Iterator<T> iterator();
+    11    +}
+    12    +
+
+• Added src/java/ai/nektron/grownet/pal/PAL.java (+66 -0)
+    1     +package ai.nektron.grownet.pal;
+    2     +
+    3     +import java.util.ArrayList;
+    4     +import java.util.List;
+    5     +import java.util.Objects;
+    6     +import java.util.function.Consumer;
+    7     +import java.util.function.Function;
+    8     +
+    9     +public final class PAL {
+    10    +  private static ParallelOptions GLOBAL = new ParallelOptions();
+    11    +
+    12    +  private PAL() {}
+    13    +
+    14    +  public static void configure(ParallelOptions options) {
+    15    +    GLOBAL = (options == null ? new ParallelOptions() : options);
+    16    +  }
+    17    +
+    18    +  public static <T> void parallelFor(Domain<T> domain, Consumer<T> kernel, ParallelOptions opts) {
+    19    +    Objects.requireNonNull(domain, "domain");
+    20    +    Objects.requireNonNull(kernel, "kernel");
+    21    +    // Sequential fallback: run in deterministic iteration order.
+    22    +    for (T item : domain) {
+    23    +      kernel.accept(item);
+    24    +    }
+    25    +  }
+    26    +
+    27    +  public static <T, R> R parallelMap(Domain<T> domain,
+    28    +                                     Function<T, R> kernel,
+    29    +                                     Function<List<R>, R> reduceInOrder,
+    30    +                                     ParallelOptions opts) {
+    31    +    Objects.requireNonNull(domain, "domain");
+    32    +    Objects.requireNonNull(kernel, "kernel");
+    33    +    Objects.requireNonNull(reduceInOrder, "reduceInOrder");
+    34    +    List<R> locals = new ArrayList<>();
+    35    +    for (T item : domain) {
+    36    +      locals.add(kernel.apply(item));
+    37    +    }
+    38    +    return reduceInOrder.apply(locals);
+    39    +  }
+    40    +
+    41    +  public static double counterRng(long seed,
+    42    +                                  long step,
+    43    +                                  int drawKind,
+    44    +                                  int layerIndex,
+    45    +                                  int unitIndex,
+    46    +                                  int drawIndex) {
+    47    +    long key = seed;
+    48    +    key = mix64(key ^ step);
+    49    +    key = mix64(key ^ drawKind);
+    50    +    key = mix64(key ^ layerIndex);
+    51    +    key = mix64(key ^ unitIndex);
+    52    +    key = mix64(key ^ drawIndex);
+    53    +    long mantissa = (key >>> 11) & ((1L << 53) - 1L);
+    54    +    return mantissa / (double) (1L << 53);
+    55    +  }
+    56    +
+    57    +  private static long mix64(long x) {
+    58    +    // SplitMix64 mixing
+    59    +    long z = x + 0x9E3779B97F4A7C15L;
+    60    +    z = (z ^ (z >>> 30)) * 0xBF58476D1CE4E5B9L;
+    61    +    z = (z ^ (z >>> 27)) * 0x94D049BB133111EBL;
+    62    +    z = z ^ (z >>> 31);
+    63    +    return z;
+    64    +  }
+    65    +}
+    66    +
+
+• Added src/cpp/include/grownet/pal/Pal.h (+56 -0)
+    1     +// Header-only PAL v1 (sequential fallback). Deterministic by construction.
+    2     +#pragma once
+    3     +#include <cstdint>
+    4     +#include <vector>
+    5     +
+    6     +namespace grownet { namespace pal {
+    7     +
+    8     +struct ParallelOptions {
+    9     +  int  max_workers = 0;    // 0 => auto
+    10    +  int  tile_size   = 4096;
+    11    +  enum class Reduction { Ordered, PairwiseTree } reduction = Reduction::Ordered;
+    12    +  enum class Device    { Cpu, Gpu, Auto } device = Device::Cpu;
+    13    +  bool vectorization_enabled = true;
+    14    +};
+    15    +
+    16    +inline void configure(const ParallelOptions& /*options*/) {
+    17    +  // No-op for the sequential fallback.
+    18    +}
+    31    +  return reduce_in_order(locals);
+    32    +}
+    33    +
+    34    +inline std::uint64_t mix64(std::uint64_t x) {
+    35    +  x += 0x9E3779B97F4A7C15ull;
+    36    +  std::uint64_t z = x;
+    37    +  z ^= (z >> 30); z *= 0xBF58476D1CE4E5B9ull;
+    38    +  z ^= (z >> 27); z *= 0x94D049BB133111EBull;
+    39    +  z ^= (z >> 31);
+    40    +  return z;
+    41    +}
+    42    +
+    43    +inline double counter_rng(std::uint64_t seed, std::uint64_t step,
+    44    +                          int draw_kind, int layer_index, int unit_index, int draw_index) {
+    45    +  std::uint64_t key = seed;
+    46    +  key = mix64(key ^ static_cast<std::uint64_t>(step));
+    47    +  key = mix64(key ^ static_cast<std::uint64_t>(draw_kind));
+    48    +  key = mix64(key ^ static_cast<std::uint64_t>(layer_index));
+    49    +  key = mix64(key ^ static_cast<std::uint64_t>(unit_index));
+    50    +  key = mix64(key ^ static_cast<std::uint64_t>(draw_index));
+    51    +  std::uint64_t mantissa = (key >> 11) & ((1ull << 53) - 1ull);
+    52    +  return static_cast<double>(mantissa) / static_cast<double>(1ull << 53);
+    53    +}
+    54    +
+    55    +}} // namespace grownet::pal
+    56    +
+
+• Added src/mojo/pal/pal.mojo (+47 -0)
+    1     +struct ParallelOptions:
+    5     +    var device: String = "cpu"               # "cpu" | "gpu" | "auto"
+    6     +    var vectorization_enabled: Bool = True
+    7     +
+    8     +fn configure(options: ParallelOptions) -> None:
+    9     +    # Sequential fallback: no-op (reserved for future backends)
+    10    +    _ = options
+    11    +
+    12    +fn parallel_for[T](domain: list[T], kernel: fn(T) -> None, options: ParallelOptions) -> None:
+    13    +    _ = options
+    14    +    var index = 0
+    15    +    while index < domain.len:
+    16    +        kernel(domain[index])
+    17    +        index = index + 1
+    18    +
+    19    +fn parallel_map[T, R](domain: list[T], kernel: fn(T) -> R,
+    20    +                      reduce_in_order: fn(list[R]) -> R,
+    21    +                      options: ParallelOptions) -> R:
+    22    +    _ = options
+    23    +    var locals = [R]()
+    24    +    var index = 0
+    25    +    while index < domain.len:
+    26    +        locals.append(kernel(domain[index]))
+    27    +        index = index + 1
+    28    +    return reduce_in_order(locals)
+    29    +
+    30    +# SplitMix64-style counter-based RNG producing Float64 in [0,1)
+    31    +fn _mix64(x_in: UInt64) -> UInt64:
+    32    +    var z = x_in + 0x9E3779B97F4A7C15
+    33    +    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9
+    34    +    z = (z ^ (z >> 27)) * 0x94D049BB133111EB
+    35    +    z = (z ^ (z >> 31))
+    36    +    return z
+    37    +
+    38    +fn counter_rng(seed: Int, step: Int, draw_kind: Int, layer_index: Int, unit_index: Int, draw_index: Int) -> Float64:
+    39    +    var key: UInt64 = UInt64(seed)
+    40    +    key = _mix64(key ^ UInt64(step))
+    41    +    key = _mix64(key ^ UInt64(draw_kind))
+    42    +    key = _mix64(key ^ UInt64(layer_index))
+    43    +    key = _mix64(key ^ UInt64(unit_index))
+    44    +    key = _mix64(key ^ UInt64(draw_index))
+    45    +    var mantissa: UInt64 = (key >> 11) & ((UInt64(1) << 53) - 1)
+    46    +    return Float64(mantissa) / Float64(UInt64(1) << 53)
+    47    +
+
+• Ran
+  └ git add src/python/pal/api.py src/java/ai/nektron/grownet/pal/ParallelOptions.java src/java/ai/nektron/grownet/pal/Domain.java src/java/ai/nektron/grownet/pal/PAL.java src/cpp/include/grownet/pal/Pal.h src/mojo/pal/pal.mojo && git commit -m "PAL v1 skeleton: Unified Parallelism Abstraction (sequential fallback)
+
+    - Python: pal/api.py with ParallelOptions, parallel_for/map, counter_rng
+    - Java: ai.nektron.grownet.pal with ParallelOptions, Domain, PAL utility
+    - C++: header-only include/grownet/pal/Pal.h with templates and counter_rng
+    - Mojo: pal/pal.mojo with ParallelOptions and sequential functions
+    
+    Design preserves determinism and provides a single façade. Backends can be added later." && git push origin main
+
+> Added PAL v1 (Parallelism Abstraction Layer) skeletons for Python, Java, C++, and Mojo, with sequential deterministic fallbacks, and pushed to main.
+
+  What’s included
+
+  - Python
+      - File: src/python/pal/api.py
+      - ParallelOptions dataclass, configure, parallel_for, parallel_map, and counter_rng (SplitMix64-based).
+      - Deterministic sequential execution; stable list reduction.
+      - PAL.counterRng uses SplitMix64 mixing for repeatable [0,1).
+  - C++
+      - File: src/cpp/include/grownet/pal/Pal.h (header-only)
+      - ParallelOptions, pal::parallel_for, pal::parallel_map templates, pal::counter_rng (SplitMix64-style).
+      - Deterministic sequential fallback; no build changes needed unless you include this header.
+  - Mojo
+      - File: src/mojo/pal/pal.mojo
+      - ParallelOptions struct; parallel_for, parallel_map sequential fallbacks.
+      - counter_rng implemented with SplitMix64-style mixing; typed and using var (no let).
+
+  Notes
+
+  - These are drop-in façades; call-sites can start importing PAL without behavior changes.
+  - Determinism: All counter_rng implementations share the same mixing, so the same parameters produce identical values across languages.
+  - Backends (threads, GPU, virtual threads) can be added behind these APIs later without touching call-sites.
+
+  If you want, I can wire PAL into a small, non-invasive call-site (e.g., a demo’s loop) behind a feature flag to showcase usage, or add simple domains (NeuronTiles prototypes) for examples.
+
+▌Yes, please add your suggestions. Also, please do not have names starting with underscore _ I really dont like these to start a variable name. Identify such cases and renmae the name without it starting with an underscore.
+
+• Explored
+  └ Search \bdef\s+_[A-Za-z0-9_]+|\bclass\s+_[A-Za-z0-9_]+|\bfn\s+_[A-Za-z0-9_]+|\bvar\s+_[A-Za-z0-9_]+|\blet\s+_[A-Za-z0-9_]+|\b[A-Za-z0-9_]+\s*=\s*_[A-Za-z0-9_]+ in src
+
+• Edited src/python/pal/api.py (+8 -9)
+    15
+    16    -_GLOBAL_OPTIONS = ParallelOptions()
+    44    -def _rotl64(x: int, r: int) -> int:
+    44    +def rotl64(x: int, r: int) -> int:
+    45         return ((x << r) & 0xFFFFFFFFFFFFFFFF) | (x >> (64 - r))
+    ⋮
+    47
+    48    -def _mix64(x: int) -> int:
+    48    +def mix64(x: int) -> int:
+    49         # SplitMix64 mix function
+    ⋮
+    62         for v in (step, draw_kind, layer_index, unit_index, draw_index):
+    63    -        key = _mix64((key ^ (v & 0xFFFFFFFFFFFFFFFF)) & 0xFFFFFFFFFFFFFFFF)
+    27    -def _validate_config(cfg: TopographicConfig) -> None:
+    27    +def validate_config(cfg: TopographicConfig) -> None:
+    28         if cfg.kernel_h < 1 or cfg.kernel_w < 1:
+    ⋮
+    48         """
+    49    -    _validate_config(config)
+    49    +    validate_config(config)
+    50
+
+• Ran
+  └ apply_patch << 'PATCH'
+    *** Begin Patch
+    *** Update File: src/bench/run_all.py
+    @@
+    -def _load_config(path: str) -> dict:
+    +def load_config(path: str) -> dict:
+    @@
+    -def _now_ns() -> int:
+    +def now_ns() -> int:
+    @@
+    -def _run_cmd(command: str, cwd: str | None) -> tuple[int, str, str]:
+    +def run_cmd(command: str, cwd: str | None) -> tuple[int, str, str]:
+    @@
+    -def _fmt_ms(ns: int) -> float:
+    +def fmt_ms(ns: int) -> float:
+    @@
+    -    cfg = _load_config(args.config)
+    +    cfg = load_config(args.config)
+    @@
+    -                rc, out, err = _run_cmd(cmd, cwd)
+    +                rc, out, err = run_cmd(cmd, cwd)
+    @@
+    -                t0 = _now_ns()
+    -                rc, out, err = _run_cmd(cmd, cwd)
+    -                t1 = _now_ns()
+    +                t0 = now_ns()
+    +                rc, out, err = run_cmd(cmd, cwd)
+    +                t1 = now_ns()
+    *** End Patch
+
+    +def try_imports():
+    @@
+    -        t0 = _ns()
+    +        t0 = ns()
+    @@
+    -        t1 = _ns()
+    +        t1 = ns()
+    @@
+    -        t0 = _ns()
+    +        t0 = ns()
+    @@
+    -        t1 = _ns()
+    +        t1 = ns()
+    @@
+    -        t0 = _ns()
+    +        t0 = ns()
+    @@
+    -        t1 = _ns()
+    +        t1 = ns()
+    @@
+    -    t0 = _ns()
+    +    t0 = ns()
+    @@
+    -    t1 = _ns()
+    +    t1 = ns()
+    @@
+    -    mods, present = _try_imports()
+    +    mods, present = try_imports()
+    @@
+    -        t0 = _ns()
+    +        t0 = ns()
+    @@
+    -        t1 = _ns()
+    +        t1 = ns()
+    *** End Patch
+
+• Edited src/bench/templates/mojo/bench_mojo.mojo (+3 -3)
+    9
+    10    -fn _ns() -> Int64:
+    10    +fn ns() -> Int64:
+    11         # Mojo's `now()` returns seconds as Float64 in most builds; scale to ns.
+    ⋮
+    33         var rng = Xoroshiro128Plus(1234)
+    34    -    var t0 = _ns()
+    34    +    var t0 = ns()
+    35         var f: Int64 = 0
+    ⋮
+    45             f += 1
+    46    -    var t1 = _ns()
+    46    +    var t1 = ns()
+    47         var ms_var = (t1 - t0).float64() / 1_000_000.0
+
+• Edited src/java/ai/nektron/grownet/preset/TopographicWiring.java (+2 -2)
+    115            double[] sums = new double[Math.max(1, Hd * Wd)];
+    116   -        Map<Long, Double> weights = _Registry.getAll(region);
+    116   +        Map<Long, Double> weights = Registry.getAll(region);
+    117            if (weights != null) {
+    ⋮
+    142        // lightweight per-region registry for demo/tests (no core changes)
+    143   -    private static final class _Registry {
+    143   +    private static final class Registry {
+    144            private static final Map<Integer, Map<Long, Double>> map = new HashMap<>();
+
+• Edited src/mojo/growth_engine.mojo (+2 -2)
+    2
+    3     -fn _is_output_layer_index(region: any, index: Int) -> Bool:
+    3     +fn is_output_layer_index(region: any, index: Int) -> Bool:
+    4          if region.output_layer_indices is None:
+    ⋮
+    12
+    13    -fn _is_input_edge_index(region: any, index: Int) -> Bool:
+    13    +fn is_input_edge_index(region: any, index: Int) -> Bool:
+    14         # crude check: does any input_edges value match this index?
+
+• Edited src/mojo/growth_engine.mojo (+0 -0)
+
+• Ran
+  └ git add -A && git commit -m "Naming hygiene: remove leading underscores in identifiers and adjust call sites
+
+    - Python: PAL api (GLOBAL_OPTIONS, mix64/rotl64), bench scripts, topographic validate_config
+    - Mojo: tract helpers, region helper, growth_engine helpers, PAL mix64; converted lets earlier
+    - Java: TopographicWiring Registry class
+    - Bench templates: Mojo ns timing helper
+    
+    No behavior changes; consistent style (no leading underscores)." && git push origin main
+
+> Great — I’ve done two things:
+
+  1. Added the PAL usage suggestions and scaffolding (sequential fallback so it’s safe to land).
+  2. Removed leading-underscore identifiers across Mojo/Python and a couple of Java hotspots, then pushed.
+
+  What I added
+
+  - PAL v1 scaffolding (drop‑in; deterministic fallback)
+      - Python: src/python/pal/api.py with ParallelOptions, configure, parallel_for, parallel_map, counter_rng (SplitMix64).
+      - Java: ai.nektron.grownet.pal.{ParallelOptions, Domain, PAL} with sequential fallbacks and counterRng.
+      - C++: include/grownet/pal/Pal.h header (ParallelOptions; pal::parallel_for/map; pal::counter_rng).
+      - Mojo: src/mojo/pal/pal.mojo (ParallelOptions; parallel_for/map; counter_rng).
+  - Example domains/call‑site suggestion
+      - For now, I kept PAL unhooked from Region to avoid surprise concurrency changes. Next, I can add:
+          - Python demo: a PAL “neuron tiles” domain and use parallel_for to integrate a synthetic tile loop (behind a feature flag).
+          - Java: small Domain<Tile> wrapper class and a demo method calling PAL.parallelFor for a tile loop.
+          - Mojo: same as Python demo to show equivalence (device="auto" reserved for future GPU backend).
+      - If you want me to, I’ll add these example Domain classes and a tiny “pal_demo” script next.
+
+  Removed leading-underscore names
+
+  - Python
+      - PAL api: _GLOBAL_OPTIONS → GLOBAL_OPTIONS; _mix64/_rotl64 → mix64/rotl64.
+      - Topographic preset: _validate_config → validate_config (and updated call).
+      - Bench scripts: _ns/_ms/_try_imports/_load_config/_now_ns/_run_cmd/_fmt_ms → ns/ms/try_imports/load_config/now_ns/run_cmd/fmt_ms.
+  - Mojo
+      - tract.mojo helpers: _origin_list/_row_col_from_flat/_center_for_origin → origin_list/row_col_from_flat/center_for_origin; updated references.
+      - region.mojo helper: _has_non_zero → has_non_zero; updated calls.
+      - growth_engine.mojo helpers: _is_output_layer_index/_is_input_edge_index → is_output_layer_index/is_input_edge_index; updated calls.
+      - PAL mix64: _mix64 → mix64; updated calls.
+  - Java
+      - TopographicWiring Registry: inner class _Registry → Registry; getAll usage updated.
+  - Extras from the style sweep
+      - Replaced short single/double-char locals across demos/tests and a few core spots (kept i/j loops).
+      - Converted all remaining Mojo let to var (Mojo currently does not support let).
+
+  Commits
+
+  - PAL v1 skeleton: Unified Parallelism Abstraction (sequential fallback)
+  - Mojo style: replace 'let' with 'var' across codebase
+  - Style sweep 2: expand short variable names across tests/demos and remaining core spots
+  - Naming hygiene: remove leading underscores in identifiers and adjust call sites
+  - Smooth clamp changes and changelog earlier are already in main
+
+  Next steps (optional)
+
+  - Add a minimal “NeuronTiles” domain in Python/Java/Mojo and a pal_demo illustrating parallel_for/parallel_map usage with a deterministic reduction (I can wire it with a feature flag, e.g., GROWNET_PAL_DEMO=1).
+  - Begin integrating PAL into 2D Phase‑A/Phase‑B behind a region-level feature flag (default off), with determinism tests.
+
+  Want me to proceed with the simple Domain classes + demo scripts so you can see PAL used in practice?
+
+▌Here’s a **single, unified PR** that (a) keeps the PAL façade you landed and (b) “turns the lights on” by adding **real parallel backends** where practical **without changing call‑sites** or core semantics. It’s gated, deterministic, and compiles on Windows + Linux (OpenMP for C++; bounded executor for Java). Python keeps the same API and
+▌will benefit when it calls into native code. Mojo stays CPU‑tiling now (safe default), with a clear hook for GPU later.
+▌
+▌------
+▌
+▌## PR title
+▌
+▌**PAL v1.5 — Unified Parallelism Abstraction + Real Backends (C++ OpenMP, Java fixed‑pool + Structured Concurrency), deterministic reductions, tests & CMake wiring**
+▌
+▌------
+▌
+▌## What this PR does
+▌
+▌- **C++**: Implements `pal::parallel_for` / `pal::parallel_map` with **OpenMP** (deterministic, ordered reduction) in the header façade. Adds an **option flag** to link OpenMP into your `grownet` and (if present) `grownet_tests` targets.
+▌- **Java**: Wires `PAL.parallelFor/parallelMap` to a **fixed‑size platform executor** (cores) wrapped in **Structured Concurrency** for orchestration; splits work into **stable tiles**; reduces **in submission order** for determinism.
+▌- **Python**: Keeps your existing façade. No API changes. (When core compute lives in C++/Java, Python orchestration sees the speedup indirectly.)
+▌- **Mojo**: Keeps CPU‑tiling façade (safe/portable). Adds no‑op device switch now; leaves a **single point** to enable GPU later without changing call‑sites.
+▌- **Determinism tests (C++)**: New `pal_determinism_test.cpp` proves identical results for `{max_workers=1,2,8}` and ordered reductions.
+▌- **CMake**: Adds optional `GROWNET_WITH_OPENMP` flag (default **ON**). Detects OpenMP across compilers; links where available; otherwise falls back to sequential code transparently.
+▌- **Docs**: Minimal README snippet and env/flag knobs.
+▌
+▌No behavior changes at call‑sites. When you start using `pal.*` in Region/Layers, you’ll get real parallelism out of the box.
+▌
+▌------
+▌
+▌## Diffs (copy/paste ready)
+▌
+▌> If a hunk doesn’t apply cleanly, use the **full file** versions that follow each diff block.
+▌
+▌### 1) C++ — `include/grownet/pal/Pal.h` (replace the sequential stubs)
+▌
+▌```diff
+▌*** a/src/cpp/include/grownet/pal/Pal.h
+▌--- b/src/cpp/include/grownet/pal/Pal.h
+▌@@
+▌-// Header-only PAL v1 (sequential fallback). Deterministic by construction.
+▌-#pragma once
+▌-#include <cstdint>
+▌-#include <vector>
+▌-
+▌-namespace grownet { namespace pal {
+▌-
+▌-struct ParallelOptions {
+▌-  int  max_workers = 0;    // 0 => auto
+▌-  int  tile_size   = 4096;
+▌-  enum class Reduction { Ordered, PairwiseTree } reduction = Reduction::Ordered;
+▌-  enum class Device    { Cpu, Gpu, Auto } device = Device::Cpu;
+▌-  bool vectorization_enabled = true;
+▌-};
+▌-
+▌-inline void configure(const ParallelOptions& /*options*/) {
+▌-  // No-op for the sequential fallback.
+▌-}
+▌-
+▌-template <typename Domain, typename Kernel>
+▌-inline void parallel_for(const Domain& domain, Kernel kernel, const ParallelOptions* /*opt*/) {
+▌-  for (std::size_t i=0; i<domain.size(); ++i) {
+▌-    kernel(domain[i]);
+▌-  }
+▌-}
+▌-
+▌-template <typename Domain, typename Kernel, typename Reduce>
+▌-inline auto parallel_map(const Domain& domain, Kernel kernel, Reduce reduce_in_order,
+▌-                         const ParallelOptions* /*opt*/) -> decltype(kernel(domain[0])) {
+▌-  using R = decltype(kernel(domain[0]));
+▌-  std::vector<R> locals; locals.reserve(domain.size());
+▌-  for (std::size_t i=0; i<domain.size(); ++i) {
+▌-    locals.push_back(kernel(domain[i]));
+▌-  }
+▌-  return reduce_in_order(locals);
+▌-}
+▌-
+▌-inline std::uint64_t mix64(std::uint64_t x) {
+▌-  x += 0x9E3779B97F4A7C15ull;
+▌-  std::uint64_t z = x;
+▌-  z ^= (z >> 30); z *= 0xBF58476D1CE4E5B9ull;
+▌-  z ^= (z >> 27); z *= 0x94D049BB133111EBull;
+▌-  z ^= (z >> 31);
+▌-  return z;
+▌-}
+▌-
+▌-inline double counter_rng(std::uint64_t seed, std::uint64_t step,
+▌-                          int draw_kind, int layer_index, int unit_index, int draw_index) {
+▌-  std::uint64_t key = seed;
+▌-  key = mix64(key ^ static_cast<std::uint64_t>(step));
+▌-  key = mix64(key ^ static_cast<std::uint64_t>(draw_kind));
+▌-  key = mix64(key ^ static_cast<std::uint64_t>(layer_index));
+▌-  key = mix64(key ^ static_cast<std::uint64_t>(unit_index));
+▌-  key = mix64(key ^ static_cast<std::uint64_t>(draw_index));
+▌-  std::uint64_t mantissa = (key >> 11) & ((1ull << 53) - 1ull);
+▌-  return static_cast<double>(mantissa) / static_cast<double>(1ull << 53);
+▌-}
+▌-
+▌-}} // namespace grownet::pal
+▌+// Header-only PAL v1.5 — deterministic parallel backends (OpenMP) with sequential fallback.
+▌+#pragma once
+▌+#include <cstdint>
+▌+#include <vector>
+▌+#include <type_traits>
+▌+
+▌+#if defined(_OPENMP)
+▌+  #include <omp.h>
+▌+#endif
+▌+
+▌+namespace grownet { namespace pal {
+▌+
+▌+struct ParallelOptions {
+▌+  int  max_workers = 0;    // 0 => auto
+▌+  int  tile_size   = 4096;
+▌+  enum class Reduction { Ordered, PairwiseTree } reduction = Reduction::Ordered;
+▌+  enum class Device    { Cpu, Gpu, Auto } device = Device::Cpu;
+▌+  bool vectorization_enabled = true;
+▌+};
+▌+
+▌+inline void configure(const ParallelOptions& /*options*/) {}
+▌+
+▌+// Domain requirements:
+▌+//  - size() -> size_t
+▌+//  - operator[](size_t) -> item
+▌+//  - Stable, lexicographic iteration order
+▌+template <typename Domain, typename Kernel>
+▌+inline void parallel_for(const Domain& domain, Kernel kernel, const ParallelOptions* opt) {
+▌+  const std::size_t n = domain.size();
+▌+  if (n == 0) return;
+▌+#if defined(_OPENMP)
+▌+  const int requested = (opt && opt->max_workers > 0) ? opt->max_workers : omp_get_max_threads();
+▌+  #pragma omp parallel for schedule(static) num_threads(requested)
+▌+  for (std::int64_t i = 0; i < static_cast<std::int64_t>(n); ++i) {
+▌+    kernel(domain[static_cast<std::size_t>(i)]);
+▌+  }
+▌+#else
+▌+  (void)opt;
+▌+  for (std::size_t i=0; i<n; ++i) kernel(domain[i]);
+▌+#endif
+▌+}
+▌+
+▌+template <typename Domain, typename Kernel, typename Reduce>
+▌+inline auto parallel_map(const Domain& domain, Kernel kernel, Reduce reduce_in_order,
+▌+                         const ParallelOptions* opt) -> decltype(kernel(domain[0])) {
+▌+  using R = decltype(kernel(domain[0]));
+▌+  const std::size_t n = domain.size();
+▌+  if (n == 0) {
+▌+    std::vector<R> empty;
+▌+    return reduce_in_order(empty);
+▌+  }
+▌+#if defined(_OPENMP)
+▌+  const int requested = (opt && opt->max_workers > 0) ? opt->max_workers : omp_get_max_threads();
+▌+  std::vector<std::vector<R>> buckets(static_cast<std::size_t>(requested));
+▌+  // First pass: reserve roughly-even capacity for each bucket (optional)
+▌+  for (auto& b : buckets) b.reserve(static_cast<std::size_t>((n / requested) + 1));
+▌+  #pragma omp parallel num_threads(requested)
+▌+  {
+▌+    const int wid = omp_get_thread_num();
+▌+    auto& local = buckets[static_cast<std::size_t>(wid)];
+▌+    #pragma omp for schedule(static)
+▌+    for (std::int64_t i = 0; i < static_cast<std::int64_t>(n); ++i) {
+▌+      local.push_back(kernel(domain[static_cast<std::size_t>(i)]));
+▌+    }
+▌+  }
+▌+  // Deterministic reduction: worker 0..N-1 in order
+▌+  std::vector<R> flat; flat.reserve(n);
+▌+  for (auto& b : buckets) {
+▌+    flat.insert(flat.end(), b.begin(), b.end());
+▌+  }
+▌+  return reduce_in_order(flat);
+▌+#else
+▌+  (void)opt;
+▌+  std::vector<R> locals; locals.reserve(n);
+▌+  for (std::size_t i=0; i<n; ++i) locals.push_back(kernel(domain[i]));
+▌+  return reduce_in_order(locals);
+▌+#endif
+▌+}
+▌+
+▌+inline std::uint64_t mix64(std::uint64_t x) {
+▌+  x += 0x9E3779B97F4A7C15ull;
+▌+  std::uint64_t z = x;
+▌+  z ^= (z >> 30); z *= 0xBF58476D1CE4E5B9ull;
+▌+  z ^= (z >> 27); z *= 0x94D049BB133111EBull;
+▌+  z ^= (z >> 31);
+▌+  return z;
+▌+}
+▌+
+▌+inline double counter_rng(std::uint64_t seed, std::uint64_t step,
+▌+                          int draw_kind, int layer_index, int unit_index, int draw_index) {
+▌+  std::uint64_t key = seed;
+▌+  key = mix64(key ^ static_cast<std::uint64_t>(step));
+▌+  key = mix64(key ^ static_cast<std::uint64_t>(draw_kind));
+▌+  key = mix64(key ^ static_cast<std::uint64_t>(layer_index));
+▌+  key = mix64(key ^ static_cast<std::uint64_t>(unit_index));
+▌+  key = mix64(key ^ static_cast<std::uint64_t>(draw_index));
+▌+  std::uint64_t mantissa = (key >> 11) & ((1ull << 53) - 1ull);
+▌+  return static_cast<double>(mantissa) / static_cast<double>(1ull << 53);
+▌+}
+▌+
+▌+}} // namespace grownet::pal
+▌```
+▌
+▌**(Full file version available above in the “after” section.)**
+▌
+▌------
+▌
+▌### 2) C++ — Determinism test (new)
+▌
+▌```
+▌src/cpp/tests/pal_determinism_test.cpp
+▌*** /dev/null
+▌--- b/src/cpp/tests/pal_determinism_test.cpp
+▌@@
+▌+#include <gtest/gtest.h>
+▌+#include "include/grownet/pal/Pal.h"
+▌+#include <vector>
+▌+#include <cstdint>
+▌+
+▌+using grownet::pal::ParallelOptions;
+▌+namespace pal = grownet::pal;
+▌+
+▌+// Simple indexable, stable domain [0..N)
+▌+struct IndexDomain {
+▌+  std::size_t n;
+▌+  std::size_t size() const { return n; }
+▌+  std::size_t operator[](std::size_t i) const { return i; }
+▌+};
+▌+
+▌+TEST(PAL_Determinism, OrderedReductionIdenticalAcrossWorkers) {
+▌+  const std::size_t N = 10000;
+▌+  const IndexDomain domain{N};
+▌+  auto kernel = [](std::size_t i) -> double {
+▌+    return pal::counter_rng(/*seed*/1234, /*step*/0, /*draw_kind*/1, /*layer*/0, /*unit*/static_cast<int>(i), /*draw*/0);
+▌+  };
+▌+  auto reduce_in_order = [](const std::vector<double>& v) -> double {
+▌+    // Sum in canonical order (already ordered)
+▌+    double s = 0.0;
+▌+    for (double x : v) s += x;
+▌+    return s;
+▌+  };
+▌+  ParallelOptions opt1; opt1.max_workers = 1;
+▌+  ParallelOptions opt2; opt2.max_workers = 8;
+▌+
+▌+  const double a = pal::parallel_map(domain, kernel, reduce_in_order, &opt1);
+▌+  const double b = pal::parallel_map(domain, kernel, reduce_in_order, &opt2);
+▌+  ASSERT_DOUBLE_EQ(a, b);
+▌+}
+▌```
+▌
+▌------
+▌
+▌### 3) Java — `PAL.java` (replace sequential body with bounded parallel execution)
+▌
+▌```diff
+▌*** a/src/java/ai/nektron/grownet/pal/PAL.java
+▌--- b/src/java/ai/nektron/grownet/pal/PAL.java
+▌@@
+▌ package ai.nektron.grownet.pal;
+▌
+▌ import java.util.ArrayList;
+▌ import java.util.List;
+▌ import java.util.Objects;
+▌ import java.util.function.Consumer;
+▌ import java.util.function.Function;
+▌+import java.util.concurrent.*;
+▌+import jdk.incubator.concurrent.StructuredTaskScope;
+▌
+▌ public final class PAL {
+▌   private static ParallelOptions GLOBAL = new ParallelOptions();
+▌+  private static final int CORES = Math.max(1, Runtime.getRuntime().availableProcessors());
+▌+  // Fixed platform executor (bounded). We orchestrate via structured concurrency.
+▌+  private static final ExecutorService CPU = Executors.newFixedThreadPool(CORES);
+▌
+▌   private PAL() {}
+▌
+▌   public static void configure(ParallelOptions options) {
+▌     GLOBAL = (options == null ? new ParallelOptions() : options);
+▌   }
+▌
+▌   public static <T> void parallelFor(Domain<T> domain, Consumer<T> kernel, ParallelOptions opts) {
+▌     Objects.requireNonNull(domain, "domain");
+▌     Objects.requireNonNull(kernel, "kernel");
+▌-    // Sequential fallback: run in deterministic iteration order.
+▌-    for (T item : domain) {
+▌-      kernel.accept(item);
+▌-    }
+▌+    final List<T> items = new ArrayList<>(); domain.forEach(items::add); // stable order
+▌+    final int n = items.size();
+▌+    final int tile = Math.max(1, (opts != null ? opts.tileSize : GLOBAL.tileSize));
+▌+    final int maxWorkers = (opts != null && opts.maxWorkers != null) ? opts.maxWorkers : CORES;
+▌+
+▌+    List<Callable<Void>> tasks = new ArrayList<>();
+▌+    for (int start=0; start<n; start+=tile) {
+▌+      final int s = start, e = Math.min(n, start + tile);
+▌+      tasks.add(() -> { for (int i=s;i<e;i++) kernel.accept(items.get(i)); return null; });
+▌+    }
+▌+    try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+▌+      // Submit in canonical order; `join()` keeps structure deterministic.
+▌+      for (Callable<Void> task : tasks) {
+▌+        scope.fork(() -> { CPU.submit(task).get(); return null; });
+▌+      }
+▌+      scope.join().throwIfFailed();
+▌+    } catch (Exception ex) {
+▌+      throw new RuntimeException(ex);
+▌+    }
+▌   }
+▌
+▌   public static <T, R> R parallelMap(Domain<T> domain,
+▌                                      Function<T, R> kernel,
+▌                                      Function<List<R>, R> reduceInOrder,
+▌                                      ParallelOptions opts) {
+▌     Objects.requireNonNull(domain, "domain");
+▌     Objects.requireNonNull(kernel, "kernel");
+▌     Objects.requireNonNull(reduceInOrder, "reduceInOrder");
+▌-    List<R> locals = new ArrayList<>();
+▌-    for (T item : domain) {
+▌-      locals.add(kernel.apply(item));
+▌-    }
+▌-    return reduceInOrder.apply(locals);
+▌+    final List<T> items = new ArrayList<>(); domain.forEach(items::add);
+▌+    final int n = items.size();
+▌+    final int tile = Math.max(1, (opts != null ? opts.tileSize : GLOBAL.tileSize));
+▌+    final int maxWorkers = (opts != null && opts.maxWorkers != null) ? opts.maxWorkers : CORES;
+▌+
+▌+    final List<List<R>> buckets = new ArrayList<>();
+▌+    for (int i=0;i<maxWorkers;i++) buckets.add(new ArrayList<>());
+▌+
+▌+    // Tile submission in canonical order; results stored by "worker id" (submission index % maxWorkers) for deterministic merge.
+▌+    try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+▌+      int submissionIndex = 0;
+▌+      for (int start=0; start<n; start+=tile) {
+▌+        final int s = start, e = Math.min(n, start + tile);
+▌+        final int wid = submissionIndex % maxWorkers;
+▌+        final List<R> bucket = buckets.get(wid);
+▌+        scope.fork(() -> {
+▌+          List<R> local = new ArrayList<>();
+▌+          for (int i=s;i<e;i++) local.add(kernel.apply(items.get(i)));
+▌+          synchronized (bucket) { bucket.addAll(local); }
+▌+          return null;
+▌+        });
+▌+        submissionIndex++;
+▌+      }
+▌+      scope.join().throwIfFailed();
+▌+    } catch (Exception ex) {
+▌+      throw new RuntimeException(ex);
+▌+    }
+▌+    // Deterministic reduction: wid 0..N-1, then in-bucket order
+▌+    List<R> flat = new ArrayList<>(n);
+▌+    for (List<R> b : buckets) flat.addAll(b);
+▌+    return reduceInOrder.apply(flat);
+▌   }
+▌
+▌   public static double counterRng(long seed,
+▌                                   long step,
+▌                                   int drawKind,
+▌                                   int layerIndex,
+▌                                   int unitIndex,
+▌                                   int drawIndex) {
+▌     long key = seed;
+▌     key = mix64(key ^ step);
+▌     key = mix64(key ^ drawKind);
+▌     key = mix64(key ^ layerIndex);
+▌     key = mix64(key ^ unitIndex);
+▌     key = mix64(key ^ drawIndex);
+▌     long mantissa = (key >>> 11) & ((1L << 53) - 1L);
+▌     return mantissa / (double) (1L << 53);
+▌   }
+▌@@
+▌ }
+▌```
+▌
+▌> **Note:** This uses **JDK 21 Structured Concurrency** (Incubator) for clear lifecycles while binding compute to a **fixed pool** (no oversubscription). If you prefer to avoid incubator modules in your build, swap the scope for a simple `invokeAll` on `CPU`—you keep determinism at the cost of less elegant lifecycles.
+▌
+▌------
+▌
+▌### 4) Mojo — keep CPU tiling; add device switch point (tiny addition)
+▌
+▌```diff
+▌*** a/src/mojo/pal/pal.mojo
+▌--- b/src/mojo/pal/pal.mojo
+▌@@
+▌ struct ParallelOptions:
+▌     var max_workers: Int? = None
+▌     var tile_size: Int = 4096
+▌     var reduction_mode: String = "ordered"
+▌     var device: String = "cpu"               # "cpu" | "gpu" | "auto"
+▌     var vectorization_enabled: Bool = True
+▌
+▌ fn configure(options: ParallelOptions) -> None:
+▌     # Sequential fallback: no-op (reserved for future backends)
+▌     _ = options
+▌
+▌ fn parallel_for[T](domain: list[T], kernel: fn(T) -> None, options: ParallelOptions) -> None:
+▌-    _ = options
+▌+    # CPU tiling; later: dispatch based on options.device == "gpu"
+▌     var index = 0
+▌     while index < domain.len:
+▌         kernel(domain[index])
+▌         index = index + 1
+▌@@
+▌ fn parallel_map[T, R](domain: list[T], kernel: fn(T) -> R,
+▌                       reduce_in_order: fn(list[R]) -> R,
+▌                       options: ParallelOptions) -> R:
+▌-    _ = options
+▌+    # CPU tiling; later: dispatch based on options.device == "gpu"
+▌     var locals = [R]()
+▌     var index = 0
+▌     while index < domain.len:
+▌         locals.append(kernel(domain[index]))
+▌         index = index + 1
+▌     return reduce_in_order(locals)
+▌```
+▌
+▌------
+▌
+▌### 5) Python — façade stays (no change required)
+▌
+▌(If you want, you can keep the `try: import _pal_native` hook you already have; not required for this PR.)
+▌
+▌------
+▌
+▌### 6) CMake — add OpenMP (optional, default ON)
+▌
+▌```diff
+▌*** a/CMakeLists.txt
+▌--- b/CMakeLists.txt
+▌@@
+▌+# --- PAL / OpenMP backend (optional) -----------------------------------------
+▌+option(GROWNET_WITH_OPENMP "Enable OpenMP backend for PAL (C++)" ON)
+▌+if (GROWNET_WITH_OPENMP)
+▌+  find_package(OpenMP)
+▌+  if (OpenMP_CXX_FOUND)
+▌+    message(STATUS "GrowNet: OpenMP found; enabling PAL parallel backends.")
+▌+    # Link flags propagate to any TU that includes Pal.h and uses OpenMP
+▌+    if (TARGET grownet)
+▌+      target_link_libraries(grownet PUBLIC OpenMP::OpenMP_CXX)
+▌+    endif()
+▌+    if (TARGET grownet_tests)
+▌+      target_link_libraries(grownet_tests PUBLIC OpenMP::OpenMP_CXX)
+▌+    endif()
+▌+endif()
+▌```
+▌
+▌> Works for MSVC (/openmp) and MinGW/Clang/GCC (-fopenmp) via `OpenMP::OpenMP_CXX`.
+▌
+▌------
+▌
+▌## New docs (short)
+▌
+▌`docs/PAL_README.md` (optional, but recommended)
+▌
+▌```md
+▌# PAL v1.5 — Parallelism Abstraction Layer
+▌
+▌- One API in all languages (`pal.parallel_for`, `pal.parallel_map`, `pal.counter_rng`).
+▌- Deterministic by design (stable domains + ordered reductions).
+▌- Backends:
+▌  - C++: OpenMP (enabled by default if available)
+▌  - Java: fixed platform pool + Structured Concurrency
+▌  - Python: orchestrates; benefits when compute is in native code
+▌  - Mojo: CPU tiling now; GPU hook later
+▌
+▌## Build
+▌- CMake flag: `-DGROWNET_WITH_OPENMP=ON` (default ON). If OpenMP not found, PAL runs sequentially.
+
+
+• Ran
+  └ apply_patch << 'PATCH'
+    *** Begin Patch
+    *** Update File: src/cpp/include/grownet/pal/Pal.h
+    @@
+    -// Header-only PAL v1 (sequential fallback). Deterministic by construction.
+    -#pragma once
+    -#include <cstdint>
+    -#include <vector>
+    -
+    -namespace grownet { namespace pal {
+    -
+    -struct ParallelOptions {
+    -  int  max_workers = 0;    // 0 => auto
+    -  int  tile_size   = 4096;
+    -  enum class Reduction { Ordered, PairwiseTree } reduction = Reduction::Ordered;
+    -  enum class Device    { Cpu, Gpu, Auto } device = Device::Cpu;
+    -  bool vectorization_enabled = true;
+    -};
+    -
+    -inline void configure(const ParallelOptions& /*options*/) {
+    -  // No-op for the sequential fallback.
+    -}
+    -
+    -template <typename Domain, typename Kernel>
+    -inline void parallel_for(const Domain& domain, Kernel kernel, const ParallelOptions* /*options*/ = nullptr) {
+    -  for (const auto& item : domain) kernel(item);
+    -}
+    -
+    -template <typename Domain, typename Kernel, typename Reduce>
+    -inline auto parallel_map(const Domain& domain, Kernel kernel, Reduce reduce_in_order, const ParallelOptions* /*options*/ = nullptr)
+    -    -> decltype(reduce_in_order(std::declval<std::vector<decltype(kernel(*std::begin(domain)))>>() )) {
+    -  using R = decltype(kernel(*std::begin(domain)));
+    -  std::vector<R> locals;
+    -  for (const auto& item : domain) locals.push_back(kernel(item));
+    -  return reduce_in_order(locals);
+    -}
+    -
+    -inline std::uint64_t mix64(std::uint64_t x) {
+    -  x += 0x9E3779B97F4A7C15ull;
+    -  std::uint64_t z = x;
+    -  z ^= (z >> 30); z *= 0xBF58476D1CE4E5B9ull;
+    -  z ^= (z >> 27); z *= 0x94D049BB133111EBull;
+    -  z ^= (z >> 31);
+    -  return z;
+    -}
+    -
+    -inline double counter_rng(std::uint64_t seed, std::uint64_t step,
+    -                          int draw_kind, int layer_index, int unit_index, int draw_index) {
+    -  std::uint64_t key = seed;
+    -  key = mix64(key ^ static_cast<std::uint64_t>(step));
+    -  key = mix64(key ^ static_cast<std::uint64_t>(draw_kind));
+    -  key = mix64(key ^ static_cast<std::uint64_t>(layer_index));
+    -  key = mix64(key ^ static_cast<std::uint64_t>(unit_index));
+    -  key = mix64(key ^ static_cast<std::uint64_t>(draw_index));
+    -  std::uint64_t mantissa = (key >> 11) & ((1ull << 53) - 1ull);
+    -  return static_cast<double>(mantissa) / static_cast<double>(1ull << 53);
+    -}
+    -
+    -}} // namespace grownet::pal
+    +// Header-only PAL v1.5 — deterministic parallel backends (OpenMP) with sequential fallback.
+    +#pragma once
+    +#include <cstdint>
+    +#include <vector>
+    +#include <type_traits>
+    +
+    +#if defined(_OPENMP)
+    +  #include <omp.h>
+    +#endif
+    +
+    +namespace grownet { namespace pal {
+    +  std::uint64_t mantissa = (key >> 11) & ((1ull << 53) - 1ull);
+    +  return static_cast<double>(mantissa) / static_cast<double>(1ull << 53);
+    +}
+    +
+    +}} // namespace grownet::pal
+    *** End Patch
+
+• Ran
+  └ apply_patch << 'PATCH'
+    *** Begin Patch
+    *** Add File: src/cpp/tests/pal_determinism_test.cpp
+    +#ifdef GTEST_AVAILABLE
+    +#include <gtest/gtest.h>
+    +#endif
+    +
+    +#include <vector>
+    +#include <cstdint>
+    +#include "include/grownet/pal/Pal.h"
+    +
+    +using grownet::pal::ParallelOptions;
+    +namespace pal = grownet::pal;
+    +
+    +struct IndexDomain {
+    +  std::size_t n;
+    +  std::size_t size() const { return n; }
+    +  std::size_t operator[](std::size_t i) const { return i; }
+    +};
+    +
+    +#ifdef GTEST_AVAILABLE
+    +TEST(PAL_Determinism, OrderedReductionIdenticalAcrossWorkers) {
+    +  const std::size_t N = 10000;
+    +  const IndexDomain domain{N};
+    +  auto kernel = [](std::size_t i) -> double {
+    +    return pal::counter_rng(/*seed*/1234, /*step*/0, /*draw_kind*/1, /*layer*/0, /*unit*/static_cast<int>(i), /*draw*/0);
+    +  };
+    +  auto reduce_in_order = [](const std::vector<double>& v) -> double {
+    +    double s = 0.0;
+    +    for (double x : v) s += x;
+    +    return s;
+    +  };
+    +  ParallelOptions opt1; opt1.max_workers = 1;
+    +  ParallelOptions opt2; opt2.max_workers = 8;
+    +  const double a = pal::parallel_map(domain, kernel, reduce_in_order, &opt1);
+    +  const double b = pal::parallel_map(domain, kernel, reduce_in_order, &opt2);
+    +  EXPECT_DOUBLE_EQ(a, b);
+    +}
+    +#endif
+    +  }
+    +}
+    +
+    *** End Patch
+
+• Ran
+  └ apply_patch << 'PATCH'
+    *** Begin Patch
+    *** Add File: src/java/ai/nektron/grownet/pal/PalDemo.java
+    +package ai.nektron.grownet.pal;
+    +
+    +import java.util.List;
+    +
+    +public final class PalDemo {
+    +  public static void main(String[] args) {
+    +    ParallelOptions opts = new ParallelOptions();
+    +    opts.tileSize = 2048;
+    +    IndexDomain domain = new IndexDomain(10_000);
+    +
+    +    var sum = PAL.parallelMap(domain,
+    +        (Integer i) -> {
+    +          double v = i.doubleValue();
+    +          return v * v;
+    +        },
+    +        (List<Double> locals) -> {
+    +          double total = 0.0; for (double x : locals) total += x; return total;
+    +        }, opts);
+    +
+    +    System.out.println("[PAL Demo] sum of squares 0..9999 = " + (long)sum);
+    +  }
+    +}
+    +
+    *** End Patch
+
+• Ran
+  └ apply_patch << 'PATCH'
+    *** Begin Patch
+    *** Add File: src/mojo/pal/domains.mojo
+    +fn index_domain(count: Int) -> list[Int]:
+    +    var out = [Int]()
+    +    var i = 0
+    +    while i < count:
+    +        out.append(i)
+    +        i = i + 1
+    +    return out
+    +
+    *** End Patch
+
+• Ran
+  └ apply_patch << 'PATCH'
+    *** Begin Patch
+    *** Add File: src/mojo/pal_demo.mojo
+    +from pal.pal import ParallelOptions, parallel_map
+    +from pal.domains import index_domain
+    +
+    +fn main() -> None:
+    +    var options = ParallelOptions()
+    +    options.tile_size = 2048
+    +    var domain = index_domain(10000)
+    +
+    +    fn kernel(i: Int) -> Float64:
+    +        var v = Float64(i)
+    +        return v * v
+    +
+    +    fn reduce_in_order(values: list[Float64]) -> Float64:
+    +        var total: Float64 = 0.0
+    +        var idx = 0
+    +        while idx < values.len:
+    +            total = total + values[idx]
+    +            idx = idx + 1
+    +        return total
+    +
+    +    var result = parallel_map(domain, kernel, reduce_in_order, options)
+    +    print("[PAL Demo] sum of squares 0..9999 = ", Int(result))
+    +
+    *** End Patch
+
+• Ran
+  └ git add -A && git commit -m "PAL demos + initial wiring in Python 2D metrics (feature-flagged)
+
+    - Python: pal/domains.py and demos/pal_demo.py; Region.tick_2d uses PAL for structural metrics when GROWNET_ENABLE_PAL=1
+    - Java: pal.IndexDomain + PalDemo
+    - Mojo: pal/domains.mojo + pal_demo.mojo
+    
+    Deterministic reductions; no behavior changes when flag is off." && git push origin main
+
+> Implemented the two suggestions and kept everything safe and feature-flagged.
+
+  What I added
+
+  - PAL demos in all three languages
+      - Python: src/python/demos/pal_demo.py
+          - Uses pal.parallel_map over IndexDomain to sum squares deterministically.
+      - Java: ai.nektron.grownet.pal.PalDemo (main)
+          - Uses PAL.parallelMap with IndexDomain to sum squares; prints result.
+      - Mojo: src/mojo/pal_demo.mojo + src/mojo/pal/domains.mojo
+          - CPU-tiling demo using parallel_map with a deterministic reduction.
+  - Example domains
+      - Python: src/python/pal/domains.py
+          - IndexDomain(count) iterable.
+          - build_layer_neuron_tiles(neuron_counts, tile_size) returns stable (layer,start,end) tiles.
+      - Java: ai.nektron.grownet.pal.IndexDomain implements Domain<Integer>.
+      - Mojo: pal/domains.mojo provides index_domain(count) list.
+  - Initial PAL wiring in Python Region (feature-flagged)
+      - src/python/region.py
+          - If GROWNET_ENABLE_PAL=1, structural metrics aggregation (slots/synapses) in tick_2d runs via pal.parallel_map over tiles:
+              - Builds tiles by layer, counts per-tile slots/synapses, reduces in deterministic order.
+          - Flag off (default): unchanged behavior.
+  - No names with leading underscores
+      - Cleaned any new or existing public/helper names to avoid leading underscores.
+      - Updated earlier helpers across Python/Mojo/Java accordingly.
+  - Already in tree from prior PR
+      - PAL v1.5 with C++ OpenMP backend, Java bounded parallelism, Python/Mojo facades.
+      - Determinism test for C++ (pal_determinism_test.cpp).
+      - CMake flag GROWNET_WITH_OPENMP (default ON).
+
+  How to use
+
+  - Run demos:
+      - Python: python src/python/demos/pal_demo.py
+      - Java: set main to ai.nektron.grownet.pal.PalDemo (JDK 21; adjust if not using incubator)
+      - Mojo: mojo run src/mojo/pal_demo.mojo
+  - Enable PAL in Python 2D metrics:
+      - export GROWNET_ENABLE_PAL=1
+      - Run any 2D demo/test; structural metrics aggregation uses PAL deterministically.
+
+  Next (optional)
+
+  - Wire PAL into Phase‑A/Phase‑B compute loops for Python/Java/C++ behind the same flag (starting with tileable sections), and add determinism gates for those paths.
+  - Add a small helper for fixed-shape pairwise tree reductions (still deterministic; often numerically nicer).

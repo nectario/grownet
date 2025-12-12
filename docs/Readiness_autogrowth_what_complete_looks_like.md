@@ -4,7 +4,7 @@ Based on everything we’ve implemented and discussed so far (slots→neurons→
 
 ## What “complete” looks like
 
-For **each language** (Python, C++, Java, Mojo), you should be able to answer **yes** to every item in the matrix:
+For **each language** (Python, C++, Java, Mojo, TypeScript, and Rust), you should be able to answer **yes** to every item in the matrix:
 
 ### A) Slot growth (in‑neuron)
 
@@ -50,7 +50,7 @@ For **each language** (Python, C++, Java, Mojo), you should be able to answer **
   - neuron fallback streak → growth + cooldown
   - autowiring smoke (mesh + windowed)
   - region pressure → single layer growth per tick; cooldown respected
--  **Docs**: `GROWTH.md` explains all three levels with knobs and short “enable it” snippets for Python/C++/Java/Mojo.
+-  **Docs**: `GROWTH.md` explains all three levels with knobs and short “enable it” snippets for Python/C++/Java/Mojo/TypeScript/Rust/TypeScript/Rust.
 
 ------
 

@@ -1,0 +1,46 @@
+# GrowNet Protocol (Python/ Mojo API surface · 2025-08-15T00:22:00.313713Z)
+# Snake_case method/function naming; mirrors Region / Layer / Neuron surface
+
+region:
+  metrics_fields: [delivered_events, total_slots, total_synapses]
+  methods:
+    - add_layer(excitatory_count, inhibitory_count, modulatory_count)
+    - add_input_layer_2d(height, width, gain, epsilon_fire)
+    - add_output_layer_2d(height, width, smoothing)
+    - connect_layers(source_index, dest_index, probability, feedback=False)
+    - bind_input(port, layer_indices)
+    - bind_output(port, layer_indices)
+    - pulse_inhibition(factor)
+    - pulse_modulation(factor)
+    - tick(port, value)
+    - tick_image(port, frame)
+
+layer:
+  methods:
+    - wire_random_feedforward(probability)
+    - wire_random_feedback(probability)
+    - forward(value)
+    - propagate_from(source_index, value)
+    - end_tick()
+
+neurons:
+  common_methods:
+    - on_input(value)
+    - on_output(amplitude)
+    - fire(input_value)
+    - end_tick()
+    - connect(target, feedback=False)
+    - register_fire_hook(callback)
+    - slots()
+
+  excitatory: neuron_excitatory.ExcitatoryNeuron
+  inhibitory: neuron_inhibitory.InhibitoryNeuron
+  modulatory: neuron_modulatory.ModulatoryNeuron
+  input: input_neuron.InputNeuron
+  output: output_neuron.OutputNeuron
+
+io_layers:
+  input_layer_2d: input_layer_2d.InputLayer2D
+  output_layer_2d: output_layer_2d.OutputLayer2D
+  
+
