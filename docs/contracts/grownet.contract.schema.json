@@ -1,0 +1,198 @@
+{
+  "$defs": {
+    "methodDef": {
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "params": {
+          "items": {
+            "$ref": "#/$defs/paramDef"
+          },
+          "type": "array"
+        },
+        "returns": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "params",
+        "returns",
+        "signature"
+      ],
+      "type": "object"
+    },
+    "paramDef": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "type": "object"
+    },
+    "typeDef": {
+      "additionalProperties": true,
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "group": {
+          "type": "string"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/methodDef"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sameAs": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fields",
+        "methods"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "grownet.contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "addendum": {
+      "additionalProperties": true,
+      "type": [
+        "object",
+        "array"
+      ]
+    },
+    "behavior": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "complianceChecklist": {
+      "additionalProperties": true,
+      "type": [
+        "object",
+        "array"
+      ]
+    },
+    "coreInvariants": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "diffFromV4": {
+      "additionalProperties": true,
+      "type": [
+        "object",
+        "array"
+      ]
+    },
+    "errorHandlingAndSafety": {
+      "additionalProperties": true,
+      "type": [
+        "object",
+        "array"
+      ]
+    },
+    "evaluation": {
+      "additionalProperties": true,
+      "type": [
+        "object",
+        "array"
+      ]
+    },
+    "languageConventions": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "meta": {
+      "additionalProperties": true,
+      "properties": {
+        "addendumVersion": {
+          "type": "string"
+        },
+        "authoritativeFormat": {
+          "enum": [
+            "json"
+          ],
+          "type": "string"
+        },
+        "contractVersion": {
+          "type": "string"
+        },
+        "generatedAt": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "addendumVersion",
+        "status",
+        "purpose",
+        "authoritativeFormat"
+      ],
+      "type": "object"
+    },
+    "publicApisByLanguage": {
+      "additionalProperties": true,
+      "type": [
+        "object",
+        "array"
+      ]
+    },
+    "types": {
+      "additionalProperties": {
+        "$ref": "#/$defs/typeDef"
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "meta",
+    "languageConventions",
+    "coreInvariants",
+    "behavior",
+    "types",
+    "addendum"
+  ],
+  "title": "GrowNet Contract Schema",
+  "type": "object"
+}

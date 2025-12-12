@@ -4,7 +4,7 @@ This document is a **high‑signal checklist** for keeping GrowNet consistent ac
 
 ## Source of truth
 
-1. **GrowNet_Contract_v5_master.yaml** — public APIs + invariants
+1. **contracts/grownet.contract.v5.json** — public APIs + invariants
 2. **GrowNet_Design_Spec_V5.md** — behavioral details (growth, tick phases, wiring)
 3. **CODING_STYLE_MUST_READ.md** — naming + clean code + determinism rules
 

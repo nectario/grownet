@@ -4,7 +4,7 @@ This file defines the **authoritative reading sequence** for internalizing GrowN
 
 ## Tie‑breakers (when docs disagree)
 
-1. **GrowNet_Contract_v5_master.yaml** — source of truth for **public APIs** and **cross‑language invariants**.
+1. **contracts/grownet.contract.v5.json** — source of truth for **public APIs** and **cross‑language invariants**.
 2. **GrowNet_Design_Spec_V5.md** — source of truth for **behavior** (growth rules, determinism, tick phases).
 3. **CODING_STYLE_MUST_READ.md** — source of truth for **style rules** (naming, determinism, clean code).
 4. Everything else — helpful guidance, but must not contradict the above.
@@ -31,7 +31,7 @@ Read these in order to load the correct mental model fast:
    *Why:* anchors the core promise: **“When the world looks truly new, GrowNet makes room.”**
 
 3) **Contract + Design Spec (authoritative)**
-   - `GrowNet_Contract_v5_master.yaml`
+   - `contracts/grownet.contract.v5.json`
    - `GrowNet_Design_Spec_V5.md`
    *Why:* defines the public surface and the exact invariants (growth, determinism, tick discipline).
 

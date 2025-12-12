@@ -39,7 +39,7 @@ Read these first to get oriented quickly:
 Use this path when you need exact semantics and cross-language parity details:
 
 - **Contract & spec**
-  - `docs/contracts/GrowNet_Contract_v5_master.yaml`
+  - `docs/contracts/grownet.contract.v5.json`
   - `docs/GrowNet_Design_Spec_V5.md`
 
 - **Growth mechanics**
