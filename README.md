@@ -166,6 +166,7 @@ A Rust workspace for Phase 1 (core data model + tick discipline + strict capac
 
 ## Build & test cheat sheet
 
+- **Contract enforcement (Phase 1)**: `make contract` (or `bash tools/contract/run_all_checks.sh`).
 - **Python**: `pytest` under `src/python/tests` (env `GROWNET_PAL_MAX_WORKERS` respected).
 - **C++**: CMake; run gtests under `src/cpp/tests` (OpenMP optional).
 - **Java**: JDK 21; `./mvnw -q -Dtest=*Test test` (Virtual Threads PAL).

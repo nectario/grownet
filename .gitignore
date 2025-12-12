@@ -26,6 +26,9 @@ package-lock.json
 # Archives
 *.zip
 
+# Contract tooling outputs
+tools/contract/parity/parity_results.json
+
 # Tests mirror/symlinks
 src/test/
 

@@ -1,0 +1,413 @@
+{
+  "contractVersion": 5,
+  "languages": {
+    "cpp": {
+      "categories": {
+        "Layer": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Layer.h",
+              "present": true,
+              "required": "endTick"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Layer.h",
+              "present": true,
+              "required": "tryGrowNeuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Region": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Region.h",
+              "present": true,
+              "required": "connectLayersWindowed"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Region.h",
+              "present": true,
+              "required": "requestLayerGrowth"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Region.h",
+              "present": true,
+              "required": "maybeGrowRegion"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 3
+        },
+        "SlotEngine": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/SlotEngine.h",
+              "present": true,
+              "required": "selectOrCreateSlot"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/SlotEngine.h",
+              "present": true,
+              "required": "selectOrCreateSlot2D"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Tract": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/cpp/Tract.h",
+              "present": true,
+              "required": "attachSourceNeuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 1
+        }
+      },
+      "pass": true
+    },
+    "java": {
+      "categories": {
+        "Layer": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/LateralBus.java",
+              "present": true,
+              "required": "endTick"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Layer.java",
+              "present": true,
+              "required": "tryGrowNeuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Region": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Region.java",
+              "present": true,
+              "required": "connectLayersWindowed"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Layer.java",
+              "present": true,
+              "required": "requestLayerGrowth"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Region.java",
+              "present": true,
+              "required": "maybeGrowRegion"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 3
+        },
+        "SlotEngine": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Neuron.java",
+              "present": true,
+              "required": "selectOrCreateSlot"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Neuron.java",
+              "present": true,
+              "required": "getConfig"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Tract": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/java/ai/nektron/grownet/Region.java",
+              "present": true,
+              "required": "attachSourceNeuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 1
+        }
+      },
+      "pass": true
+    },
+    "mojo": {
+      "categories": {
+        "Layer": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/layer.mojo",
+              "present": true,
+              "required": "fn end_tick"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/layer.mojo",
+              "present": true,
+              "required": "fn try_grow_neuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Region": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/region.mojo",
+              "present": true,
+              "required": "fn connect_layers_windowed"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/region.mojo",
+              "present": true,
+              "required": "fn request_layer_growth"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "SlotEngine": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/slot_engine.mojo",
+              "present": true,
+              "required": "fn select_or_create_slot"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/slot_engine.mojo",
+              "present": true,
+              "required": "fn select_or_create_slot_2d"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Tract": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/mojo/tract.mojo",
+              "present": true,
+              "required": "fn attach_source_neuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 1
+        }
+      },
+      "pass": true
+    },
+    "python": {
+      "categories": {
+        "Layer": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/layer.py",
+              "present": true,
+              "required": "def end_tick"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/layer.py",
+              "present": true,
+              "required": "def try_grow_neuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Region": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "present": true,
+              "required": "def add_layer"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "present": true,
+              "required": "def add_input_layer_2d"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "present": true,
+              "required": "def add_output_layer_2d"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "present": true,
+              "required": "def connect_layers_windowed"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "present": true,
+              "required": "def set_growth_policy"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/region.py",
+              "present": true,
+              "required": "def tick_2d"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 6
+        },
+        "SlotEngine": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/slot_engine.py",
+              "present": true,
+              "required": "def select_or_create_slot"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/slot_engine.py",
+              "present": true,
+              "required": "def select_or_create_slot_2d"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Tract": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/python/tract.py",
+              "present": true,
+              "required": "def attach_source_neuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 1
+        }
+      },
+      "pass": true
+    },
+    "rust": {
+      "categories": {
+        "Layer": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-core/src/layer.rs",
+              "present": true,
+              "required": "end_tick"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 1
+        },
+        "Region": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-bench/src/main.rs",
+              "present": true,
+              "required": "connect_layers_windowed"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-bench/src/main.rs",
+              "present": true,
+              "required": "tick_2d"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "SlotEngine": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-core/src/neuron.rs",
+              "present": true,
+              "required": "observe_scalar"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-core/src/neuron.rs",
+              "present": true,
+              "required": "observe_two_d"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Tract": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/rust/grownet-core/src/tract.rs",
+              "present": true,
+              "required": "attach_source_neuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 1
+        }
+      },
+      "pass": true
+    },
+    "typescript": {
+      "categories": {
+        "Layer": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "present": true,
+              "required": "endTick"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/core/Layer.ts",
+              "present": true,
+              "required": "tryGrowNeuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 2
+        },
+        "Region": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "present": true,
+              "required": "connectLayersWindowed"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "present": true,
+              "required": "setGrowthPolicy"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "present": true,
+              "required": "tick2D"
+            },
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "present": true,
+              "required": "tickND"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 4
+        },
+        "SlotEngine": {
+          "findings": [],
+          "missingCount": 0,
+          "requiredCount": 0
+        },
+        "Tract": {
+          "findings": [
+            {
+              "evidence": "/mnt/c/Development/Projects/GrowNet/src/typescript/grownet-ts/src/Region.ts",
+              "present": true,
+              "required": "attachSourceNeuron"
+            }
+          ],
+          "missingCount": 0,
+          "requiredCount": 1
+        }
+      },
+      "pass": true
+    }
+  }
+}
